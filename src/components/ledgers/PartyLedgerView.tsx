@@ -427,15 +427,15 @@ export const PartyLedgerView: React.FC = () => {
   return (
     <div className="p-2 sm:p-4 space-y-4 max-w-[1550px] mx-auto w-full text-[var(--text-primary)]">
       {/* 1. Top Header & Summary */}
-      <div className="bg-[var(--surface)] rounded-2xl shadow-sm border border-[var(--border-color)] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="bg-white dark:bg-[#0f172a] rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-orange-500/10 text-orange-400 rounded-xl border border-orange-500/30">
+          <div className="p-2.5 bg-orange-500/10 text-orange-600 dark:text-orange-400 rounded-xl border border-orange-500/30">
             <FileSpreadsheet className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-white">বাকি খাতা (গ্রাহক খতিয়ান, সংশোধন ও আদায়)</h1>
-            <p className="text-xs text-[var(--text-muted)] mt-0.5">
-              মোট অনাদায়ী বাকি: <strong className="text-orange-400 font-bold font-mono text-sm">{formatTakaBn(totalOutstanding, true)}</strong> ({toBnDigits(dues.length)} জন ক্রেতা)
+            <h1 className="text-xl font-extrabold text-slate-900 dark:text-white">বাকি খাতা (গ্রাহক খতিয়ান, সংশোধন ও আদায়)</h1>
+            <p className="text-xs text-slate-600 dark:text-slate-300 font-medium mt-0.5">
+              মোট অনাদায়ী বাকি: <strong className="text-orange-700 dark:text-orange-400 font-bold font-mono text-sm">{formatTakaBn(totalOutstanding, true)}</strong> ({toBnDigits(dues.length)} জন ক্রেতা)
             </p>
           </div>
         </div>

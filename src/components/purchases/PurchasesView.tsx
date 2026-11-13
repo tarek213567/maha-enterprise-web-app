@@ -254,21 +254,21 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
   return (
     <div className="space-y-6 max-w-[1550px] mx-auto w-full text-[var(--text-primary)]">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[var(--surface)] p-4 rounded-2xl border border-[var(--border-color)] shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-[#0f172a] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-amber-500/10 text-amber-400 rounded-xl border border-amber-500/30">
-            <Wheat className="w-5 h-5 text-amber-400" />
+          <div className="p-2.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl border border-amber-500/30">
+            <Wheat className="w-5 h-5 text-amber-600 dark:text-amber-400" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-lg font-bold text-white">
+              <h1 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white">
                 শস্য ক্রয় ও স্টক-ইন (Grain Purchase)
               </h1>
-              <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] font-bold rounded-md border border-amber-500/40">
+              <span className="px-2 py-0.5 bg-amber-500/20 text-amber-800 dark:text-amber-300 text-[10px] font-bold rounded-md border border-amber-500/40">
                 পাইকারি আড়ত চালান
               </span>
             </div>
-            <p className="text-xs text-[var(--text-muted)] mt-0.5">
+            <p className="text-xs text-slate-600 dark:text-slate-300 font-medium mt-0.5">
               কৃষক ও ব্যাপারীদের থেকে শস্য ক্রয়, স্টক এন্ট্রি ও তাৎক্ষণিক ভাউচার প্রস্তুতকরণ
             </p>
           </div>
@@ -276,7 +276,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
 
         <button
           onClick={loadData}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl border border-slate-700 cursor-pointer self-start sm:self-auto"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 cursor-pointer self-start sm:self-auto"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           <span>রিফ্রেশ</span>
@@ -286,77 +286,77 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
       {/* Top 4 Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 print:hidden">
         {/* Card 1: Gold / Amber Accent - আজকের মোট ক্রয় */}
-        <div className="bg-gradient-to-br from-amber-500/15 to-[var(--surface)] border border-amber-500/30 rounded-xl p-4 shadow-sm flex items-center justify-between">
+        <div className="bg-amber-50 dark:bg-[#1c1917] border-2 border-amber-300 dark:border-amber-500/40 rounded-xl p-4 shadow-sm flex items-center justify-between">
           <div className="space-y-1">
-            <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-xs">
+            <div className="flex items-center gap-1.5 text-amber-900 dark:text-amber-400 font-bold text-xs">
               <DollarSign className="w-3.5 h-3.5" />
               <span>আজকের মোট ক্রয়</span>
             </div>
-            <div className="text-xl font-black text-white">
+            <div className="text-2xl font-black text-slate-950 dark:text-white">
               {formatTakaBn(todaySummary.todayTotalAmount, true)}
             </div>
-            <div className="text-[11px] text-amber-300 font-medium">
+            <div className="text-[11px] text-amber-800 dark:text-amber-200/90 font-semibold">
               মোট {toBengaliNumber(todaySummary.todayCount)}টি চালান
             </div>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold text-lg">
+          <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold text-lg shadow-sm">
             ৳
           </div>
         </div>
 
         {/* Card 2: Orange Accent - আজকের মোট শস্য ও বস্তা */}
-        <div className="bg-gradient-to-br from-orange-500/15 to-[var(--surface)] border border-orange-500/30 rounded-xl p-4 shadow-sm flex items-center justify-between">
+        <div className="bg-orange-50 dark:bg-[#1c1917] border-2 border-orange-300 dark:border-orange-500/40 rounded-xl p-4 shadow-sm flex items-center justify-between">
           <div className="space-y-1">
-            <div className="flex items-center gap-1.5 text-orange-400 font-semibold text-xs">
+            <div className="flex items-center gap-1.5 text-orange-900 dark:text-orange-400 font-bold text-xs">
               <Wheat className="w-3.5 h-3.5" />
               <span>আজকের মোট শস্য ও বস্তা</span>
             </div>
-            <div className="text-xl font-black text-white">
+            <div className="text-2xl font-black text-slate-950 dark:text-white">
               {toBengaliNumber(todaySummary.todayTotalMon)} মণ
             </div>
-            <div className="text-[11px] text-orange-300 font-medium">
+            <div className="text-[11px] text-orange-800 dark:text-orange-200/90 font-semibold">
               ~{toBengaliNumber(todaySummary.todayTotalBags)} বস্তা ({toBengaliNumber(todaySummary.todayTotalKg)} কেজি)
             </div>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center text-orange-400">
+          <div className="w-10 h-10 rounded-xl bg-orange-500 text-white flex items-center justify-center shadow-sm">
             <Scale className="w-5 h-5" />
           </div>
         </div>
 
         {/* Card 3: Emerald Green Accent - পরিশোধিত নগদ */}
-        <div className="bg-gradient-to-br from-emerald-500/15 to-[var(--surface)] border border-emerald-500/30 rounded-xl p-4 shadow-sm flex items-center justify-between">
+        <div className="bg-emerald-50 dark:bg-[#06281e] border-2 border-emerald-300 dark:border-emerald-500/40 rounded-xl p-4 shadow-sm flex items-center justify-between">
           <div className="space-y-1">
-            <div className="flex items-center gap-1.5 text-emerald-400 font-semibold text-xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <div className="flex items-center gap-1.5 text-emerald-900 dark:text-emerald-400 font-bold text-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-600 dark:bg-emerald-400 animate-pulse"></span>
               <span>পরিশোধিত নগদ</span>
             </div>
-            <div className="text-xl font-black text-white">
+            <div className="text-2xl font-black text-slate-950 dark:text-white">
               {formatTakaBn(todaySummary.todayPaidAmount, true)}
             </div>
-            <div className="text-[11px] text-emerald-300 font-medium">
+            <div className="text-[11px] text-emerald-800 dark:text-emerald-200/90 font-semibold">
               নগদ ক্যাশ প্রদান সম্পন্ন
             </div>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold">
+          <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-sm">
             ✓
           </div>
         </div>
 
         {/* Card 4: Rose Red Accent - আজকের বকেয়া দেনা */}
-        <div className="bg-gradient-to-br from-rose-500/15 to-[var(--surface)] border border-rose-500/30 rounded-xl p-4 shadow-sm flex items-center justify-between">
+        <div className="bg-rose-50 dark:bg-[#2a0a18] border-2 border-rose-300 dark:border-rose-500/40 rounded-xl p-4 shadow-sm flex items-center justify-between">
           <div className="space-y-1">
-            <div className="flex items-center gap-1.5 text-rose-400 font-semibold text-xs">
+            <div className="flex items-center gap-1.5 text-rose-900 dark:text-rose-400 font-bold text-xs">
               <AlertCircle className="w-3.5 h-3.5" />
               <span>আজকের বকেয়া দেনা</span>
             </div>
-            <div className="text-xl font-black text-white">
+            <div className="text-2xl font-black text-slate-950 dark:text-white">
               {formatTakaBn(todaySummary.todayDueAmount, true)}
             </div>
-            <div className="text-[11px] text-rose-300 font-medium">
+            <div className="text-[11px] text-rose-800 dark:text-rose-200/90 font-semibold">
               পরিশোধ বাকি
             </div>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 font-bold">
+          <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold shadow-sm">
             !
           </div>
         </div>
@@ -372,20 +372,20 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
       {/* Main 2-Panel Content Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 print:hidden">
         {/* Left Panel: Purchase Form */}
-        <div className="lg:col-span-5 bg-[var(--surface)] border border-[var(--border-color)] rounded-xl p-5 shadow-sm space-y-4">
-          <div className="border-b border-[var(--border-color)] pb-3 flex items-center justify-between">
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
-              <Plus className="w-4 h-4 text-amber-400" />
-              নতুন শস্য ক্রয় এন্ট্রি ফর্ম
+        <div className="lg:col-span-5 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
+          <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex items-center justify-between">
+            <h2 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+              <Plus className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+              + নতুন শস্য ক্রয় এন্ট্রি ফর্ম
             </h2>
-            <span className="text-[11px] font-medium text-[var(--text-muted)] bg-[var(--app-bg)] px-2.5 py-1 rounded border border-[var(--border-color)] font-mono">
+            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded border border-slate-200 dark:border-slate-700 font-mono">
               {toBengaliNumber(now.getDate())}/{toBengaliNumber(now.getMonth() + 1)}/{toBengaliNumber(now.getFullYear())}
             </span>
           </div>
 
           <form noValidate onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-xs font-bold text-slate-900 dark:text-slate-100 mb-1">
                 বিক্রেতার নাম (ঐচ্ছিক)
               </label>
               <input
@@ -393,12 +393,12 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
                 placeholder="যেমন: কৃষক রহিম উদ্দিন (খালি রাখলে 'সাধারণ বিক্রেতা')"
                 value={sellerName}
                 onChange={(e) => setSellerName(e.target.value)}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
+                className="w-full bg-white dark:bg-[#0b111e] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-xs font-bold text-slate-900 dark:text-slate-100 mb-1">
                 মোবাইল নম্বর (ঐচ্ছিক)
               </label>
               <input
@@ -406,18 +406,18 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
                 placeholder="যেমন: ০১৭০০-০০০০০০"
                 value={sellerPhone}
                 onChange={(e) => setSellerPhone(e.target.value)}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
+                className="w-full bg-white dark:bg-[#0b111e] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono font-semibold"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-xs font-bold text-slate-900 dark:text-slate-100 mb-1">
                 শস্যের জাত নির্বাচন করুন *
               </label>
               <select
                 value={selectedCommodityId}
                 onChange={(e) => setSelectedCommodityId(Number(e.target.value))}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-amber-700 dark:text-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold"
+                className="w-full bg-white dark:bg-[#0b111e] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-amber-800 dark:text-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold"
               >
                 {commodities.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -429,7 +429,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-bold text-slate-900 dark:text-slate-100 mb-1">
                   মোট ওজন (মণ) *
                 </label>
                 <input
@@ -439,15 +439,15 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
                   value={quantityMonInput}
                   onFocus={(e) => e.target.select()}
                   onChange={(e) => setQuantityMonInput(toBengaliDigits(e.target.value))}
-                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold font-mono"
+                  className="w-full bg-white dark:bg-[#0b111e] border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold font-mono"
                 />
-                <span className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 block font-medium">
+                <span className="text-[10px] text-amber-700 dark:text-amber-400 mt-1 block font-bold">
                   {toBengaliNumber(totalKg)} কেজি [৪০ কেজিতে মণ]
                 </span>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-bold text-slate-900 dark:text-slate-100 mb-1">
                   + কেজি (ঐচ্ছিক)
                 </label>
                 <input
@@ -457,16 +457,16 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
                   value={quantityKgInput}
                   onFocus={(e) => e.target.select()}
                   onChange={(e) => setQuantityKgInput(toBengaliDigits(e.target.value))}
-                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-sm text-amber-700 dark:text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold font-mono"
+                  className="w-full bg-white dark:bg-[#0b111e] border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-sm text-amber-800 dark:text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold font-mono"
                 />
-                <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 block font-medium">
+                <span className="text-[10px] text-slate-600 dark:text-slate-300 mt-1 block font-semibold">
                   = {toBengaliNumber(quantityMon.toFixed(2))} মণ
                 </span>
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-xs font-bold text-slate-900 dark:text-slate-100 mb-1">
                 দর (মণ ৳) *
               </label>
               <input
@@ -476,15 +476,15 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
                 value={pricePerMonInput}
                 onFocus={(e) => e.target.select()}
                 onChange={(e) => setPricePerMonInput(toBengaliDigits(e.target.value))}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold font-mono"
+                className="w-full bg-white dark:bg-[#0b111e] border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold font-mono"
               />
-              <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 block font-medium">
+              <span className="text-[10px] text-slate-600 dark:text-slate-300 mt-1 block font-semibold">
                 ৳{toBengaliNumber((pricePerMon / 40).toFixed(1))}/কেজি
               </span>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-xs font-bold text-slate-900 dark:text-slate-100 mb-1">
                 বস্তার সংখ্যা (ঐচ্ছিক)
               </label>
               <input
@@ -493,21 +493,21 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
                 placeholder={`স্বয়ংক্রিয়: ~${toBengaliNumber(defaultBags)} বস্তা`}
                 value={bagsCountInput}
                 onChange={(e) => setBagsCountInput(toBengaliDigits(e.target.value))}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
+                className="w-full bg-white dark:bg-[#0b111e] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono font-semibold"
               />
             </div>
 
             {/* Total Amount Badge */}
-            <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg flex items-center justify-between">
-              <span className="text-xs font-medium text-slate-600 dark:text-slate-400">মোট শস্যের মূল্য:</span>
-              <span className="text-base font-bold text-amber-600 dark:text-amber-400">
+            <div className="p-3 bg-amber-50/80 dark:bg-slate-900 border border-amber-200 dark:border-slate-800 rounded-lg flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-900 dark:text-slate-200">মোট শস্যের মূল্য:</span>
+              <span className="text-base font-black text-amber-700 dark:text-amber-400 font-mono">
                 {formatTakaBn(totalAmount, true)}
               </span>
             </div>
 
             {/* Payment Type */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+              <label className="block text-xs font-bold text-slate-900 dark:text-slate-100 mb-1.5">
                 পরিশোধের ধরন *
               </label>
               <div className="grid grid-cols-3 gap-2">
@@ -519,7 +519,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
                     className={`py-2 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
                       paymentType === type
                         ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-md font-bold'
-                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:border-amber-500/50'
+                        : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:border-amber-500/50'
                     }`}
                   >
                     {type === 'CASH' && 'নগদ পরিশোধ'}
@@ -532,9 +532,9 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
 
             {/* Partial Cash Input */}
             {paymentType === 'PARTIAL' && (
-              <div className="p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg space-y-2">
+              <div className="p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 rounded-lg space-y-2">
                 <div>
-                  <label className="block text-xs font-semibold text-amber-800 dark:text-amber-300 mb-1">
+                  <label className="block text-xs font-bold text-amber-950 dark:text-amber-300 mb-1">
                     নগদ জমা টাকা (৳) *
                   </label>
                   <input
@@ -543,10 +543,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
                     placeholder="যেমন: ৫০০০০"
                     value={paidAmountInput}
                     onChange={(e) => setPaidAmountInput(toBengaliDigits(e.target.value))}
-                    className="w-full bg-white dark:bg-slate-900 border border-amber-400 dark:border-amber-500/40 rounded-lg px-3 py-2 text-sm text-emerald-600 dark:text-emerald-400 font-bold font-mono focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full bg-white dark:bg-[#0b111e] border border-amber-400 dark:border-amber-500/40 rounded-lg px-3 py-2 text-sm text-emerald-700 dark:text-emerald-400 font-bold font-mono focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
-                <div className="flex justify-between text-xs text-rose-600 dark:text-rose-300 font-semibold pt-1 border-t border-amber-500/20">
+                <div className="flex justify-between text-xs text-rose-700 dark:text-rose-300 font-bold pt-1 border-t border-amber-500/20">
                   <span>অবশিষ্ট বাকি থাকবে:</span>
                   <span>{formatTakaBn(dueAmount, true)}</span>
                 </div>
@@ -554,7 +554,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-xs font-bold text-slate-900 dark:text-slate-100 mb-1">
                 মন্তব্য / ওজন স্লিপ নং (ঐচ্ছিক)
               </label>
               <input
@@ -562,14 +562,14 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
                 placeholder="যেমন: ওজন স্লিপ নং ৫২৮, ড্রাইভার করিম"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                className="w-full bg-white dark:bg-[#0b111e] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
               />
             </div>
 
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-2.5 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold rounded-lg text-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+              className="w-full py-2.5 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-lg text-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
             >
               <Wheat className="w-4 h-4" />
               {submitting ? 'সংরক্ষণ হচ্ছে...' : '🌾 শস্য ক্রয় ও মজুদে জমা'}
@@ -578,14 +578,14 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
         </div>
 
         {/* Right Panel: Itemized Purchase List Table */}
-        <div className="lg:col-span-7 bg-[var(--surface)] border border-[var(--border-color)] rounded-xl p-5 shadow-sm flex flex-col justify-between space-y-4">
+        <div className="lg:col-span-7 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm flex flex-col justify-between space-y-4">
           <div className="space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
               <div>
-                <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
                   শস্য ক্রয় খতিয়ান ও তালিকা
                 </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-slate-600 dark:text-slate-400 font-medium">
                   {selectedTab === 'TODAY' ? 'আজকের দিনের আইটেমাইজড তালিকা' : 'সকল সাম্প্রতিক শস্য ক্রয় চালানের রেকর্ড'}
                 </p>
               </div>
@@ -598,7 +598,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
                   className={`px-3 py-1 text-xs rounded-md font-semibold transition-all cursor-pointer ${
                     selectedTab === 'TODAY'
                       ? 'bg-amber-500 text-slate-950 shadow-sm font-bold'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white'
                   }`}
                 >
                   আজকের শস্য ক্রয় ({toBengaliNumber(todayPurchases.length)})
@@ -609,7 +609,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
                   className={`px-3 py-1 text-xs rounded-md font-semibold transition-all cursor-pointer ${
                     selectedTab === 'ALL'
                       ? 'bg-amber-500 text-slate-950 shadow-sm font-bold'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white'
                   }`}
                 >
                   পূর্বের শস্য ক্রয় ({toBengaliNumber(pastPurchases.length)})
@@ -620,7 +620,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
             <div className="overflow-x-auto max-h-[460px] overflow-y-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-900 sticky top-0">
+                  <tr className="border-b border-slate-300 dark:border-slate-800 text-[11px] font-bold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-900 sticky top-0">
                     <th className="py-2.5 px-3">চালান ও সময়</th>
                     <th className="py-2.5 px-3">বিক্রেতা ও ফোন</th>
                     <th className="py-2.5 px-3">জাত</th>
@@ -634,7 +634,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-xs">
                   {displayPurchases.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-500 dark:text-slate-400">
+                      <td colSpan={8} className="py-12 text-center text-slate-500 dark:text-slate-400 font-medium">
                         {selectedTab === 'TODAY' ? 'আজকের দিনে কোনো শস্য ক্রয় চালান এন্ট্রি হয়নি' : 'কোনো শস্য ক্রয় চালান রেকর্ড নেই'}
                       </td>
                     </tr>
@@ -647,49 +647,49 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
                       return (
                         <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                           <td className="py-3 px-3">
-                            <div className="font-semibold text-slate-900 dark:text-white">{p.invoice_no}</div>
-                            <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                            <div className="font-bold text-slate-900 dark:text-white">{p.invoice_no}</div>
+                            <div className="text-[10px] text-slate-600 dark:text-slate-400 font-medium">
                               {dateStr} {timeStr ? `• ${timeStr}` : ''}
                             </div>
                           </td>
                           <td className="py-3 px-3">
-                            <div className="font-medium text-slate-900 dark:text-white">{p.party_name || 'সাধারণ বিক্রেতা'}</div>
+                            <div className="font-bold text-slate-900 dark:text-white">{p.party_name || 'সাধারণ বিক্রেতা'}</div>
                             {p.party_phone ? (
-                              <div className="text-[10px] text-amber-600 dark:text-amber-400/80 font-mono">{p.party_phone}</div>
+                              <div className="text-[10px] text-amber-700 dark:text-amber-400 font-mono font-medium">{p.party_phone}</div>
                             ) : (
                               <div className="text-[10px] text-slate-400">-</div>
                             )}
                           </td>
                           <td className="py-3 px-3">
-                            <span className="px-2 py-0.5 rounded text-[11px] bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium border border-amber-500/20">
+                            <span className="px-2 py-0.5 rounded text-[11px] bg-amber-500/10 text-amber-800 dark:text-amber-300 font-bold border border-amber-500/30">
                               {p.commodity_name || 'শস্য'}
                             </span>
                           </td>
                           <td className="py-3 px-3 text-right">
-                            <div className="font-bold text-slate-900 dark:text-white">
+                            <div className="font-black text-slate-950 dark:text-white">
                               {toBengaliNumber(p.net_weight_mon)} মণ
                             </div>
-                            <div className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                            <div className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold">
                               ~{toBengaliNumber(p.bags_count)} বস্তা ({toBengaliNumber(p.net_weight_kg)} কেজি)
                             </div>
                           </td>
-                          <td className="py-3 px-3 text-right text-slate-700 dark:text-slate-300 font-mono font-medium">
+                          <td className="py-3 px-3 text-right text-slate-900 dark:text-slate-200 font-mono font-bold">
                             {formatTakaBn(p.rate_per_mon, true)}
                           </td>
-                          <td className="py-3 px-3 text-right font-bold text-amber-600 dark:text-amber-400 font-mono">
+                          <td className="py-3 px-3 text-right font-black text-amber-700 dark:text-amber-400 font-mono">
                             {formatTakaBn(p.gross_amount, true)}
                           </td>
                           <td className="py-3 px-3 text-center">
                             {p.due_amount <= 0 ? (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold border border-emerald-500/30">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-400 font-bold border border-emerald-300 dark:border-emerald-500/30">
                                 নগদ পরিশোধ
                               </span>
                             ) : p.paid_amount <= 0 ? (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] bg-rose-500/10 text-rose-700 dark:text-rose-400 font-bold border border-rose-500/30">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] bg-rose-50 text-rose-800 dark:bg-rose-500/10 dark:text-rose-400 font-bold border border-rose-300 dark:border-rose-500/30">
                                 সম্পূর্ণ বাকি
                               </span>
                             ) : (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-500/10 text-amber-300 font-bold border border-amber-500/30">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-50 text-amber-900 dark:bg-amber-500/10 dark:text-amber-300 font-bold border border-amber-300 dark:border-amber-500/30">
                                 আংশিক বাকি
                               </span>
                             )}
@@ -699,7 +699,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
                               <button
                                 type="button"
                                 onClick={() => setPrintModalPurchase(p)}
-                                className="px-2 py-1 text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded hover:bg-amber-500/30 transition-all flex items-center gap-1 cursor-pointer"
+                                className="px-2 py-1 text-xs bg-amber-100 text-amber-900 dark:bg-amber-500/20 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30 rounded hover:bg-amber-200 dark:hover:bg-amber-500/30 font-semibold transition-all flex items-center gap-1 cursor-pointer"
                                 title="চালান প্রিন্ট করুন"
                               >
                                 <Printer className="w-3 h-3" />
@@ -708,7 +708,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
                               <button
                                 type="button"
                                 onClick={() => setDeleteConfirmPurchase(p)}
-                                className="px-2 py-1 text-xs bg-red-600/20 text-red-400 border border-red-500/30 rounded hover:bg-red-600 hover:text-white transition-all flex items-center gap-1 cursor-pointer"
+                                className="px-2 py-1 text-xs bg-rose-100 text-rose-800 dark:bg-red-600/20 dark:text-red-400 border border-rose-300 dark:border-red-500/30 rounded hover:bg-rose-200 dark:hover:bg-red-600 dark:hover:text-white font-semibold transition-all flex items-center gap-1 cursor-pointer"
                                 title="চালান মুছে ফেলুন"
                               >
                                 <Trash2 className="w-3 h-3" />
@@ -725,27 +725,27 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
             </div>
           </div>
 
-          {/* Footer Summary Bar: আজকের সর্বমোট */}
-          <div className="p-3.5 bg-gradient-to-r from-amber-500/15 via-[#111827] to-emerald-500/15 border border-amber-500/30 rounded-xl space-y-1.5">
+          {/* Footer Summary Bar: আজকের সর্বমোট কেনা শস্য ও হিসাব */}
+          <div className="p-3.5 bg-[#0f172a] border border-slate-700 shadow-md rounded-xl space-y-1.5">
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-amber-400 flex items-center gap-1.5">
                 <Wheat className="w-3.5 h-3.5" />
-                আজকের সর্বমোট কেনা শস্য ও হিসাব:
+                🌾 আজকের সর্বমোট কেনা শস্য ও হিসাব:
               </span>
-              <span className="text-sm font-black text-white">
+              <span className="text-base font-extrabold text-white">
                 মোট মূল্য: {formatTakaBn(todaySummary.todayTotalAmount, true)}
               </span>
             </div>
-            <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)] border-t border-[var(--border-color)]/60 pt-1.5">
-              <span>
-                মোট শস্য: <strong className="text-white">{toBengaliNumber(todaySummary.todayTotalMon)} মণ</strong> ({toBengaliNumber(todaySummary.todayTotalKg)} কেজি, ~{toBengaliNumber(todaySummary.todayTotalBags)} বস্তা)
+            <div className="flex items-center justify-between text-[11px] text-slate-300 border-t border-slate-700/80 pt-1.5">
+              <span className="font-semibold text-white">
+                মোট শস্য: <strong className="text-white font-bold">{toBengaliNumber(todaySummary.todayTotalMon)} মণ</strong> ({toBengaliNumber(todaySummary.todayTotalKg)} কেজি, ~{toBengaliNumber(todaySummary.todayTotalBags)} বস্তা)
               </span>
               <div className="flex items-center gap-3">
-                <span className="text-emerald-400 font-semibold">
+                <span className="text-emerald-400 font-bold">
                   নগদ প্রদান: {formatTakaBn(todaySummary.todayPaidAmount, true)}
                 </span>
-                <span className="text-[var(--border-color)]">|</span>
-                <span className="text-rose-400 font-semibold">
+                <span className="text-slate-600">|</span>
+                <span className="text-rose-400 font-bold">
                   বাকি পাওনা: {formatTakaBn(todaySummary.todayDueAmount, true)}
                 </span>
               </div>
