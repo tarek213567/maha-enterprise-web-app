@@ -1,0 +1,31 @@
+{
+  "name": "মাহা এন্টারপ্রাইজ - শস্য আড়ত ও পাইকারি ব্যবসা ব্যবস্থাপনা",
+  "short_name": "মাহা এন্টারপ্রাইজ",
+  "description": "শস্য আড়ত ও পাইকারি ব্যবসা ব্যবস্থাপনা ক্লাউড ও ডেস্কটপ সফটওয়্যার (v1.5.0 PRO)",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#070b14",
+  "theme_color": "#070b14",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

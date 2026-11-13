@@ -1,0 +1,11 @@
+# Cloudflare Zero Trust Tunnel Configuration for Maha Enterprise (v1.5.0 PRO)
+# Permanent Domain: maha.nexobd.pro
+# Local Target: http://localhost:3030
+
+ingress:
+  - hostname: maha.nexobd.pro
+    service: http://localhost:3030
+    originRequest:
+      noTLSVerify: true
+      connectTimeout: 15s
+  - service: http_status:404

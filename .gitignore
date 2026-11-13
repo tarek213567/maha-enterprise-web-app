@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+
+# Production and Electron Build Outputs
+dist/
+dist_build/
+dist-electron/
+worker-dist/
+**/worker-dist/
+.wrangler/
+**/.wrangler/
+
+# Local databases and backups
+data/
+backups/
+*.db
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Environment & local secrets
+.env
+.env.local
+.env.*.local
+credentials.json
+token.json
+tunnel_token.txt
+bin/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# System and Editor Files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+

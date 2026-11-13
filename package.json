@@ -1,0 +1,79 @@
+{
+  "name": "maha-enterprise",
+  "productName": "মাহা এন্টারপ্রাইজ",
+  "version": "1.5.0",
+  "description": "শস্য আড়ত ও পাইকারি ব্যবসা ব্যবস্থাপনা সফটওয়্যার",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev:vite": "vite",
+    "build:vite": "vite build",
+    "test:audit": "node scripts/math_accounting_audit.js",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "worker:dev": "wrangler dev",
+    "worker:deploy": "wrangler deploy",
+    "worker:dry-run": "wrangler deploy --dry-run",
+    "worker:d1:init": "wrangler d1 execute DB --file=cloudflare-worker/schema.sql",
+    "dev": "concurrently -k \"npm run dev:vite\" \"wait-on tcp:5173 && npm run build:electron && electron .\"",
+    "build": "npm run build:vite && npm run build:electron",
+    "rebuild": "electron-rebuild -f -w better-sqlite3",
+    "postinstall": "electron-rebuild",
+    "start": "electron .",
+    "dist": "npm run build && electron-builder --win",
+    "dist:portable": "npm run build && electron-builder --win portable",
+    "pack": "npm run build && electron-builder --dir"
+  },
+  "build": {
+    "appId": "pro.nexobd.mahaenterprise",
+    "productName": "মাহা এন্টারপ্রাইজ",
+    "directories": {
+      "output": "dist_build"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "মাহা এন্টারপ্রাইজ"
+    },
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/better-sqlite3/**"
+    ]
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "clsx": "^2.1.1",
+    "googleapis": "^189.0.0",
+    "lucide-react": "^0.469.0",
+    "node-cron": "^4.6.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^2.6.0"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.2.1",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.10.2",
+    "@types/node-cron": "^3.0.11",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.1",
+    "electron-builder": "^26.18.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3",
+    "wait-on": "^8.0.1"
+  }
+}

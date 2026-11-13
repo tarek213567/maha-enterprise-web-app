@@ -1,0 +1,19 @@
+{
+  "name": "maha-enterprise-worker-gateway",
+  "version": "1.5.0",
+  "description": "Cloudflare Worker Gateway for Maha Enterprise PWA & Permanent Domain Sync",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "keywords": [
+    "cloudflare-worker",
+    "pwa",
+    "reverse-proxy",
+    "maha-enterprise"
+  ],
+  "author": "Maha Enterprise",
+  "license": "ISC"
+}
