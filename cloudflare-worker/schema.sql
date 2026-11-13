@@ -126,6 +126,7 @@ CREATE TABLE IF NOT EXISTS stock_adjustments (
   wac_at_time REAL NOT NULL,
   cost_value REAL NOT NULL,
   reason TEXT NOT NULL,
+  is_test_draft INTEGER NOT NULL DEFAULT 0,
   notes TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
