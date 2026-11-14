@@ -2058,7 +2058,7 @@ export default {
           }
           return sendJson({
             success: true,
-            filePath: 'maha_enterprise_cloud_backup.json',
+            filePath: 'maha_enterprise_cloud_backup.xlsx',
             message: 'ক্লাউড ও লোকাল ব্যাকআপ সফলভাবে সংরক্ষিত হয়েছে',
             backup: snapshot,
           });

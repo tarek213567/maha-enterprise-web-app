@@ -3,122 +3,106 @@ import { dbService, apiFetch } from './api';
 import { Commodity, Party, Purchase, Sale, CashbookEntry, Expense, StockAdjustment, Note } from '../types';
 
 // ============================================================================
-// ROYAL THEME COLOR PALETTE CONSTANTS (ARGB Hex)
+// BENGALI NUMERIC, DATE & TIME FORMATTERS
 // ============================================================================
-const PALETTE = {
-  NAVY_PRIMARY: 'FF0F172A',      // #0F172A - Deep Slate / Midnight Navy
-  SAPPHIRE_HEADER: 'FF1E3A8A',   // #1E3A8A - Royal Sapphire Blue (Table Headers)
-  SLATE_SUBHEADER: 'FF334155',   // #334155 - Slate (Subtitles / Info bars)
-  GOLD_ACCENT: 'FFF59E0B',       // #F59E0B - Royal Amber Gold
-  GOLD_DARK: 'FFD97706',         // #D97706 - Dark Gold
-  ZEBRA_EVEN: 'FFFFFFFF',        // #FFFFFF - White
-  ZEBRA_ODD: 'FFF8FAFC',         // #F8FAFC - Soft Slate White
-  TOTAL_BG: 'FFFEF3C7',          // #FEF3C7 - Warm Soft Amber Summary Row
-  TOTAL_TEXT: 'FF78350F',        // #78350F - Deep Amber / Dark Brown Text
-  CARD_BG_BLUE: 'FFEFF6FF',      // #EFF6FF - Light Blue
-  CARD_BG_GREEN: 'FFF0FDF4',     // #F0FDF4 - Light Green
-  CARD_BG_AMBER: 'FFFFFBEB',     // #FFFBEB - Light Amber
-  CARD_BG_ROSE: 'FFFFF1F2',      // #FFF1F2 - Light Rose
-  BORDER_LIGHT: 'FFE2E8F0',      // #E2E8F0 - Slate-200
-  BORDER_MEDIUM: 'FF94A3B8',     // #94A3B8 - Slate-400
-  BORDER_DOUBLE: 'FF0F172A',     // #0F172A - Dark Double Underline for Totals
-  TEXT_DARK: 'FF0F172A',         // #0F172A - Main Text
-  TEXT_MUTED: 'FF64748B',        // #64748B - Muted Text
-  WHITE: 'FFFFFFFF',
+const BN_DIGITS = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+
+export function toBnDigits(num: number | string | undefined | null): string {
+  if (num === undefined || num === null) return '০';
+  return String(num).replace(/[0-9]/g, (d) => BN_DIGITS[parseInt(d, 10)]);
+}
+
+const BN_MONTHS = [
+  'জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন',
+  'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর'
+];
+const BN_DAYS = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
+
+export function getBnDateAndDay(d: Date = new Date()): string {
+  const dayName = BN_DAYS[d.getDay()];
+  const dateBn = toBnDigits(d.getDate());
+  const monthBn = BN_MONTHS[d.getMonth()];
+  const yearBn = toBnDigits(d.getFullYear());
+  return `${dateBn} ${monthBn} ${yearBn}, ${dayName}`;
+}
+
+export function getBnTime(d: Date = new Date()): string {
+  const hours = String(d.getHours()).padStart(2, '0');
+  const mins = String(d.getMinutes()).padStart(2, '0');
+  return ` ${toBnDigits(hours)} : ${toBnDigits(mins)} `;
+}
+
+// ============================================================================
+// ROYAL COLOR PALETTE (ARGB Hex Format for ExcelJS)
+// ============================================================================
+const COLORS = {
+  BANNER_GREEN: 'FF047857',      // Emerald Green #047857
+  BANNER_GOLD_TEXT: 'FFFBBF24',  // Bright Gold #FBBF24
+  GOLD_BORDER: 'FFD97706',       // Thick Gold #D97706
+  NAVY_HEADER: 'FF0D2847',       // Deep Navy Blue #0D2847
+  GOLD_TEXT: 'FFFBBF24',         // Table Header Gold #FBBF24
+  MINT_ROW: 'FFDCFCE7',          // Soft Mint Green for In-stock #DCFCE7
+  PINK_ROW: 'FFFFE4E6',          // Soft Pink for Out-of-stock #FFE4E6
+  GREEN_PILL: 'FF16A34A',        // Solid Green #16A34A
+  RED_PILL: 'FFDC2626',          // Solid Red #DC2626
+  GOLD_TOTAL_ROW: 'FFD99B00',    // Golden Amber Total Row #D99B00
+  TEXT_DARK: 'FF0F172A',         // Slate-900 #0F172A
+  WHITE: 'FFFFFFFF',             // White #FFFFFF
+  BORDER_LIGHT: 'FFE2E8F0',      // Slate-200 #E2E8F0
+
+  // 4 KPI Summary Cards Colors
+  KPI_GREEN: 'FF15803D',         // Total Stock Green #15803D
+  KPI_BLUE: 'FF0284C7',          // Today Sale Blue #0284C7
+  KPI_ORANGE: 'FFD97706',        // Dues/Receivable Orange #D97706
+  KPI_PURPLE: 'FF7E22CE',        // Payables/Expenses Purple #7E22CE
+
+  // Sheet Tabs Colors
+  TAB_GREEN: 'FF16A34A',
+  TAB_GOLD: 'FFEAB308',
+  TAB_TEAL: 'FF0D9488',
+  TAB_EMERALD: 'FF10B981',
+  TAB_AMBER: 'FFF59E0B',
+  TAB_INDIGO: 'FF6366F1',
+  TAB_ORANGE: 'FFEA580C',
+  TAB_RED: 'FFDC2626',
+  TAB_BLUE: 'FF0284C7',
+  TAB_PURPLE: 'FF7E22CE',
+  TAB_SLATE: 'FF475569',
 };
 
-// Common Borders
-const thinBorderSide: ExcelJS.Border = { style: 'thin', color: { argb: PALETTE.BORDER_LIGHT } };
+// Reusable borders
+const thinGoldBorder: ExcelJS.Border = { style: 'thin', color: { argb: COLORS.GOLD_BORDER } };
+const thinLightBorder: ExcelJS.Border = { style: 'thin', color: { argb: COLORS.BORDER_LIGHT } };
+
+const headerBorders: Partial<ExcelJS.Borders> = {
+  top: thinGoldBorder,
+  bottom: thinGoldBorder,
+  left: thinGoldBorder,
+  right: thinGoldBorder,
+};
+
 const cellBorders: Partial<ExcelJS.Borders> = {
-  top: thinBorderSide,
-  left: thinBorderSide,
-  bottom: thinBorderSide,
-  right: thinBorderSide,
+  top: thinLightBorder,
+  bottom: thinLightBorder,
+  left: thinLightBorder,
+  right: thinLightBorder,
 };
 
-const totalRowBorders: Partial<ExcelJS.Borders> = {
-  top: { style: 'thin', color: { argb: PALETTE.BORDER_MEDIUM } },
-  bottom: { style: 'double', color: { argb: PALETTE.BORDER_DOUBLE } },
-  left: thinBorderSide,
-  right: thinBorderSide,
+const totalBorders: Partial<ExcelJS.Borders> = {
+  top: { style: 'thin', color: { argb: COLORS.TEXT_DARK } },
+  bottom: { style: 'double', color: { argb: COLORS.TEXT_DARK } },
+  left: thinLightBorder,
+  right: thinLightBorder,
 };
 
 // ============================================================================
-// HELPER: Auto-format Title Header Banner
-// ============================================================================
-function addHeaderBanner(
-  ws: ExcelJS.Worksheet,
-  title: string,
-  subtitle: string,
-  metaInfo: string,
-  colCount: number
-) {
-  // Row 1: Main Title
-  const r1 = ws.addRow([title]);
-  ws.mergeCells(1, 1, 1, colCount);
-  r1.height = 32;
-  const cell1 = ws.getCell(1, 1);
-  cell1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PALETTE.NAVY_PRIMARY } };
-  cell1.font = { name: 'Segoe UI', size: 16, bold: true, color: { argb: PALETTE.GOLD_ACCENT } };
-  cell1.alignment = { horizontal: 'center', vertical: 'middle' };
-
-  // Row 2: Subtitle
-  const r2 = ws.addRow([subtitle]);
-  ws.mergeCells(2, 1, 2, colCount);
-  r2.height = 22;
-  const cell2 = ws.getCell(2, 1);
-  cell2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PALETTE.SAPPHIRE_HEADER } };
-  cell2.font = { name: 'Segoe UI', size: 10.5, bold: true, color: { argb: PALETTE.WHITE } };
-  cell2.alignment = { horizontal: 'center', vertical: 'middle' };
-
-  // Row 3: Meta Info (Date, Version, Location)
-  const r3 = ws.addRow([metaInfo]);
-  ws.mergeCells(3, 1, 3, colCount);
-  r3.height = 18;
-  const cell3 = ws.getCell(3, 1);
-  cell3.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PALETTE.SLATE_SUBHEADER } };
-  cell3.font = { name: 'Segoe UI', size: 9, italic: true, color: { argb: 'FFE2E8F0' } };
-  cell3.alignment = { horizontal: 'center', vertical: 'middle' };
-
-  // Row 4: Spacer
-  const r4 = ws.addRow([]);
-  r4.height = 10;
-}
-
-// ============================================================================
-// HELPER: Format Table Column Headers
-// ============================================================================
-function formatHeaders(
-  ws: ExcelJS.Worksheet,
-  headers: string[],
-  rowNumber: number
-) {
-  const row = ws.getRow(rowNumber);
-  row.values = headers;
-  row.height = 26;
-
-  headers.forEach((_, colIndex) => {
-    const cell = row.getCell(colIndex + 1);
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PALETTE.SAPPHIRE_HEADER } };
-    cell.font = { name: 'Segoe UI', size: 10.5, bold: true, color: { argb: PALETTE.WHITE } };
-    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-    cell.border = {
-      top: { style: 'medium', color: { argb: PALETTE.NAVY_PRIMARY } },
-      bottom: { style: 'medium', color: { argb: PALETTE.NAVY_PRIMARY } },
-      left: { style: 'thin', color: { argb: 'FF1E293B' } },
-      right: { style: 'thin', color: { argb: 'FF1E293B' } },
-    };
-  });
-}
-
-// ============================================================================
-// HELPER: Auto Adjust Column Widths
+// HELPER: Auto-Fit Column Widths
 // ============================================================================
 function autoFitColumns(ws: ExcelJS.Worksheet, minWidth = 12, maxWidth = 45) {
   ws.columns.forEach((column) => {
     let maxLen = minWidth;
     column.eachCell?.({ includeEmpty: false }, (cell, rowNumber) => {
-      if (rowNumber <= 3) return; // Skip title banner rows
+      if (rowNumber <= 6) return; // Skip banner & KPI cards
       const valStr = cell.value ? String(cell.value) : '';
       if (valStr.length > maxLen) {
         maxLen = valStr.length;
@@ -129,9 +113,147 @@ function autoFitColumns(ws: ExcelJS.Worksheet, minWidth = 12, maxWidth = 45) {
 }
 
 // ============================================================================
-// MAIN GENERATOR & DOWNLOAD ENGINE
+// HELPER: Add Exact Royal Top Banner (Rows 1–2)
 // ============================================================================
-export async function generateAndDownloadExcelBackup(snapshotData?: any): Promise<{
+function addRoyalBanner(
+  ws: ExcelJS.Worksheet,
+  titleText: string = 'মাহা এন্টারপ্রাইজ',
+  subtitleText: string = '‘সততাই ব্যবসার মূলধন’ — চাচকৈড় বাজার, গুরুদাসপুর, নাটোর',
+  clockText: string = getBnTime(),
+  dateText: string = getBnDateAndDay(),
+  colGEnd: number = 7, // Column G is 7
+  colH: number = 8,    // Column H is 8
+  colI: number = 9     // Column I is 9
+) {
+  // Row 1: Title (A1:G1) + Clock (H1:I1)
+  ws.mergeCells(1, 1, 1, colGEnd);
+  const cellA1 = ws.getCell(1, 1);
+  cellA1.value = titleText;
+  cellA1.font = { name: 'Hind Siliguri', size: 24, bold: true, color: { argb: COLORS.BANNER_GOLD_TEXT } };
+  cellA1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.BANNER_GREEN } };
+  cellA1.alignment = { horizontal: 'center', vertical: 'middle' };
+  ws.getRow(1).height = 36;
+
+  ws.mergeCells(1, colH, 1, colI);
+  const cellH1 = ws.getCell(1, colH);
+  cellH1.value = clockText;
+  cellH1.font = { name: 'Segoe UI', size: 16, bold: true, color: { argb: COLORS.TEXT_DARK } };
+  cellH1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+  cellH1.alignment = { horizontal: 'center', vertical: 'middle' };
+  cellH1.border = {
+    top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+    bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+    left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+    right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+  };
+
+  // Row 2: Subtitle (A2:G2) + Date (H2:I2)
+  ws.mergeCells(2, 1, 2, colGEnd);
+  const cellA2 = ws.getCell(2, 1);
+  cellA2.value = subtitleText;
+  cellA2.font = { name: 'Hind Siliguri', size: 12, bold: true, color: { argb: COLORS.WHITE } };
+  cellA2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.BANNER_GREEN } };
+  cellA2.alignment = { horizontal: 'center', vertical: 'middle' };
+  cellA2.border = { bottom: { style: 'medium', color: { argb: COLORS.GOLD_BORDER } } };
+  ws.getRow(2).height = 24;
+
+  ws.mergeCells(2, colH, 2, colI);
+  const cellH2 = ws.getCell(2, colH);
+  cellH2.value = dateText;
+  cellH2.font = { name: 'Hind Siliguri', size: 10, bold: true, color: { argb: COLORS.WHITE } };
+  cellH2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.BANNER_GREEN } };
+  cellH2.alignment = { horizontal: 'center', vertical: 'middle' };
+  cellH2.border = { bottom: { style: 'medium', color: { argb: COLORS.GOLD_BORDER } } };
+
+  // Row 3: Spacer
+  ws.getRow(3).height = 10;
+}
+
+// ============================================================================
+// HELPER: Add 4 Colored KPI Summary Cards (Rows 4–5)
+// ============================================================================
+function addKpiCards(
+  ws: ExcelJS.Worksheet,
+  card1Title: string,
+  card1Value: string,
+  card2Title: string,
+  card2Value: string,
+  card3Title: string,
+  card3Value: string,
+  card4Title: string,
+  card4Value: string
+) {
+  // Green Card (A4:B5, Fill FF15803D)
+  ws.mergeCells('A4:B4');
+  ws.mergeCells('A5:B5');
+  const c1Top = ws.getCell('A4');
+  c1Top.value = card1Title;
+  c1Top.font = { name: 'Hind Siliguri', size: 11, bold: true, color: { argb: COLORS.WHITE } };
+  c1Top.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.KPI_GREEN } };
+  c1Top.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  const c1Bottom = ws.getCell('A5');
+  c1Bottom.value = card1Value;
+  c1Bottom.font = { name: 'Hind Siliguri', size: 13, bold: true, color: { argb: COLORS.WHITE } };
+  c1Bottom.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.KPI_GREEN } };
+  c1Bottom.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  // Blue Card (C4:D5, Fill FF0284C7)
+  ws.mergeCells('C4:D4');
+  ws.mergeCells('C5:D5');
+  const c2Top = ws.getCell('C4');
+  c2Top.value = card2Title;
+  c2Top.font = { name: 'Hind Siliguri', size: 11, bold: true, color: { argb: COLORS.WHITE } };
+  c2Top.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.KPI_BLUE } };
+  c2Top.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  const c2Bottom = ws.getCell('C5');
+  c2Bottom.value = card2Value;
+  c2Bottom.font = { name: 'Hind Siliguri', size: 13, bold: true, color: { argb: COLORS.WHITE } };
+  c2Bottom.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.KPI_BLUE } };
+  c2Bottom.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  // Orange Card (E4:G5, Fill FFD97706)
+  ws.mergeCells('E4:G4');
+  ws.mergeCells('E5:G5');
+  const c3Top = ws.getCell('E4');
+  c3Top.value = card3Title;
+  c3Top.font = { name: 'Hind Siliguri', size: 11, bold: true, color: { argb: COLORS.WHITE } };
+  c3Top.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.KPI_ORANGE } };
+  c3Top.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  const c3Bottom = ws.getCell('E5');
+  c3Bottom.value = card3Value;
+  c3Bottom.font = { name: 'Hind Siliguri', size: 13, bold: true, color: { argb: COLORS.WHITE } };
+  c3Bottom.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.KPI_ORANGE } };
+  c3Bottom.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  // Purple Card (H4:I5, Fill FF7E22CE)
+  ws.mergeCells('H4:I4');
+  ws.mergeCells('H5:I5');
+  const c4Top = ws.getCell('H4');
+  c4Top.value = card4Title;
+  c4Top.font = { name: 'Hind Siliguri', size: 11, bold: true, color: { argb: COLORS.WHITE } };
+  c4Top.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.KPI_PURPLE } };
+  c4Top.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  const c4Bottom = ws.getCell('H5');
+  c4Bottom.value = card4Value;
+  c4Bottom.font = { name: 'Hind Siliguri', size: 13, bold: true, color: { argb: COLORS.WHITE } };
+  c4Bottom.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.KPI_PURPLE } };
+  c4Bottom.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  ws.getRow(4).height = 20;
+  ws.getRow(5).height = 24;
+
+  // Row 6: Spacer
+  ws.getRow(6).height = 10;
+}
+
+// ============================================================================
+// MAIN FUNCTION: downloadStyledExcelBackup (Replaces ALL legacy .json logic)
+// ============================================================================
+export async function downloadStyledExcelBackup(snapshotData?: any): Promise<{
   success: boolean;
   fileName: string;
   message: string;
@@ -140,7 +262,6 @@ export async function generateAndDownloadExcelBackup(snapshotData?: any): Promis
   let data = snapshotData;
   if (!data || !data.commodities) {
     try {
-      // In web app, /api/system/backup gives full snapshot from D1
       const res = await apiFetch<any>('/api/system/backup', { method: 'POST' });
       if (res && res.backup && res.backup.commodities) {
         data = res.backup;
@@ -188,7 +309,7 @@ export async function generateAndDownloadExcelBackup(snapshotData?: any): Promis
   const stockAdjustments: StockAdjustment[] = data.stock_adjustments || [];
   const notes: Note[] = data.notes || [];
 
-  // 2. Compute Aggregates for Dashboard
+  // Aggregates
   let totalStockKg = 0;
   let totalStockBags = 0;
   let totalStockValue = 0;
@@ -202,29 +323,38 @@ export async function generateAndDownloadExcelBackup(snapshotData?: any): Promis
   });
   const totalStockMon = totalStockKg / 40.0;
 
-  let totalReceivable = 0; // Parties with positive balance (Buyer owes us)
-  let totalPayable = 0;    // Parties with negative balance (We owe Supplier)
+  let totalReceivable = 0;
+  let totalPayable = 0;
   parties.forEach((p) => {
     const bal = Number(p.current_balance || 0);
     if (bal > 0) totalReceivable += bal;
     else if (bal < 0) totalPayable += Math.abs(bal);
   });
 
-  let totalPurchasesAmount = 0;
-  purchases.forEach((p) => {
-    totalPurchasesAmount += Number(p.total_landed_cost || p.gross_amount || 0);
-  });
-
+  const todayStr = new Date().toISOString().split('T')[0];
+  let todaySalesAmount = 0;
   let totalSalesAmount = 0;
   let totalRealizedProfit = 0;
   sales.forEach((s) => {
-    totalSalesAmount += Number(s.net_invoice_amount || s.gross_amount || 0);
+    const net = Number(s.net_invoice_amount || s.gross_amount || 0);
+    totalSalesAmount += net;
     totalRealizedProfit += Number(s.realized_profit || 0);
+    if (s.sale_date && s.sale_date.startsWith(todayStr)) {
+      todaySalesAmount += net;
+    }
   });
+  if (todaySalesAmount === 0 && sales.length > 0) {
+    todaySalesAmount = Number(sales[sales.length - 1].net_invoice_amount || 0);
+  }
 
   let totalExpensesAmount = 0;
   expenses.forEach((e) => {
     totalExpensesAmount += Number(e.amount || 0);
+  });
+
+  let totalPurchasesAmount = 0;
+  purchases.forEach((p) => {
+    totalPurchasesAmount += Number(p.total_landed_cost || p.gross_amount || 0);
   });
 
   let totalCashInflow = 0;
@@ -236,478 +366,576 @@ export async function generateAndDownloadExcelBackup(snapshotData?: any): Promis
   });
   const netCashFlow = totalCashInflow - totalCashOutflow;
 
-  let totalShrinkageKg = 0;
-  let totalShrinkageLoss = 0;
-  stockAdjustments.forEach((adj) => {
-    const kg = Math.abs(Number(adj.lost_weight_kg || (adj as any).weight_change_kg || 0));
-    const loss = Math.abs(Number(adj.cost_value || (adj as any).financial_impact || 0));
-    totalShrinkageKg += kg;
-    totalShrinkageLoss += loss;
-  });
-
   const now = new Date();
-  const dateFormatted = now.toLocaleDateString('bn-BD', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-  const timeFormatted = now.toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' });
-  const metaString = `ব্যাকআপ তৈরির সময়: ${dateFormatted}, ${timeFormatted} | সংস্করণ: ১.৫.০ প্রো (রয়্যাল এডিশন) | মোকাম: চাঁচকৈড় বাজার, গুরুদাসপুর, নাটোর`;
+  const clockFormatted = getBnTime(now);
+  const dateFormatted = getBnDateAndDay(now);
 
-  // 3. Initialize ExcelJS Workbook
+  // Initialize ExcelJS Workbook
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'মাহা এন্টারপ্রাইজ (Maha Enterprise ERP)';
+  wb.creator = 'মাহা এন্টারপ্রাইজ (Maha Enterprise)';
   wb.lastModifiedBy = 'আল জাবির সরকার';
   wb.created = now;
   wb.modified = now;
 
   // ============================================================================
-  // SHEET 1: ড্যাশবোর্ড ও সারসংক্ষেপ (Executive Summary & KPIs)
+  // TAB 1: ১. সকল শস্যের স্টক (Green Tab: FF16A34A)
   // ============================================================================
-  const wsDash = wb.addWorksheet('ড্যাশবোর্ড ও সারসংক্ষেপ', {
+  const ws1 = wb.addWorksheet('১. সকল শস্যের স্টক', {
     views: [{ showGridLines: true }],
   });
+  ws1.properties.tabColor = { argb: COLORS.TAB_GREEN };
 
-  addHeaderBanner(
-    wsDash,
-    'মাহা এন্টারপ্রাইজ — শস্য আড়ত ও পাইকারি ব্যবসা ব্যবস্থাপনা',
-    'এক্সিকিউটিভ ড্যাশবোর্ড ও ক্লাউড ডাটাবেজ ব্যাকআপ সারসংক্ষেপ',
-    metaString,
-    8
+  // 1. Banner (Rows 1-2)
+  addRoyalBanner(ws1, 'মাহা এন্টারপ্রাইজ', '‘সততাই ব্যবসার মূলধন’ — চাচকৈড় বাজার, গুরুদাসপুর, নাটোর', clockFormatted, dateFormatted, 7, 8, 9);
+
+  // 2. 4 Colored KPI Cards (Rows 4-5)
+  addKpiCards(
+    ws1,
+    'মোট শস্যের স্টক',
+    `${toBnDigits(totalStockBags)} বস্তা | ${toBnDigits(totalStockMon.toFixed(2))} মণ`,
+    'আজকের বিক্রি',
+    `৳ ${toBnDigits(todaySalesAmount.toLocaleString())}`,
+    'বাকি/বকেয়া পাওনা',
+    `৳ ${toBnDigits(totalReceivable.toLocaleString())}`,
+    'মোট পাওনাদার / খরচ',
+    `৳ ${toBnDigits((totalPayable + totalExpensesAmount).toLocaleString())}`
   );
 
-  // Section 1: KPI Cards Heading
-  const kpiHeadingRow = wsDash.addRow(['📊 ব্যবসায়িক মূল সূচকসমূহ (Key Performance Indicators)']);
-  wsDash.mergeCells(kpiHeadingRow.number, 1, kpiHeadingRow.number, 8);
-  kpiHeadingRow.height = 24;
-  const kpiHeadingCell = wsDash.getCell(kpiHeadingRow.number, 1);
-  kpiHeadingCell.font = { name: 'Segoe UI', size: 12, bold: true, color: { argb: PALETTE.NAVY_PRIMARY } };
-  kpiHeadingCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
-  kpiHeadingCell.alignment = { vertical: 'middle', indent: 1 };
-
-  // Helper for KPI Cards
-  const addKpiBlock = (
-    rStart: number,
-    cStart: number,
-    cEnd: number,
-    iconTitle: string,
-    valText: string,
-    subText: string,
-    bgArgb: string
-  ) => {
-    wsDash.mergeCells(rStart, cStart, rStart, cEnd);
-    wsDash.mergeCells(rStart + 1, cStart, rStart + 1, cEnd);
-    wsDash.mergeCells(rStart + 2, cStart, rStart + 2, cEnd);
-
-    const c1 = wsDash.getCell(rStart, cStart);
-    const c2 = wsDash.getCell(rStart + 1, cStart);
-    const c3 = wsDash.getCell(rStart + 2, cStart);
-
-    c1.value = iconTitle;
-    c1.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: PALETTE.TEXT_MUTED } };
-    c1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgArgb } };
-    c1.alignment = { horizontal: 'center', vertical: 'middle' };
-
-    c2.value = valText;
-    c2.font = { name: 'Segoe UI', size: 14, bold: true, color: { argb: PALETTE.NAVY_PRIMARY } };
-    c2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgArgb } };
-    c2.alignment = { horizontal: 'center', vertical: 'middle' };
-
-    c3.value = subText;
-    c3.font = { name: 'Segoe UI', size: 8.5, italic: true, color: { argb: PALETTE.TEXT_MUTED } };
-    c3.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgArgb } };
-    c3.alignment = { horizontal: 'center', vertical: 'middle' };
-
-    for (let r = rStart; r <= rStart + 2; r++) {
-      for (let c = cStart; c <= cEnd; c++) {
-        wsDash.getCell(r, c).border = cellBorders;
-      }
-    }
-  };
-
-  // KPI Row 1 (Rows 6-8)
-  addKpiBlock(
-    6, 1, 2,
-    '📦 মোট গুদাম স্টক',
-    `${totalStockMon.toFixed(2)} মণ (${totalStockKg.toLocaleString()} কেজি)`,
-    `মোট বস্তা: ${totalStockBags.toLocaleString()} টি | মূল্য: ৳ ${totalStockValue.toLocaleString()}`,
-    PALETTE.CARD_BG_BLUE
-  );
-
-  addKpiBlock(
-    6, 3, 4,
-    '💰 মোট বাকি পাওনা (ক্রেতা)',
-    `৳ ${totalReceivable.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-    `খরিদ্দারদের নিকট মোট বকেয়া পাওনা`,
-    PALETTE.CARD_BG_GREEN
-  );
-
-  addKpiBlock(
-    6, 5, 6,
-    '🤝 মোট বাকি দেনা (মহাজন)',
-    `৳ ${totalPayable.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-    `বেপারি ও মহাজনদের পরিশোধযোগ্য দেনা`,
-    PALETTE.CARD_BG_ROSE
-  );
-
-  addKpiBlock(
-    6, 7, 8,
-    '💵 ক্যাশ বই মোট স্থিতি',
-    `৳ ${netCashFlow.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-    `জমা: ৳ ${totalCashInflow.toLocaleString()} | খরচ: ৳ ${totalCashOutflow.toLocaleString()}`,
-    PALETTE.CARD_BG_AMBER
-  );
-
-  // KPI Row 2 (Rows 10-12)
-  wsDash.addRow([]); // Spacer
-  addKpiBlock(
-    10, 1, 2,
-    '🛒 মোট শস্য ক্রয় খতিয়ান',
-    `৳ ${totalPurchasesAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-    `মোট ক্রয় চালান: ${purchases.length} টি`,
-    PALETTE.CARD_BG_BLUE
-  );
-
-  addKpiBlock(
-    10, 3, 4,
-    '📈 মোট পাইকারি বিক্রয়',
-    `৳ ${totalSalesAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-    `মোট বিক্রয় চালান: ${sales.length} টি | অর্জিত লাভ: ৳ ${totalRealizedProfit.toLocaleString()}`,
-    PALETTE.CARD_BG_GREEN
-  );
-
-  addKpiBlock(
-    10, 5, 6,
-    '🏷️ মোট পরিচালন খরচ',
-    `৳ ${totalExpensesAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-    `মোট খরচের এন্ট্রি: ${expenses.length} টি`,
-    PALETTE.CARD_BG_ROSE
-  );
-
-  addKpiBlock(
-    10, 7, 8,
-    '⚖️ শুকতি ও আর্দ্রতা ক্ষতি',
-    `৳ ${totalShrinkageLoss.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-    `মোট ঘাটতি ওজন: ${totalShrinkageKg.toFixed(2)} কেজি`,
-    PALETTE.CARD_BG_AMBER
-  );
-
-  // Section 2: Table of Modules & Record Count
-  wsDash.addRow([]); // Spacer
-  const modHeadingRow = wsDash.addRow(['📑 ব্যাকআপে অন্তর্ভুক্ত খতিয়ান ও মডিউলসমূহের বিবরণ']);
-  wsDash.mergeCells(modHeadingRow.number, 1, modHeadingRow.number, 8);
-  modHeadingRow.height = 24;
-  const modHeadingCell = wsDash.getCell(modHeadingRow.number, 1);
-  modHeadingCell.font = { name: 'Segoe UI', size: 12, bold: true, color: { argb: PALETTE.NAVY_PRIMARY } };
-  modHeadingCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
-  modHeadingCell.alignment = { vertical: 'middle', indent: 1 };
-
-  const dashTableHeaders = [
+  // 3. Table Header (Row 7)
+  const tab1Headers = [
     'ক্রমিক',
-    'মডিউলের নাম',
-    'এক্সেল শিটের নাম',
-    'মোট রেকর্ড',
-    'মূল্যায়ন / মোট পরিমাণ (টাকা)',
-    'মূল একক / পরিমাপ',
-    'সর্বশেষ অবস্থা',
-    'ডাটাবেজ স্ট্যাটাস',
-  ];
-  formatHeaders(wsDash, dashTableHeaders, modHeadingRow.number + 1);
-
-  const dashModulesData = [
-    [1, 'গুদাম স্টক ইনভেন্টরি', 'গুদাম স্টক (Inventory)', commodities.length, totalStockValue, `${totalStockMon.toFixed(2)} মণ (${totalStockBags} বস্তা)`, 'সচল ও নিয়মিত', 'সংরক্ষিত'],
-    [2, 'শস্য ক্রয় খতিয়ান', 'শস্য ক্রয় খতিয়ান (Purchases)', purchases.length, totalPurchasesAmount, `${purchases.length} টি ক্রয় চালান`, 'নিরীক্ষিত', 'সংরক্ষিত'],
-    [3, 'পাইকারি বিক্রয় খতিয়ান', 'পাইকারি বিক্রয় খতিয়ান (Sales)', sales.length, totalSalesAmount, `${sales.length} টি বিক্রয় মেমো`, 'লাভ সমন্বিত', 'সংরক্ষিত'],
-    [4, 'বাকি খাতা ও পার্টি খতিয়ান', 'বাকি খাতা (Parties & Dues)', parties.length, totalReceivable - totalPayable, `${parties.length} জন পার্টি`, 'ব্যালেন্সড', 'সংরক্ষিত'],
-    [5, 'দৈনিক ক্যাশ বই রেজিস্টার', 'দৈনিক ক্যাশ বই (Cashbook)', cashbook.length, netCashFlow, `${cashbook.length} টি নগদ লেনদেন`, 'মিল সম্পন্ন', 'সংরক্ষিত'],
-    [6, 'পরিচালন ও বিবিধ খরচ', 'পরিচালন খরচ (Expenses)', expenses.length, totalExpensesAmount, `${expenses.length} টি ভাউচার`, 'ভাউচারযুক্ত', 'সংরক্ষিত'],
-    [7, 'শুকতি ও ওজন ঘাটতি ক্ষতি', 'শুকতি ও ঘাটতি (Shrinkage)', stockAdjustments.length, totalShrinkageLoss, `${totalShrinkageKg.toFixed(2)} কেজি হ্রাস`, 'স্টকে সমন্বয়কৃত', 'সংরক্ষিত'],
-    [8, 'ডিজিটাল নোটবুক ও মেমো', 'নোটবুক (Notes)', notes.length, '-', `${notes.length} টি নোট`, 'সচল', 'সংরক্ষিত'],
-  ];
-
-  dashModulesData.forEach((rowVals, idx) => {
-    const r = wsDash.addRow(rowVals);
-    r.height = 20;
-    const bg = idx % 2 === 0 ? PALETTE.ZEBRA_EVEN : PALETTE.ZEBRA_ODD;
-
-    rowVals.forEach((val, cIdx) => {
-      const cell = r.getCell(cIdx + 1);
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-      cell.font = { name: 'Segoe UI', size: 10, color: { argb: PALETTE.TEXT_DARK } };
-      cell.border = cellBorders;
-
-      if (cIdx === 0 || cIdx === 6 || cIdx === 7) {
-        cell.alignment = { horizontal: 'center', vertical: 'middle' };
-      } else if (cIdx === 3 || cIdx === 4) {
-        cell.alignment = { horizontal: 'right', vertical: 'middle' };
-        if (typeof val === 'number') {
-          cell.numFmt = cIdx === 4 ? '#,##0.00' : '#,##0';
-        }
-      } else {
-        cell.alignment = { horizontal: 'left', vertical: 'middle' };
-      }
-    });
-  });
-
-  autoFitColumns(wsDash, 14, 45);
-
-  // ============================================================================
-  // SHEET 2: গুদাম স্টক (Inventory)
-  // ============================================================================
-  const wsInv = wb.addWorksheet('গুদাম স্টক (Inventory)', {
-    views: [{ showGridLines: true }],
-  });
-
-  addHeaderBanner(
-    wsInv,
-    'মাহা এন্টারপ্রাইজ — গুদাম স্টক ও শস্য মূল্যায়ন প্রতিবেদন',
-    'সকল শস্যের বর্তমান মজুদ ওজন, বস্তা সংখ্যা, গড় ক্রয়দর (WAC) ও আনুমানিক স্টক মূল্য',
-    metaString,
-    9
-  );
-
-  const invHeaders = [
-    'ক্রমিক',
-    'শস্যের জাত ও নাম',
-    'বর্তমান স্টক (কেজি)',
-    'বর্তমান স্টক (মণ)',
-    'বর্তমান বস্তা (টি)',
-    'গড় ক্রয়দর / কেজি (৳)',
-    'গড় ক্রয়দর / মণ (৳)',
-    'মোট আনুমানিক মূল্য (৳)',
+    'শস্যের নাম',
+    'বস্তা সংখ্যা',
+    'মোট ওজন (কেজি)',
+    'মোট ওজন (মণ)',
+    'গড় ক্রয়দর (কেজি)',
+    'গড় ক্রয়দর (মণ)',
+    'বর্তমান স্টক মূল্য (টাকা)',
     'স্টক অবস্থা',
   ];
-  const invHeaderRowIdx = 5;
-  formatHeaders(wsInv, invHeaders, invHeaderRowIdx);
+  const r7 = ws1.getRow(7);
+  r7.values = tab1Headers;
+  r7.height = 26;
+  tab1Headers.forEach((_, colIdx) => {
+    const cell = r7.getCell(colIdx + 1);
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.NAVY_HEADER } };
+    cell.font = { name: 'Hind Siliguri', size: 11, bold: true, color: { argb: COLORS.GOLD_TEXT } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    cell.border = headerBorders;
+  });
 
-  const invStartRow = 6;
+  // 4. Data Rows (Row 8+)
+  const startRow1 = 8;
   commodities.forEach((c, idx) => {
-    const rowNum = invStartRow + idx;
+    const rowNum = startRow1 + idx;
     const kg = Number(c.current_stock_kg || 0);
     const bags = Number(c.current_stock_bags || 0);
     const wacKg = Number(c.current_wac_per_kg || 0);
+    const isAvailable = kg > 0;
 
-    let statusText = 'পর্যাপ্ত মজুত';
-    if (kg <= 0) statusText = 'স্টক শেষ';
-    else if (kg < 200) statusText = 'স্বল্প মজুত';
-
-    const r = wsInv.addRow([
-      idx + 1,
+    const row = ws1.addRow([
+      toBnDigits(idx + 1),
       c.name_bn || c.name_en || 'নামহীন শস্য',
-      kg,
-      { formula: `C${rowNum}/40`, result: kg / 40.0 },
       bags,
+      kg,
+      { formula: `D${rowNum}/40`, result: kg / 40.0 },
       wacKg,
       { formula: `F${rowNum}*40`, result: wacKg * 40.0 },
-      { formula: `C${rowNum}*F${rowNum}`, result: kg * wacKg },
-      statusText,
+      { formula: `D${rowNum}*F${rowNum}`, result: kg * wacKg },
+      isAvailable ? 'পর্যাপ্ত' : 'স্টক নেই',
     ]);
-    r.height = 20;
-    const bg = idx % 2 === 0 ? PALETTE.ZEBRA_EVEN : PALETTE.ZEBRA_ODD;
+    row.height = 22;
+
+    const rowFill = isAvailable ? COLORS.MINT_ROW : COLORS.PINK_ROW;
 
     for (let cCol = 1; cCol <= 9; cCol++) {
-      const cell = r.getCell(cCol);
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-      cell.font = { name: 'Segoe UI', size: 10, color: { argb: PALETTE.TEXT_DARK } };
+      const cell = row.getCell(cCol);
       cell.border = cellBorders;
+      cell.font = { name: 'Hind Siliguri', size: 10.5, color: { argb: COLORS.TEXT_DARK } };
 
-      if (cCol === 1 || cCol === 9) {
+      if (cCol === 9) {
+        // Status pill
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: isAvailable ? COLORS.GREEN_PILL : COLORS.RED_PILL },
+        };
+        cell.font = { name: 'Hind Siliguri', size: 10.5, bold: true, color: { argb: COLORS.WHITE } };
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
-      } else if (cCol === 2) {
-        cell.alignment = { horizontal: 'left', vertical: 'middle' };
       } else {
-        cell.alignment = { horizontal: 'right', vertical: 'middle' };
-        if (cCol === 5) cell.numFmt = '#,##0';
-        else cell.numFmt = '#,##0.00';
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowFill } };
+        if (cCol === 1) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        else if (cCol === 2) cell.alignment = { horizontal: 'left', vertical: 'middle' };
+        else {
+          cell.alignment = { horizontal: 'right', vertical: 'middle' };
+          if (cCol === 3) cell.numFmt = '#,##0';
+          else cell.numFmt = '#,##0.00';
+        }
       }
     }
   });
 
-  const invEndRow = invStartRow + commodities.length - 1;
-  const invTotalRow = wsInv.addRow([
+  // 5. Golden Total Row (সর্বমোট)
+  const endRow1 = startRow1 + commodities.length - 1;
+  const totalRow1 = ws1.addRow([
     'সর্বমোট',
-    `${commodities.length} টি শস্যের মোট`,
-    commodities.length > 0 ? { formula: `SUM(C${invStartRow}:C${invEndRow})`, result: totalStockKg } : 0,
-    commodities.length > 0 ? { formula: `SUM(D${invStartRow}:D${invEndRow})`, result: totalStockMon } : 0,
-    commodities.length > 0 ? { formula: `SUM(E${invStartRow}:E${invEndRow})`, result: totalStockBags } : 0,
+    '',
+    commodities.length > 0 ? { formula: `SUM(C${startRow1}:C${endRow1})`, result: totalStockBags } : 0,
+    commodities.length > 0 ? { formula: `SUM(D${startRow1}:D${endRow1})`, result: totalStockKg } : 0,
+    commodities.length > 0 ? { formula: `SUM(E${startRow1}:E${endRow1})`, result: totalStockMon } : 0,
     '-',
     '-',
-    commodities.length > 0 ? { formula: `SUM(H${invStartRow}:H${invEndRow})`, result: totalStockValue } : 0,
-    'সম্পূর্ণ গোডাউন',
+    commodities.length > 0 ? { formula: `SUM(H${startRow1}:H${endRow1})`, result: totalStockValue } : 0,
+    'সকল শস্য',
   ]);
-  invTotalRow.height = 24;
+  ws1.mergeCells(totalRow1.number, 1, totalRow1.number, 2);
+  totalRow1.height = 26;
+
   for (let cCol = 1; cCol <= 9; cCol++) {
-    const cell = invTotalRow.getCell(cCol);
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PALETTE.TOTAL_BG } };
-    cell.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: PALETTE.TOTAL_TEXT } };
-    cell.border = totalRowBorders;
-    if (cCol <= 2 || cCol === 9) {
+    const cell = totalRow1.getCell(cCol);
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.GOLD_TOTAL_ROW } };
+    cell.font = { name: 'Hind Siliguri', size: 11, bold: true, color: { argb: COLORS.TEXT_DARK } };
+    cell.border = totalBorders;
+
+    if (cCol <= 2 || cCol === 6 || cCol === 7 || cCol === 9) {
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
     } else {
       cell.alignment = { horizontal: 'right', vertical: 'middle' };
-      if (cCol === 5) cell.numFmt = '#,##0';
-      else if (cCol === 3 || cCol === 4 || cCol === 8) cell.numFmt = '#,##0.00';
-    }
-  }
-
-  autoFitColumns(wsInv, 13, 40);
-
-  // ============================================================================
-  // SHEET 3: শস্য ক্রয় খতিয়ান (Purchases)
-  // ============================================================================
-  const wsPur = wb.addWorksheet('শস্য ক্রয় খতিয়ান (Purchases)', {
-    views: [{ showGridLines: true }],
-  });
-
-  addHeaderBanner(
-    wsPur,
-    'মাহা এন্টারপ্রাইজ — শস্য ক্রয় চালান ও সরবরাহকারী খতিয়ান',
-    'সকল শস্য ক্রয়ের চালান, নিট ওজন, বস্তা, ক্রয় দর, পরিবহন ও লেবার খরচসহ ল্যান্ডেড কস্ট হিসাব',
-    metaString,
-    20
-  );
-
-  const purHeaders = [
-    'ক্রমিক',
-    'চালান নং',
-    'তারিখ',
-    'সরবরাহকারী / বেপারি',
-    'মোবাইল',
-    'শস্যের নাম',
-    'মোট ওজন (কেজি)',
-    'বস্তা কর্তন (কেজি)',
-    'নিট ওজন (কেজি)',
-    'নিট মণ',
-    'বস্তা সংখ্যা',
-    'ক্রয় দর / মণ (৳)',
-    'শস্যের মূল্য (৳)',
-    'কুলি খরচ (৳)',
-    'গাড়ি ভাড়া (৳)',
-    'মোট ক্রয় খরচ (৳)',
-    'পরিশোধিত (৳)',
-    'বকেয়া টাকা (৳)',
-    'মাধ্যম',
-    'মন্তব্য / নোট',
-  ];
-  const purHeaderRowIdx = 5;
-  formatHeaders(wsPur, purHeaders, purHeaderRowIdx);
-
-  const purStartRow = 6;
-  purchases.forEach((p, idx) => {
-    const rowNum = purStartRow + idx;
-    const grossKg = Number(p.gross_weight_kg || 0);
-    const bagDedKg = Number(p.bag_deduction_kg || 0);
-    const netKg = Number(p.net_weight_kg || grossKg - bagDedKg);
-    const bags = Number(p.bags_count || 0);
-    const rateMon = Number(p.rate_per_mon || 0);
-    const grossAmt = Number(p.gross_amount || 0);
-    const labor = Number(p.labor_cost || 0);
-    const transport = Number(p.transport_cost || 0);
-    const totalCost = Number(p.total_landed_cost || grossAmt + labor + transport);
-    const paid = Number(p.paid_amount || 0);
-    const due = Number(p.due_amount || (totalCost - paid));
-
-    const r = wsPur.addRow([
-      idx + 1,
-      p.invoice_no || `PUR-${p.id}`,
-      p.purchase_date || '',
-      p.party_name || 'সাধারণ বেপারি',
-      p.party_phone || '',
-      p.commodity_name || '',
-      grossKg,
-      bagDedKg,
-      netKg,
-      { formula: `I${rowNum}/40`, result: netKg / 40.0 },
-      bags,
-      rateMon,
-      grossAmt,
-      labor,
-      transport,
-      totalCost,
-      paid,
-      due,
-      p.payment_method === 'BANK' ? 'ব্যাংক' : 'নগদ ক্যাশ',
-      p.notes || (p as any).remarks || '',
-    ]);
-    r.height = 20;
-    const bg = idx % 2 === 0 ? PALETTE.ZEBRA_EVEN : PALETTE.ZEBRA_ODD;
-
-    for (let cCol = 1; cCol <= 20; cCol++) {
-      const cell = r.getCell(cCol);
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-      cell.font = { name: 'Segoe UI', size: 10, color: { argb: PALETTE.TEXT_DARK } };
-      cell.border = cellBorders;
-
-      if ([1, 2, 3, 5, 19].includes(cCol)) {
-        cell.alignment = { horizontal: 'center', vertical: 'middle' };
-      } else if ([4, 6, 20].includes(cCol)) {
-        cell.alignment = { horizontal: 'left', vertical: 'middle' };
-      } else {
-        cell.alignment = { horizontal: 'right', vertical: 'middle' };
-        if (cCol === 11) cell.numFmt = '#,##0';
-        else cell.numFmt = '#,##0.00';
-      }
-    }
-  });
-
-  const purEndRow = purStartRow + purchases.length - 1;
-  const purTotalRow = wsPur.addRow([
-    'সর্বমোট',
-    `${purchases.length} টি চালান`,
-    '-',
-    '-',
-    '-',
-    '-',
-    purchases.length > 0 ? { formula: `SUM(G${purStartRow}:G${purEndRow})` } : 0,
-    purchases.length > 0 ? { formula: `SUM(H${purStartRow}:H${purEndRow})` } : 0,
-    purchases.length > 0 ? { formula: `SUM(I${purStartRow}:I${purEndRow})` } : 0,
-    purchases.length > 0 ? { formula: `SUM(J${purStartRow}:J${purEndRow})` } : 0,
-    purchases.length > 0 ? { formula: `SUM(K${purStartRow}:K${purEndRow})` } : 0,
-    '-',
-    purchases.length > 0 ? { formula: `SUM(M${purStartRow}:M${purEndRow})` } : 0,
-    purchases.length > 0 ? { formula: `SUM(N${purStartRow}:N${purEndRow})` } : 0,
-    purchases.length > 0 ? { formula: `SUM(O${purStartRow}:O${purEndRow})` } : 0,
-    purchases.length > 0 ? { formula: `SUM(P${purStartRow}:P${purEndRow})` } : 0,
-    purchases.length > 0 ? { formula: `SUM(Q${purStartRow}:Q${purEndRow})` } : 0,
-    purchases.length > 0 ? { formula: `SUM(R${purStartRow}:R${purEndRow})` } : 0,
-    '-',
-    'সর্বমোট হিসাব',
-  ]);
-  purTotalRow.height = 24;
-
-  for (let cCol = 1; cCol <= 20; cCol++) {
-    const cell = purTotalRow.getCell(cCol);
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PALETTE.TOTAL_BG } };
-    cell.font = { name: 'Segoe UI', size: 10.5, bold: true, color: { argb: PALETTE.TOTAL_TEXT } };
-    cell.border = totalRowBorders;
-
-    if ([1, 2, 3, 4, 5, 6, 12, 19, 20].includes(cCol)) {
-      cell.alignment = { horizontal: 'center', vertical: 'middle' };
-    } else {
-      cell.alignment = { horizontal: 'right', vertical: 'middle' };
-      if (cCol === 11) cell.numFmt = '#,##0';
+      if (cCol === 3) cell.numFmt = '#,##0';
       else cell.numFmt = '#,##0.00';
     }
   }
 
-  autoFitColumns(wsPur, 13, 35);
+  autoFitColumns(ws1, 13, 35);
 
   // ============================================================================
-  // SHEET 4: পাইকারি বিক্রয় খতিয়ান (Sales)
+  // DYNAMIC CROP TABS (Separate Tab for EACH Commodity: e.g. ২. পাট স্টক, ৩. সরিষা স্টক)
   // ============================================================================
-  const wsSale = wb.addWorksheet('পাইকারি বিক্রয় খতিয়ান (Sales)', {
-    views: [{ showGridLines: true }],
+  const cropTabColors = [
+    COLORS.TAB_GOLD,
+    COLORS.TAB_TEAL,
+    COLORS.TAB_EMERALD,
+    COLORS.TAB_AMBER,
+    COLORS.TAB_INDIGO,
+    'FFEC4899', // Pink
+    'FF8B5CF6', // Purple
+    'FF06B6D4', // Cyan
+  ];
+
+  commodities.forEach((c, cIdx) => {
+    const cropName = c.name_bn || c.name_en || `শস্য-${c.id}`;
+    const tabName = `${toBnDigits(cIdx + 2)}. ${cropName} স্টক`;
+    const wsCrop = wb.addWorksheet(tabName, { views: [{ showGridLines: true }] });
+    wsCrop.properties.tabColor = { argb: cropTabColors[cIdx % cropTabColors.length] };
+
+    // Banner
+    addRoyalBanner(
+      wsCrop,
+      `মাহা এন্টারপ্রাইজ — ${cropName} স্টক ও লেনদেন খতিয়ান`,
+      `‘সততাই ব্যবসার মূলধন’ — চাচকৈড় বাজার, গুরুদাসপুর, নাটোর`,
+      clockFormatted,
+      dateFormatted,
+      7, 8, 9
+    );
+
+    // Crop Stats
+    const cKg = Number(c.current_stock_kg || 0);
+    const cBags = Number(c.current_stock_bags || 0);
+    const cMon = cKg / 40.0;
+    const cWacKg = Number(c.current_wac_per_kg || 0);
+    const cWacMon = cWacKg * 40.0;
+    const cVal = cKg * cWacKg;
+
+    // Filter purchases & sales for this commodity
+    const cropPurchases = purchases.filter((p) => p.commodity_id === c.id);
+    const cropSales = sales.filter((s) => s.commodity_id === c.id);
+
+    let cropPurKg = 0;
+    cropPurchases.forEach((p) => { cropPurKg += Number(p.net_weight_kg || 0); });
+    let cropSaleKg = 0;
+    cropSales.forEach((s) => { cropSaleKg += Number(s.net_weight_kg || 0); });
+
+    addKpiCards(
+      wsCrop,
+      `${cropName} বর্তমান স্টক`,
+      `${toBnDigits(cBags)} বস্তা | ${toBnDigits(cMon.toFixed(2))} মণ`,
+      'গড় ক্রয়দর (WAC / মণ)',
+      `৳ ${toBnDigits(cWacMon.toFixed(2))}`,
+      'মোট ক্রয়কৃত পরিমাণ',
+      `${toBnDigits((cropPurKg / 40).toFixed(2))} মণ (${toBnDigits(cropPurchases.length)} চালান)`,
+      'মোট বিক্রয়কৃত পরিমাণ',
+      `${toBnDigits((cropSaleKg / 40).toFixed(2))} মণ (${toBnDigits(cropSales.length)} মেমো)`
+    );
+
+    // Table Header
+    const cropHeaders = [
+      'ক্রমিক',
+      'তারিখ',
+      'চালান / মেমো নং',
+      'লেনদেনের ধরন',
+      'পার্টি / ক্রেতা / বেপারি',
+      'বস্তা সংখ্যা',
+      'ওজন (কেজি)',
+      'ওজন (মণ)',
+      'দর / মণ (৳)',
+      'মোট টাকা (৳)',
+    ];
+    const cr7 = wsCrop.getRow(7);
+    cr7.values = cropHeaders;
+    cr7.height = 26;
+    cropHeaders.forEach((_, colIdx) => {
+      const cell = cr7.getCell(colIdx + 1);
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.NAVY_HEADER } };
+      cell.font = { name: 'Hind Siliguri', size: 11, bold: true, color: { argb: COLORS.GOLD_TEXT } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = headerBorders;
+    });
+
+    // Combine transactions
+    interface CropTx {
+      date: string;
+      ref: string;
+      type: string;
+      party: string;
+      bags: number;
+      kg: number;
+      rate: number;
+      amt: number;
+    }
+    const txList: CropTx[] = [];
+    cropPurchases.forEach((p) => {
+      txList.push({
+        date: p.purchase_date || '',
+        ref: p.invoice_no || `PUR-${p.id}`,
+        type: 'শস্য ক্রয় (+)',
+        party: p.party_name || 'বেপারি',
+        bags: Number(p.bags_count || 0),
+        kg: Number(p.net_weight_kg || 0),
+        rate: Number(p.rate_per_mon || 0),
+        amt: Number(p.total_landed_cost || p.gross_amount || 0),
+      });
+    });
+    cropSales.forEach((s) => {
+      txList.push({
+        date: s.sale_date || '',
+        ref: s.invoice_no || `SAL-${s.id}`,
+        type: 'পাইকারি বিক্রয় (-)',
+        party: s.party_name || 'খরিদ্দার',
+        bags: Number(s.bags_count || 0),
+        kg: Number(s.net_weight_kg || 0),
+        rate: Number(s.rate_per_mon || 0),
+        amt: Number(s.net_invoice_amount || s.gross_amount || 0),
+      });
+    });
+
+    txList.sort((a, b) => (b.date > a.date ? 1 : -1));
+
+    const cropStartRow = 8;
+    txList.forEach((tx, tIdx) => {
+      const rowNum = cropStartRow + tIdx;
+      const isPur = tx.type.includes('ক্রয়');
+      const r = wsCrop.addRow([
+        toBnDigits(tIdx + 1),
+        tx.date,
+        tx.ref,
+        tx.type,
+        tx.party,
+        tx.bags,
+        tx.kg,
+        { formula: `G${rowNum}/40`, result: tx.kg / 40.0 },
+        tx.rate,
+        tx.amt,
+      ]);
+      r.height = 20;
+      const rFill = isPur ? COLORS.MINT_ROW : 'FFFFF7ED'; // Mint or soft amber
+
+      for (let cCol = 1; cCol <= 10; cCol++) {
+        const cell = r.getCell(cCol);
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rFill } };
+        cell.font = { name: 'Hind Siliguri', size: 10, color: { argb: COLORS.TEXT_DARK } };
+        cell.border = cellBorders;
+
+        if ([1, 2, 3, 4].includes(cCol)) {
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        } else if (cCol === 5) {
+          cell.alignment = { horizontal: 'left', vertical: 'middle' };
+        } else {
+          cell.alignment = { horizontal: 'right', vertical: 'middle' };
+          if (cCol === 6) cell.numFmt = '#,##0';
+          else cell.numFmt = '#,##0.00';
+        }
+      }
+    });
+
+    const cropEndRow = cropStartRow + txList.length - 1;
+    const cropTotal = wsCrop.addRow([
+      'সর্বমোট বর্তমান স্টক',
+      '',
+      '',
+      '',
+      `${cropName} গোডাউন স্টক:`,
+      cBags,
+      cKg,
+      cMon,
+      cWacMon,
+      cVal,
+    ]);
+    wsCrop.mergeCells(cropTotal.number, 1, cropTotal.number, 4);
+    cropTotal.height = 26;
+
+    for (let cCol = 1; cCol <= 10; cCol++) {
+      const cell = cropTotal.getCell(cCol);
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.GOLD_TOTAL_ROW } };
+      cell.font = { name: 'Hind Siliguri', size: 11, bold: true, color: { argb: COLORS.TEXT_DARK } };
+      cell.border = totalBorders;
+
+      if (cCol <= 5) {
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      } else {
+        cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        if (cCol === 6) cell.numFmt = '#,##0';
+        else cell.numFmt = '#,##0.00';
+      }
+    }
+
+    autoFitColumns(wsCrop, 13, 35);
   });
 
-  addHeaderBanner(
-    wsSale,
-    'মাহা এন্টারপ্রাইজ — পাইকারি বিক্রয় মেমো ও লাভ-লোকসান খতিয়ান',
-    'সকল পাইকারি বিক্রয়ের চালান, ক্রেতা বিবরণ, আদায়, বকেয়া, মালের ক্রয়মূল্য (COGS) ও অর্জিত লাভ',
-    metaString,
-    20
+  // ============================================================================
+  // TAB: বাকি খাতা (Orange Tab: FFEA580C)
+  // ============================================================================
+  const wsDues = wb.addWorksheet('বাকি খাতা', { views: [{ showGridLines: true }] });
+  wsDues.properties.tabColor = { argb: COLORS.TAB_ORANGE };
+
+  addRoyalBanner(wsDues, 'মাহা এন্টারপ্রাইজ — খরিদ্দার বাকি খাতা (কাস্টমার বকেয়া)', '‘সততাই ব্যবসার মূলধন’ — চাচকৈড় বাজার, গুরুদাসপুর, নাটোর', clockFormatted, dateFormatted, 6, 7, 8);
+
+  const buyers = parties.filter((p) => p.party_type === 'BUYER' || p.party_type === 'BOTH');
+  addKpiCards(
+    wsDues,
+    'মোট বাকি খরিদ্দার',
+    `${toBnDigits(buyers.length)} জন`,
+    'মোট বকেয়া পাওনা',
+    `৳ ${toBnDigits(totalReceivable.toLocaleString())}`,
+    'গড় বকেয়া প্রতি খরিদ্দার',
+    `৳ ${toBnDigits(buyers.length > 0 ? (totalReceivable / buyers.length).toFixed(2) : '০')}`,
+    'পরিশোধযোগ্য দেনা',
+    `৳ ${toBnDigits(totalPayable.toLocaleString())}`
   );
 
-  const saleHeaders = [
+  const dueHeaders = [
+    'ক্রমিক',
+    'খরিদ্দারের নাম',
+    'মোবাইল নম্বর',
+    'ঠিকানা',
+    'প্রারম্ভিক বাকি (৳)',
+    'বর্তমান বাকি (৳)',
+    'হিসাবের প্রকৃতি',
+    'স্ট্যাটাস',
+  ];
+  const dr7 = wsDues.getRow(7);
+  dr7.values = dueHeaders;
+  dr7.height = 26;
+  dueHeaders.forEach((_, colIdx) => {
+    const cell = dr7.getCell(colIdx + 1);
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.NAVY_HEADER } };
+    cell.font = { name: 'Hind Siliguri', size: 11, bold: true, color: { argb: COLORS.GOLD_TEXT } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    cell.border = headerBorders;
+  });
+
+  const dueStartRow = 8;
+  buyers.forEach((b, idx) => {
+    const bal = Number(b.current_balance || 0);
+    const op = Number(b.opening_balance || 0);
+
+    const r = wsDues.addRow([
+      toBnDigits(idx + 1),
+      b.name || 'নামহীন খরিদ্দার',
+      b.phone || '',
+      b.address || '',
+      op,
+      bal,
+      bal > 0 ? 'পাওনাদার' : bal < 0 ? 'দেনা' : 'পরিশোধিত',
+      b.is_active === 0 ? 'নিষ্ক্রিয়' : 'সচল',
+    ]);
+    r.height = 20;
+    const bg = idx % 2 === 0 ? COLORS.WHITE : 'FFF8FAFC';
+
+    for (let cCol = 1; cCol <= 8; cCol++) {
+      const cell = r.getCell(cCol);
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+      cell.font = { name: 'Hind Siliguri', size: 10, color: { argb: COLORS.TEXT_DARK } };
+      cell.border = cellBorders;
+
+      if ([1, 3, 7, 8].includes(cCol)) {
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      } else if ([2, 4].includes(cCol)) {
+        cell.alignment = { horizontal: 'left', vertical: 'middle' };
+      } else {
+        cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        cell.numFmt = '#,##0.00';
+      }
+    }
+  });
+
+  const dueEndRow = dueStartRow + buyers.length - 1;
+  const dueTotalRow = wsDues.addRow([
+    'সর্বমোট বাকি পাওনা',
+    '',
+    '',
+    '',
+    buyers.length > 0 ? { formula: `SUM(E${dueStartRow}:E${dueEndRow})` } : 0,
+    buyers.length > 0 ? { formula: `SUM(F${dueStartRow}:F${dueEndRow})` } : 0,
+    `মোট পাওনা: ৳${totalReceivable.toFixed(2)}`,
+    'সকল কাস্টমার',
+  ]);
+  wsDues.mergeCells(dueTotalRow.number, 1, dueTotalRow.number, 4);
+  dueTotalRow.height = 26;
+
+  for (let cCol = 1; cCol <= 8; cCol++) {
+    const cell = dueTotalRow.getCell(cCol);
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.GOLD_TOTAL_ROW } };
+    cell.font = { name: 'Hind Siliguri', size: 11, bold: true, color: { argb: COLORS.TEXT_DARK } };
+    cell.border = totalBorders;
+
+    if (cCol <= 4 || cCol >= 7) {
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    } else {
+      cell.alignment = { horizontal: 'right', vertical: 'middle' };
+      cell.numFmt = '#,##0.00';
+    }
+  }
+
+  autoFitColumns(wsDues, 14, 40);
+
+  // ============================================================================
+  // TAB: পাওনাদার হিসাব (Red Tab: FFDC2626)
+  // ============================================================================
+  const wsSupp = wb.addWorksheet('পাওনাদার হিসাব', { views: [{ showGridLines: true }] });
+  wsSupp.properties.tabColor = { argb: COLORS.TAB_RED };
+
+  addRoyalBanner(wsSupp, 'মাহা এন্টারপ্রাইজ — মহাজন ও বেপারি পাওনাদার খাতা', '‘সততাই ব্যবসার মূলধন’ — চাচকৈড় বাজার, গুরুদাসপুর, নাটোর', clockFormatted, dateFormatted, 6, 7, 8);
+
+  const suppliers = parties.filter((p) => p.party_type === 'SUPPLIER' || p.party_type === 'BOTH');
+  addKpiCards(
+    wsSupp,
+    'মোট মহাজন / বেপারি',
+    `${toBnDigits(suppliers.length)} জন`,
+    'পরিশোধযোগ্য মোট দেনা',
+    `৳ ${toBnDigits(totalPayable.toLocaleString())}`,
+    'মোট শস্য ক্রয় খরচ',
+    `৳ ${toBnDigits(totalPurchasesAmount.toLocaleString())}`,
+    'ক্যাশ স্থিতি',
+    `৳ ${toBnDigits(netCashFlow.toLocaleString())}`
+  );
+
+  const suppHeaders = [
+    'ক্রমিক',
+    'মহাজন / বেপারির নাম',
+    'মোবাইল নম্বর',
+    'ঠিকানা',
+    'প্রারম্ভিক দেনা (৳)',
+    'বর্তমান দেনা (৳)',
+    'স্ট্যাটাস',
+    'মন্তব্য',
+  ];
+  const sr7 = wsSupp.getRow(7);
+  sr7.values = suppHeaders;
+  sr7.height = 26;
+  suppHeaders.forEach((_, colIdx) => {
+    const cell = sr7.getCell(colIdx + 1);
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.NAVY_HEADER } };
+    cell.font = { name: 'Hind Siliguri', size: 11, bold: true, color: { argb: COLORS.GOLD_TEXT } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    cell.border = headerBorders;
+  });
+
+  const suppStartRow = 8;
+  suppliers.forEach((s, idx) => {
+    const bal = Math.abs(Number(s.current_balance || 0));
+    const op = Math.abs(Number(s.opening_balance || 0));
+
+    const r = wsSupp.addRow([
+      toBnDigits(idx + 1),
+      s.name || 'মহাজন',
+      s.phone || '',
+      s.address || '',
+      op,
+      bal,
+      s.is_active === 0 ? 'নিষ্ক্রিয়' : 'সচল',
+      'নিয়মিত সরবরাহকারী',
+    ]);
+    r.height = 20;
+    const bg = idx % 2 === 0 ? COLORS.WHITE : 'FFF8FAFC';
+
+    for (let cCol = 1; cCol <= 8; cCol++) {
+      const cell = r.getCell(cCol);
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+      cell.font = { name: 'Hind Siliguri', size: 10, color: { argb: COLORS.TEXT_DARK } };
+      cell.border = cellBorders;
+
+      if ([1, 3, 7, 8].includes(cCol)) {
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      } else if ([2, 4].includes(cCol)) {
+        cell.alignment = { horizontal: 'left', vertical: 'middle' };
+      } else {
+        cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        cell.numFmt = '#,##0.00';
+      }
+    }
+  });
+
+  const suppEndRow = suppStartRow + suppliers.length - 1;
+  const suppTotalRow = wsSupp.addRow([
+    'সর্বমোট দেনা',
+    '',
+    '',
+    '',
+    suppliers.length > 0 ? { formula: `SUM(E${suppStartRow}:E${suppEndRow})` } : 0,
+    suppliers.length > 0 ? { formula: `SUM(F${suppStartRow}:F${suppEndRow})` } : 0,
+    'সকল মহাজন',
+    'পরিশোধযোগ্য',
+  ]);
+  wsSupp.mergeCells(suppTotalRow.number, 1, suppTotalRow.number, 4);
+  suppTotalRow.height = 26;
+
+  for (let cCol = 1; cCol <= 8; cCol++) {
+    const cell = suppTotalRow.getCell(cCol);
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.GOLD_TOTAL_ROW } };
+    cell.font = { name: 'Hind Siliguri', size: 11, bold: true, color: { argb: COLORS.TEXT_DARK } };
+    cell.border = totalBorders;
+
+    if (cCol <= 4 || cCol >= 7) {
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    } else {
+      cell.alignment = { horizontal: 'right', vertical: 'middle' };
+      cell.numFmt = '#,##0.00';
+    }
+  }
+
+  autoFitColumns(wsSupp, 14, 40);
+
+  // ============================================================================
+  // TAB: বিক্রয় ইতিহাস (Blue Tab: FF0284C7)
+  // ============================================================================
+  const wsSalesHist = wb.addWorksheet('বিক্রয় ইতিহাস', { views: [{ showGridLines: true }] });
+  wsSalesHist.properties.tabColor = { argb: COLORS.TAB_BLUE };
+
+  addRoyalBanner(wsSalesHist, 'মাহা এন্টারপ্রাইজ — পাইকারি বিক্রয় ইতিহাস ও লাভ-লোকসান', '‘সততাই ব্যবসার মূলধন’ — চাচকৈড় বাজার, গুরুদাসপুর, নাটোর', clockFormatted, dateFormatted, 11, 12, 13);
+
+  addKpiCards(
+    wsSalesHist,
+    'মোট বিক্রয় চালান',
+    `${toBnDigits(sales.length)} টি মেমো`,
+    'সর্বমোট বিক্রয় বিল',
+    `৳ ${toBnDigits(totalSalesAmount.toLocaleString())}`,
+    'সর্বমোট নগদ আদায়',
+    `৳ ${toBnDigits(sales.reduce((acc, s) => acc + Number(s.paid_amount || 0), 0).toLocaleString())}`,
+    'মোট অর্জিত নিট লাভ',
+    `৳ ${toBnDigits(totalRealizedProfit.toLocaleString())}`
+  );
+
+  const saleHistHeaders = [
     'ক্রমিক',
     'চালান নং',
     'তারিখ',
@@ -717,69 +945,60 @@ export async function generateAndDownloadExcelBackup(snapshotData?: any): Promis
     'নিট ওজন (কেজি)',
     'নিট মণ',
     'বস্তা সংখ্যা',
-    'বিক্রয় দর / মণ (৳)',
-    'বিক্রয় বিল (৳)',
-    'লেবার চার্জ (৳)',
-    'বস্তা কর্তন (৳)',
-    'ছাড় (৳)',
+    'বিক্রয় দর / মণ',
     'সর্বমোট বিল (৳)',
     'নগদ আদায় (৳)',
-    'বর্তমান বকেয়া (৳)',
-    'মালের ক্রয়মূল্য (৳)',
-    'অর্জিত নিট লাভ (৳)',
-    'পেমেন্ট মাধ্যম',
+    'বকেয়া (৳)',
+    'অর্জিত লাভ (৳)',
   ];
-  const saleHeaderRowIdx = 5;
-  formatHeaders(wsSale, saleHeaders, saleHeaderRowIdx);
+  const slr7 = wsSalesHist.getRow(7);
+  slr7.values = saleHistHeaders;
+  slr7.height = 26;
+  saleHistHeaders.forEach((_, colIdx) => {
+    const cell = slr7.getCell(colIdx + 1);
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.NAVY_HEADER } };
+    cell.font = { name: 'Hind Siliguri', size: 11, bold: true, color: { argb: COLORS.GOLD_TEXT } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    cell.border = headerBorders;
+  });
 
-  const saleStartRow = 6;
+  const saleStartRow = 8;
   sales.forEach((s, idx) => {
     const rowNum = saleStartRow + idx;
     const netKg = Number(s.net_weight_kg || 0);
     const bags = Number(s.bags_count || 0);
     const rateMon = Number(s.rate_per_mon || 0);
-    const grossAmt = Number(s.gross_amount || 0);
-    const loading = Number(s.loading_charge || 0);
-    const bagDed = Number(s.damaged_bag_deduction || 0);
-    const disc = Number(s.discount_amount || 0);
-    const netInvoice = Number(s.net_invoice_amount || (grossAmt + loading - bagDed - disc));
+    const netInvoice = Number(s.net_invoice_amount || s.gross_amount || 0);
     const paid = Number(s.paid_amount || 0);
     const due = Number(s.due_amount || (netInvoice - paid));
-    const cogs = Number(s.cogs_amount || 0);
-    const profit = Number(s.realized_profit || (netInvoice - cogs));
+    const profit = Number(s.realized_profit || 0);
 
-    const r = wsSale.addRow([
-      idx + 1,
+    const r = wsSalesHist.addRow([
+      toBnDigits(idx + 1),
       s.invoice_no || `SAL-${s.id}`,
       s.sale_date || '',
-      s.party_name || 'সাধারণ খুচরা ক্রেতা',
+      s.party_name || 'খুচরা ক্রেতা',
       s.party_phone || '',
       s.commodity_name || '',
       netKg,
       { formula: `G${rowNum}/40`, result: netKg / 40.0 },
       bags,
       rateMon,
-      grossAmt,
-      loading,
-      bagDed,
-      disc,
       netInvoice,
       paid,
       due,
-      cogs,
       profit,
-      s.payment_method === 'BANK' ? 'ব্যাংক' : 'নগদ ক্যাশ',
     ]);
     r.height = 20;
-    const bg = idx % 2 === 0 ? PALETTE.ZEBRA_EVEN : PALETTE.ZEBRA_ODD;
+    const bg = idx % 2 === 0 ? COLORS.WHITE : 'FFF8FAFC';
 
-    for (let cCol = 1; cCol <= 20; cCol++) {
+    for (let cCol = 1; cCol <= 14; cCol++) {
       const cell = r.getCell(cCol);
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-      cell.font = { name: 'Segoe UI', size: 10, color: { argb: PALETTE.TEXT_DARK } };
+      cell.font = { name: 'Hind Siliguri', size: 10, color: { argb: COLORS.TEXT_DARK } };
       cell.border = cellBorders;
 
-      if ([1, 2, 3, 5, 20].includes(cCol)) {
+      if ([1, 2, 3, 5].includes(cCol)) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
       } else if ([4, 6].includes(cCol)) {
         cell.alignment = { horizontal: 'left', vertical: 'middle' };
@@ -792,13 +1011,13 @@ export async function generateAndDownloadExcelBackup(snapshotData?: any): Promis
   });
 
   const saleEndRow = saleStartRow + sales.length - 1;
-  const saleTotalRow = wsSale.addRow([
-    'সর্বমোট',
-    `${sales.length} টি মেমো`,
-    '-',
-    '-',
-    '-',
-    '-',
+  const saleTotal = wsSalesHist.addRow([
+    'সর্বমোট বিক্রয় হিসাব',
+    '',
+    '',
+    '',
+    '',
+    '',
     sales.length > 0 ? { formula: `SUM(G${saleStartRow}:G${saleEndRow})` } : 0,
     sales.length > 0 ? { formula: `SUM(H${saleStartRow}:H${saleEndRow})` } : 0,
     sales.length > 0 ? { formula: `SUM(I${saleStartRow}:I${saleEndRow})` } : 0,
@@ -807,22 +1026,17 @@ export async function generateAndDownloadExcelBackup(snapshotData?: any): Promis
     sales.length > 0 ? { formula: `SUM(L${saleStartRow}:L${saleEndRow})` } : 0,
     sales.length > 0 ? { formula: `SUM(M${saleStartRow}:M${saleEndRow})` } : 0,
     sales.length > 0 ? { formula: `SUM(N${saleStartRow}:N${saleEndRow})` } : 0,
-    sales.length > 0 ? { formula: `SUM(O${saleStartRow}:O${saleEndRow})` } : 0,
-    sales.length > 0 ? { formula: `SUM(P${saleStartRow}:P${saleEndRow})` } : 0,
-    sales.length > 0 ? { formula: `SUM(Q${saleStartRow}:Q${saleEndRow})` } : 0,
-    sales.length > 0 ? { formula: `SUM(R${saleStartRow}:R${saleEndRow})` } : 0,
-    sales.length > 0 ? { formula: `SUM(S${saleStartRow}:S${saleEndRow})` } : 0,
-    'সর্বমোট বিক্রয়',
   ]);
-  saleTotalRow.height = 24;
+  wsSalesHist.mergeCells(saleTotal.number, 1, saleTotal.number, 6);
+  saleTotal.height = 26;
 
-  for (let cCol = 1; cCol <= 20; cCol++) {
-    const cell = saleTotalRow.getCell(cCol);
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PALETTE.TOTAL_BG } };
-    cell.font = { name: 'Segoe UI', size: 10.5, bold: true, color: { argb: PALETTE.TOTAL_TEXT } };
-    cell.border = totalRowBorders;
+  for (let cCol = 1; cCol <= 14; cCol++) {
+    const cell = saleTotal.getCell(cCol);
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.GOLD_TOTAL_ROW } };
+    cell.font = { name: 'Hind Siliguri', size: 11, bold: true, color: { argb: COLORS.TEXT_DARK } };
+    cell.border = totalBorders;
 
-    if ([1, 2, 3, 4, 5, 6, 10, 20].includes(cCol)) {
+    if (cCol <= 6 || cCol === 10) {
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
     } else {
       cell.alignment = { horizontal: 'right', vertical: 'middle' };
@@ -831,179 +1045,215 @@ export async function generateAndDownloadExcelBackup(snapshotData?: any): Promis
     }
   }
 
-  autoFitColumns(wsSale, 13, 35);
+  autoFitColumns(wsSalesHist, 13, 35);
 
   // ============================================================================
-  // SHEET 5: বাকি খাতা (Parties & Dues)
+  // TAB: শস্য ক্রয় তালিকা (Purple Tab: FF7E22CE)
   // ============================================================================
-  const wsParty = wb.addWorksheet('বাকি খাতা (Parties & Dues)', {
-    views: [{ showGridLines: true }],
-  });
+  const wsPurList = wb.addWorksheet('শস্য ক্রয় তালিকা', { views: [{ showGridLines: true }] });
+  wsPurList.properties.tabColor = { argb: COLORS.TAB_PURPLE };
 
-  addHeaderBanner(
-    wsParty,
-    'মাহা এন্টারপ্রাইজ — পার্টি তালিকা ও বর্তমান বকেয়া খাতা',
-    'সকল খরিদ্দার, মহাজন ও বেপারিদের যোগাযোগের ঠিকানা, প্রারম্ভিক ব্যালেন্স ও বর্তমান জের স্থিতি',
-    metaString,
-    9
+  addRoyalBanner(wsPurList, 'মাহা এন্টারপ্রাইজ — শস্য ক্রয় চালান ও সরবরাহ তালিকা', '‘সততাই ব্যবসার মূলধন’ — চাচকৈড় বাজার, গুরুদাসপুর, নাটোর', clockFormatted, dateFormatted, 10, 11, 12);
+
+  addKpiCards(
+    wsPurList,
+    'মোট ক্রয় চালান',
+    `${toBnDigits(purchases.length)} টি`,
+    'মোট ক্রয় খরচ (টাকা)',
+    `৳ ${toBnDigits(totalPurchasesAmount.toLocaleString())}`,
+    'মোট পরিশোধিত টাকা',
+    `৳ ${toBnDigits(purchases.reduce((acc, p) => acc + Number(p.paid_amount || 0), 0).toLocaleString())}`,
+    'মোট ক্রয় বকেয়া দেনা',
+    `৳ ${toBnDigits(purchases.reduce((acc, p) => acc + Number(p.due_amount || 0), 0).toLocaleString())}`
   );
 
-  const partyHeaders = [
+  const purListHeaders = [
     'ক্রমিক',
-    'পার্টির নাম',
-    'পার্টির ধরন',
-    'মোবাইল নম্বর',
-    'ঠিকানা',
-    'প্রারম্ভিক জের (৳)',
-    'বর্তমান ব্যালেন্স (৳)',
-    'হিসাবের প্রকৃতি',
-    'স্ট্যাটাস',
+    'চালান নং',
+    'তারিখ',
+    'সরবরাহকারী',
+    'মোবাইল',
+    'শস্যের জাত',
+    'নিট ওজন (কেজি)',
+    'নিট মণ',
+    'বস্তা সংখ্যা',
+    'ক্রয় দর / মণ',
+    'মোট ক্রয় খরচ (৳)',
+    'পরিশোধিত (৳)',
+    'বকেয়া (৳)',
   ];
-  const partyHeaderRowIdx = 5;
-  formatHeaders(wsParty, partyHeaders, partyHeaderRowIdx);
+  const plr7 = wsPurList.getRow(7);
+  plr7.values = purListHeaders;
+  plr7.height = 26;
+  purListHeaders.forEach((_, colIdx) => {
+    const cell = plr7.getCell(colIdx + 1);
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.NAVY_HEADER } };
+    cell.font = { name: 'Hind Siliguri', size: 11, bold: true, color: { argb: COLORS.GOLD_TEXT } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    cell.border = headerBorders;
+  });
 
-  const partyStartRow = 6;
-  parties.forEach((p, idx) => {
-    const bal = Number(p.current_balance || 0);
-    const opBal = Number(p.opening_balance || 0);
+  const purStartRow = 8;
+  purchases.forEach((p, idx) => {
+    const rowNum = purStartRow + idx;
+    const netKg = Number(p.net_weight_kg || 0);
+    const bags = Number(p.bags_count || 0);
+    const rateMon = Number(p.rate_per_mon || 0);
+    const totalCost = Number(p.total_landed_cost || p.gross_amount || 0);
+    const paid = Number(p.paid_amount || 0);
+    const due = Number(p.due_amount || (totalCost - paid));
 
-    let natureText = 'পরিশোধিত (০)';
-    if (bal > 0) natureText = 'পাওনা (আমাদের প্রাপ্য)';
-    else if (bal < 0) natureText = 'দেনা (মহাজন পাবে)';
-
-    let typeBangla = 'উভয় (খরিদ্দার/মহাজন)';
-    if (p.party_type === 'BUYER') typeBangla = 'খরিদ্দার / ক্রেতা';
-    else if (p.party_type === 'SUPPLIER') typeBangla = 'সরবরাহকারী / বেপারি';
-
-    const r = wsParty.addRow([
-      idx + 1,
-      p.name || 'নামহীন পার্টি',
-      typeBangla,
-      p.phone || '',
-      p.address || '',
-      opBal,
-      bal,
-      natureText,
-      p.is_active === 0 ? 'নিষ্ক্রিয়' : 'সচল',
+    const r = wsPurList.addRow([
+      toBnDigits(idx + 1),
+      p.invoice_no || `PUR-${p.id}`,
+      p.purchase_date || '',
+      p.party_name || 'বেপারি',
+      p.party_phone || '',
+      p.commodity_name || '',
+      netKg,
+      { formula: `G${rowNum}/40`, result: netKg / 40.0 },
+      bags,
+      rateMon,
+      totalCost,
+      paid,
+      due,
     ]);
     r.height = 20;
-    const bg = idx % 2 === 0 ? PALETTE.ZEBRA_EVEN : PALETTE.ZEBRA_ODD;
+    const bg = idx % 2 === 0 ? COLORS.WHITE : 'FFF8FAFC';
 
-    for (let cCol = 1; cCol <= 9; cCol++) {
+    for (let cCol = 1; cCol <= 13; cCol++) {
       const cell = r.getCell(cCol);
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-      cell.font = { name: 'Segoe UI', size: 10, color: { argb: PALETTE.TEXT_DARK } };
+      cell.font = { name: 'Hind Siliguri', size: 10, color: { argb: COLORS.TEXT_DARK } };
       cell.border = cellBorders;
 
-      if ([1, 3, 4, 8, 9].includes(cCol)) {
+      if ([1, 2, 3, 5].includes(cCol)) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
-      } else if ([2, 5].includes(cCol)) {
+      } else if ([4, 6].includes(cCol)) {
         cell.alignment = { horizontal: 'left', vertical: 'middle' };
       } else {
         cell.alignment = { horizontal: 'right', vertical: 'middle' };
-        cell.numFmt = '#,##0.00';
+        if (cCol === 9) cell.numFmt = '#,##0';
+        else cell.numFmt = '#,##0.00';
       }
     }
   });
 
-  const partyEndRow = partyStartRow + parties.length - 1;
-  const partyTotalRow = wsParty.addRow([
-    'সর্বমোট',
-    `${parties.length} জন পার্টির হিসাব`,
+  const purEndRow = purStartRow + purchases.length - 1;
+  const purTotal = wsPurList.addRow([
+    'সর্বমোট ক্রয় হিসাব',
+    '',
+    '',
+    '',
+    '',
+    '',
+    purchases.length > 0 ? { formula: `SUM(G${purStartRow}:G${purEndRow})` } : 0,
+    purchases.length > 0 ? { formula: `SUM(H${purStartRow}:H${purEndRow})` } : 0,
+    purchases.length > 0 ? { formula: `SUM(I${purStartRow}:I${purEndRow})` } : 0,
     '-',
-    '-',
-    '-',
-    parties.length > 0 ? { formula: `SUM(F${partyStartRow}:F${partyEndRow})` } : 0,
-    parties.length > 0 ? { formula: `SUM(G${partyStartRow}:G${partyEndRow})` } : 0,
-    `পাওনা: ৳${totalReceivable.toFixed(2)} | দেনা: ৳${totalPayable.toFixed(2)}`,
-    'সকল পার্টি',
+    purchases.length > 0 ? { formula: `SUM(K${purStartRow}:K${purEndRow})` } : 0,
+    purchases.length > 0 ? { formula: `SUM(L${purStartRow}:L${purEndRow})` } : 0,
+    purchases.length > 0 ? { formula: `SUM(M${purStartRow}:M${purEndRow})` } : 0,
   ]);
-  partyTotalRow.height = 24;
+  wsPurList.mergeCells(purTotal.number, 1, purTotal.number, 6);
+  purTotal.height = 26;
 
-  for (let cCol = 1; cCol <= 9; cCol++) {
-    const cell = partyTotalRow.getCell(cCol);
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PALETTE.TOTAL_BG } };
-    cell.font = { name: 'Segoe UI', size: 10.5, bold: true, color: { argb: PALETTE.TOTAL_TEXT } };
-    cell.border = totalRowBorders;
+  for (let cCol = 1; cCol <= 13; cCol++) {
+    const cell = purTotal.getCell(cCol);
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.GOLD_TOTAL_ROW } };
+    cell.font = { name: 'Hind Siliguri', size: 11, bold: true, color: { argb: COLORS.TEXT_DARK } };
+    cell.border = totalBorders;
 
-    if ([1, 2, 3, 4, 5, 8, 9].includes(cCol)) {
+    if (cCol <= 6 || cCol === 10) {
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
     } else {
       cell.alignment = { horizontal: 'right', vertical: 'middle' };
-      cell.numFmt = '#,##0.00';
+      if (cCol === 9) cell.numFmt = '#,##0';
+      else cell.numFmt = '#,##0.00';
     }
   }
 
-  autoFitColumns(wsParty, 14, 45);
+  autoFitColumns(wsPurList, 13, 35);
 
   // ============================================================================
-  // SHEET 6: দৈনিক ক্যাশ বই (Cashbook)
+  // TAB: দোকানের খরচ ও ক্যাশ (Slate Tab: FF475569)
   // ============================================================================
-  const wsCash = wb.addWorksheet('দৈনিক ক্যাশ বই (Cashbook)', {
-    views: [{ showGridLines: true }],
-  });
+  const wsCashExp = wb.addWorksheet('দোকানের খরচ ও ক্যাশ', { views: [{ showGridLines: true }] });
+  wsCashExp.properties.tabColor = { argb: COLORS.TAB_SLATE };
 
-  addHeaderBanner(
-    wsCash,
-    'মাহা এন্টারপ্রাইজ — দৈনিক ক্যাশ বই ও নগদ প্রবাহ খতিয়ান',
-    'প্রতিদিনের নগদ জমা (Inflow) ও খরচ (Outflow) সম্বলিত ব্যালেন্সড ক্যাশ বই রেজিস্টার',
-    metaString,
-    10
+  addRoyalBanner(wsCashExp, 'মাহা এন্টারপ্রাইজ — দৈনিক ক্যাশ বই ও পরিচালন খরচ', '‘সততাই ব্যবসার মূলধন’ — চাচকৈড় বাজার, গুরুদাসপুর, নাটোর', clockFormatted, dateFormatted, 7, 8, 9);
+
+  addKpiCards(
+    wsCashExp,
+    'মোট নগদ ক্যাশ জমা',
+    `৳ ${toBnDigits(totalCashInflow.toLocaleString())}`,
+    'মোট নগদ ক্যাশ খরচ',
+    `৳ ${toBnDigits(totalCashOutflow.toLocaleString())}`,
+    'বর্তমান ক্যাশ স্থিতি',
+    `৳ ${toBnDigits(netCashFlow.toLocaleString())}`,
+    'মোট পরিচালন খরচ',
+    `৳ ${toBnDigits(totalExpensesAmount.toLocaleString())}`
   );
 
-  const cashHeaders = [
+  const cashExpHeaders = [
     'ক্রমিক',
     'তারিখ',
-    'ভাউচার / রেফারেন্স নং',
+    'ভাউচার নং',
     'লেনদেনের ধরন',
-    'খাত / ক্যাটাগরি',
-    'সংশ্লিষ্ট পার্টি',
-    'পেমেন্ট মাধ্যম',
-    'জমার পরিমাণ (৳)',
-    'খরচের পরিমাণ (৳)',
+    'খাত / বিষয়',
+    'সংশ্লিষ্ট পার্টি / মাধ্যম',
+    'জমা (টাকা)',
+    'খরচ (টাকা)',
     'বিবরণ / নোট',
   ];
-  const cashHeaderRowIdx = 5;
-  formatHeaders(wsCash, cashHeaders, cashHeaderRowIdx);
+  const cer7 = wsCashExp.getRow(7);
+  cer7.values = cashExpHeaders;
+  cer7.height = 26;
+  cashExpHeaders.forEach((_, colIdx) => {
+    const cell = cer7.getCell(colIdx + 1);
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.NAVY_HEADER } };
+    cell.font = { name: 'Hind Siliguri', size: 11, bold: true, color: { argb: COLORS.GOLD_TEXT } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    cell.border = headerBorders;
+  });
 
-  const cashStartRow = 6;
-  cashbook.forEach((c, idx) => {
-    const amt = Number(c.amount || 0);
-    const isInflow = c.entry_type === 'INFLOW';
+  const cashStartRow = 8;
+  cashbook.forEach((cb, idx) => {
+    const amt = Number(cb.amount || 0);
+    const isInflow = cb.entry_type === 'INFLOW';
     const inflow = isInflow ? amt : 0;
     const outflow = !isInflow ? amt : 0;
 
-    let catBn: string = String(c.category || '');
+    let catBn: string = String(cb.category || '');
     if (catBn === 'SALE_CASH') catBn = 'বিক্রয় নগদ আদায়';
-    else if (catBn === 'PURCHASE_CASH') catBn = 'ক্রয় বাবদ নগদ পরিশোধ';
-    else if (catBn === 'DUE_COLLECTION' || catBn === 'COLLECTION') catBn = 'পার্টি বকেয়া আদায়';
-    else if (catBn === 'SUPPLIER_PAYMENT' || catBn === 'PAYMENT') catBn = 'মহাজন বকেয়া পরিশোধ';
+    else if (catBn === 'PURCHASE_CASH') catBn = 'ক্রয় নগদ পরিশোধ';
+    else if (catBn.includes('COLLECTION')) catBn = 'বকেয়া আদায়';
+    else if (catBn.includes('PAYMENT')) catBn = 'মহাজন পরিশোধ';
     else if (catBn === 'EXPENSE') catBn = 'পরিচালন খরচ';
 
-    const r = wsCash.addRow([
-      idx + 1,
-      c.entry_date || '',
-      c.reference_no || `CB-${c.id}`,
+    const r = wsCashExp.addRow([
+      toBnDigits(idx + 1),
+      cb.entry_date || '',
+      cb.reference_no || `CB-${cb.id}`,
       isInflow ? 'নগদ জমা (+)' : 'নগদ খরচ (-)',
       catBn,
-      c.party_name || '-',
-      c.payment_mode || 'CASH',
+      cb.party_name || cb.payment_mode || 'CASH',
       inflow,
       outflow,
-      c.description || '',
+      cb.description || '',
     ]);
     r.height = 20;
-    const bg = idx % 2 === 0 ? PALETTE.ZEBRA_EVEN : PALETTE.ZEBRA_ODD;
+    const bg = idx % 2 === 0 ? COLORS.WHITE : 'FFF8FAFC';
 
-    for (let cCol = 1; cCol <= 10; cCol++) {
+    for (let cCol = 1; cCol <= 9; cCol++) {
       const cell = r.getCell(cCol);
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-      cell.font = { name: 'Segoe UI', size: 10, color: { argb: PALETTE.TEXT_DARK } };
+      cell.font = { name: 'Hind Siliguri', size: 10, color: { argb: COLORS.TEXT_DARK } };
       cell.border = cellBorders;
 
-      if ([1, 2, 3, 4, 7].includes(cCol)) {
+      if ([1, 2, 3, 4].includes(cCol)) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
-      } else if ([5, 6, 10].includes(cCol)) {
+      } else if ([5, 6, 9].includes(cCol)) {
         cell.alignment = { horizontal: 'left', vertical: 'middle' };
       } else {
         cell.alignment = { horizontal: 'right', vertical: 'middle' };
@@ -1013,27 +1263,27 @@ export async function generateAndDownloadExcelBackup(snapshotData?: any): Promis
   });
 
   const cashEndRow = cashStartRow + cashbook.length - 1;
-  const cashTotalRow = wsCash.addRow([
-    'সর্বমোট',
-    `${cashbook.length} টি ভাউচার`,
-    '-',
-    '-',
-    '-',
-    '-',
-    'নিট স্থিতি:',
+  const cashTotal = wsCashExp.addRow([
+    'সর্বমোট ক্যাশ স্থিতি',
+    '',
+    '',
+    '',
+    '',
+    'নিট ক্যাশ:',
+    cashbook.length > 0 ? { formula: `SUM(G${cashStartRow}:G${cashEndRow})` } : 0,
     cashbook.length > 0 ? { formula: `SUM(H${cashStartRow}:H${cashEndRow})` } : 0,
-    cashbook.length > 0 ? { formula: `SUM(I${cashStartRow}:I${cashEndRow})` } : 0,
-    cashbook.length > 0 ? { formula: `H${cashEndRow + 1}-I${cashEndRow + 1}` } : 0,
+    cashbook.length > 0 ? { formula: `G${cashEndRow + 1}-H${cashEndRow + 1}` } : 0,
   ]);
-  cashTotalRow.height = 24;
+  wsCashExp.mergeCells(cashTotal.number, 1, cashTotal.number, 5);
+  cashTotal.height = 26;
 
-  for (let cCol = 1; cCol <= 10; cCol++) {
-    const cell = cashTotalRow.getCell(cCol);
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PALETTE.TOTAL_BG } };
-    cell.font = { name: 'Segoe UI', size: 10.5, bold: true, color: { argb: PALETTE.TOTAL_TEXT } };
-    cell.border = totalRowBorders;
+  for (let cCol = 1; cCol <= 9; cCol++) {
+    const cell = cashTotal.getCell(cCol);
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.GOLD_TOTAL_ROW } };
+    cell.font = { name: 'Hind Siliguri', size: 11, bold: true, color: { argb: COLORS.TEXT_DARK } };
+    cell.border = totalBorders;
 
-    if ([1, 2, 3, 4, 5, 6, 7].includes(cCol)) {
+    if (cCol <= 6) {
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
     } else {
       cell.alignment = { horizontal: 'right', vertical: 'middle' };
@@ -1041,262 +1291,14 @@ export async function generateAndDownloadExcelBackup(snapshotData?: any): Promis
     }
   }
 
-  autoFitColumns(wsCash, 13, 35);
+  autoFitColumns(wsCashExp, 13, 35);
 
   // ============================================================================
-  // SHEET 7: পরিচালন খরচ (Expenses)
-  // ============================================================================
-  const wsExp = wb.addWorksheet('পরিচালন খরচ (Expenses)', {
-    views: [{ showGridLines: true }],
-  });
-
-  addHeaderBanner(
-    wsExp,
-    'মাহা এন্টারপ্রাইজ — পরিচালন ও বিবিধ খরচ খতিয়ান',
-    'দোকান ভাড়া, বিদ্যুৎ, কর্মচারীর বেতন, নাস্তা-আপ্যায়ন, পরিবহনসহ সার্বিক পরিচালন ব্যয় রেজিস্টার',
-    metaString,
-    7
-  );
-
-  const expHeaders = [
-    'ক্রমিক',
-    'তারিখ',
-    'খরচের খাত ও বিষয়',
-    'টাকার পরিমাণ (৳)',
-    'পেমেন্ট মাধ্যম',
-    'পরিশোধকারী / দায়িত্বপ্রাপ্ত',
-    'বিস্তারিত নোট ও বিবরণ',
-  ];
-  const expHeaderRowIdx = 5;
-  formatHeaders(wsExp, expHeaders, expHeaderRowIdx);
-
-  const expStartRow = 6;
-  expenses.forEach((e, idx) => {
-    const amt = Number(e.amount || 0);
-
-    const r = wsExp.addRow([
-      idx + 1,
-      e.expense_date || '',
-      e.category_name_bn || e.category || 'সাধারণ খরচ',
-      amt,
-      e.payment_mode || (e as any).payment_method || 'CASH',
-      e.paid_to || (e as any).paid_by || 'ম্যানেজার',
-      e.notes || (e as any).description || '',
-    ]);
-    r.height = 20;
-    const bg = idx % 2 === 0 ? PALETTE.ZEBRA_EVEN : PALETTE.ZEBRA_ODD;
-
-    for (let cCol = 1; cCol <= 7; cCol++) {
-      const cell = r.getCell(cCol);
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-      cell.font = { name: 'Segoe UI', size: 10, color: { argb: PALETTE.TEXT_DARK } };
-      cell.border = cellBorders;
-
-      if ([1, 2, 5].includes(cCol)) {
-        cell.alignment = { horizontal: 'center', vertical: 'middle' };
-      } else if ([3, 6, 7].includes(cCol)) {
-        cell.alignment = { horizontal: 'left', vertical: 'middle' };
-      } else {
-        cell.alignment = { horizontal: 'right', vertical: 'middle' };
-        cell.numFmt = '#,##0.00';
-      }
-    }
-  });
-
-  const expEndRow = expStartRow + expenses.length - 1;
-  const expTotalRow = wsExp.addRow([
-    'সর্বমোট',
-    `${expenses.length} টি ভাউচার`,
-    'মোট পরিচালন ব্যয়:',
-    expenses.length > 0 ? { formula: `SUM(D${expStartRow}:D${expEndRow})` } : 0,
-    '-',
-    '-',
-    'সর্বমোট খরচ',
-  ]);
-  expTotalRow.height = 24;
-
-  for (let cCol = 1; cCol <= 7; cCol++) {
-    const cell = expTotalRow.getCell(cCol);
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PALETTE.TOTAL_BG } };
-    cell.font = { name: 'Segoe UI', size: 10.5, bold: true, color: { argb: PALETTE.TOTAL_TEXT } };
-    cell.border = totalRowBorders;
-
-    if ([1, 2, 3, 5, 6, 7].includes(cCol)) {
-      cell.alignment = { horizontal: 'center', vertical: 'middle' };
-    } else {
-      cell.alignment = { horizontal: 'right', vertical: 'middle' };
-      cell.numFmt = '#,##0.00';
-    }
-  }
-
-  autoFitColumns(wsExp, 14, 45);
-
-  // ============================================================================
-  // SHEET 8: শুকতি ও ঘাটতি (Shrinkage)
-  // ============================================================================
-  const wsShrink = wb.addWorksheet('শুকতি ও ঘাটতি (Shrinkage)', {
-    views: [{ showGridLines: true }],
-  });
-
-  addHeaderBanner(
-    wsShrink,
-    'মাহা এন্টারপ্রাইজ — শস্য শুকতি, আর্দ্রতা হ্রাস ও ঘাটতি রেজিস্টার',
-    'গুদামে শস্য সংরক্ষণকালীন প্রাকৃতিক শুকতি, ওজন হ্রাস ও আর্থিক ক্ষতির পরিমাপ রেজিস্টার',
-    metaString,
-    10
-  );
-
-  const shrinkHeaders = [
-    'ক্রমিক',
-    'তারিখ',
-    'শস্যের জাত ও নাম',
-    'ঘাটতি / শুকতির কারণ',
-    'ঘাটতি ওজন (কেজি)',
-    'ঘাটতি মণ',
-    'বস্তা হ্রাস',
-    'তৎকালীন ক্রয়দর / মণ (৳)',
-    'আর্থিক ক্ষতি (৳)',
-    'নোট ও অনুমোদন',
-  ];
-  const shrinkHeaderRowIdx = 5;
-  formatHeaders(wsShrink, shrinkHeaders, shrinkHeaderRowIdx);
-
-  const shrinkStartRow = 6;
-  stockAdjustments.forEach((adj, idx) => {
-    const rowNum = shrinkStartRow + idx;
-    const kg = Math.abs(Number(adj.lost_weight_kg || (adj as any).weight_change_kg || 0));
-    const bags = Math.abs(Number(adj.lost_bags || (adj as any).bags_change || 0));
-    const rateMon = Number(adj.wac_at_time || (adj as any).cost_per_mon || 0);
-    const lossAmt = Math.abs(Number(adj.cost_value || (adj as any).financial_impact || 0));
-
-    const r = wsShrink.addRow([
-      idx + 1,
-      adj.adjustment_date || '',
-      adj.commodity_name || 'সাধারণ শস্য',
-      adj.reason || 'প্রাকৃতিক শুকতি ও আর্দ্রতা হ্রাস',
-      kg,
-      { formula: `E${rowNum}/40`, result: kg / 40.0 },
-      bags,
-      rateMon,
-      lossAmt,
-      adj.notes || 'অনুমোদিত',
-    ]);
-    r.height = 20;
-    const bg = idx % 2 === 0 ? PALETTE.ZEBRA_EVEN : PALETTE.ZEBRA_ODD;
-
-    for (let cCol = 1; cCol <= 10; cCol++) {
-      const cell = r.getCell(cCol);
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-      cell.font = { name: 'Segoe UI', size: 10, color: { argb: PALETTE.TEXT_DARK } };
-      cell.border = cellBorders;
-
-      if ([1, 2, 4, 10].includes(cCol)) {
-        cell.alignment = { horizontal: 'center', vertical: 'middle' };
-      } else if (cCol === 3) {
-        cell.alignment = { horizontal: 'left', vertical: 'middle' };
-      } else {
-        cell.alignment = { horizontal: 'right', vertical: 'middle' };
-        if (cCol === 7) cell.numFmt = '#,##0';
-        else cell.numFmt = '#,##0.00';
-      }
-    }
-  });
-
-  const shrinkEndRow = shrinkStartRow + stockAdjustments.length - 1;
-  const shrinkTotalRow = wsShrink.addRow([
-    'সর্বমোট',
-    `${stockAdjustments.length} টি রেকর্ড`,
-    '-',
-    'সর্বমোট ক্ষতি:',
-    stockAdjustments.length > 0 ? { formula: `SUM(E${shrinkStartRow}:E${shrinkEndRow})` } : 0,
-    stockAdjustments.length > 0 ? { formula: `SUM(F${shrinkStartRow}:F${shrinkEndRow})` } : 0,
-    stockAdjustments.length > 0 ? { formula: `SUM(G${shrinkStartRow}:G${shrinkEndRow})` } : 0,
-    '-',
-    stockAdjustments.length > 0 ? { formula: `SUM(I${shrinkStartRow}:I${shrinkEndRow})` } : 0,
-    'স্টকে সমন্বিত',
-  ]);
-  shrinkTotalRow.height = 24;
-
-  for (let cCol = 1; cCol <= 10; cCol++) {
-    const cell = shrinkTotalRow.getCell(cCol);
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PALETTE.TOTAL_BG } };
-    cell.font = { name: 'Segoe UI', size: 10.5, bold: true, color: { argb: PALETTE.TOTAL_TEXT } };
-    cell.border = totalRowBorders;
-
-    if ([1, 2, 3, 4, 8, 10].includes(cCol)) {
-      cell.alignment = { horizontal: 'center', vertical: 'middle' };
-    } else {
-      cell.alignment = { horizontal: 'right', vertical: 'middle' };
-      if (cCol === 7) cell.numFmt = '#,##0';
-      else cell.numFmt = '#,##0.00';
-    }
-  }
-
-  autoFitColumns(wsShrink, 13, 35);
-
-  // ============================================================================
-  // SHEET 9: নোটবুক (Notes)
-  // ============================================================================
-  const wsNotes = wb.addWorksheet('নোটবুক (Notes)', {
-    views: [{ showGridLines: true }],
-  });
-
-  addHeaderBanner(
-    wsNotes,
-    'মাহা এন্টারপ্রাইজ — ডিজিটাল নোটবুক ও ব্যবসায়িক মেমো',
-    'ব্যবসায়িক গুরুত্বপূর্ণ সিদ্ধান্ত, হিসাবের চিরকুট ও জরুরি তথ্যাবলি',
-    metaString,
-    7
-  );
-
-  const noteHeaders = [
-    'ক্রমিক',
-    'শিরোনাম',
-    'ক্যাটাগরি',
-    'পিনকৃত অবস্থা',
-    'বিস্তারিত নোটের বিষয়বস্তু',
-    'তৈরির তারিখ',
-    'সর্বশেষ আপডেট',
-  ];
-  const noteHeaderRowIdx = 5;
-  formatHeaders(wsNotes, noteHeaders, noteHeaderRowIdx);
-
-  notes.forEach((n, idx) => {
-    const r = wsNotes.addRow([
-      idx + 1,
-      n.title || 'শিরোনামহীন নোট',
-      n.category || 'সাধারণ',
-      n.is_pinned === 1 ? '📌 পিনকৃত' : 'সাধারণ',
-      n.content || '',
-      n.created_at ? n.created_at.split('T')[0] : '',
-      n.updated_at ? n.updated_at.split('T')[0] : '',
-    ]);
-    r.height = 22;
-    const bg = idx % 2 === 0 ? PALETTE.ZEBRA_EVEN : PALETTE.ZEBRA_ODD;
-
-    for (let cCol = 1; cCol <= 7; cCol++) {
-      const cell = r.getCell(cCol);
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-      cell.font = { name: 'Segoe UI', size: 10, color: { argb: PALETTE.TEXT_DARK } };
-      cell.border = cellBorders;
-
-      if ([1, 3, 4, 6, 7].includes(cCol)) {
-        cell.alignment = { horizontal: 'center', vertical: 'middle' };
-      } else {
-        cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
-      }
-    }
-  });
-
-  autoFitColumns(wsNotes, 14, 50);
-
-  // ============================================================================
-  // 4. WRITE BUFFER & TRIGGER AUTO-DOWNLOAD
+  // AUTO-DOWNLOAD EXECUTION: Maha_Enterprise_Backup_YYYY-MM-DD.xlsx
   // ============================================================================
   const buffer = await wb.xlsx.writeBuffer();
   const dateStr = now.toISOString().split('T')[0];
-  const timeStr = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
-  const fileName = `Maha_Enterprise_Backup_${dateStr}_${timeStr}.xlsx`;
+  const fileName = `Maha_Enterprise_Backup_${dateStr}.xlsx`;
 
   if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     const blob = new Blob([buffer], {
@@ -1309,7 +1311,7 @@ export async function generateAndDownloadExcelBackup(snapshotData?: any): Promis
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(url), 3000);
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
 
   return {
@@ -1318,3 +1320,6 @@ export async function generateAndDownloadExcelBackup(snapshotData?: any): Promis
     message: `রয়্যাল এক্সেল ব্যাকআপ সফলভাবে ডাউনলোড হয়েছে: ${fileName}`,
   };
 }
+
+// Backward compatibility alias
+export const generateAndDownloadExcelBackup = downloadStyledExcelBackup;

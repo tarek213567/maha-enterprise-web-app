@@ -543,8 +543,8 @@ export const dbService = {
           }
         }
         // Auto-generate & download Royal Multi-Sheet Excel Backup (.xlsx)
-        const { generateAndDownloadExcelBackup } = await import('./excelBackupService');
-        const excelRes = await generateAndDownloadExcelBackup(snapshot);
+        const { downloadStyledExcelBackup } = await import('./excelBackupService');
+        const excelRes = await downloadStyledExcelBackup(snapshot);
         return {
           success: true,
           filePath: excelRes.fileName,
