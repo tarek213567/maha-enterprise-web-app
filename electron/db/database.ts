@@ -559,14 +559,32 @@ export class AppDatabase {
       const p = this.db.prepare('SELECT * FROM purchases WHERE id = ?').get(id) as Purchase | undefined;
       if (!p) throw new Error('ক্রয় চালান পাওয়া যায়নি');
 
-      // 1. Revert commodity stock
+      // 1. Revert commodity stock & WAC
+      const comm = this.getCommodityById(p.commodity_id);
+      const newStockKg = Math.max(0, roundWeight(subWeight(comm?.current_stock_kg || 0, p.net_weight_kg)));
+      const newStockBags = Math.max(0, (comm?.current_stock_bags || 0) - p.bags_count);
+
+      const remainingPurchases = this.db.prepare(
+        'SELECT net_weight_kg, total_landed_cost FROM purchases WHERE commodity_id = ? AND id != ?'
+      ).all(p.commodity_id, id) as Array<{ net_weight_kg: number; total_landed_cost: number }>;
+
+      let newWacPerKg = 0;
+      if (newStockKg > 0 && remainingPurchases.length > 0) {
+        const totalKg = remainingPurchases.reduce((s, r) => s + (r.net_weight_kg || 0), 0);
+        const totalCost = remainingPurchases.reduce((s, r) => s + (r.total_landed_cost || 0), 0);
+        newWacPerKg = totalKg > 0 ? totalCost / totalKg : 0;
+      }
+      const newWacPerMon = roundMoney(newWacPerKg * 40.0);
+
       this.db.prepare(`
         UPDATE commodities SET
-          current_stock_kg = MAX(0, current_stock_kg - ?),
-          current_stock_bags = MAX(0, current_stock_bags - ?),
+          current_stock_kg = ?,
+          current_stock_bags = ?,
+          current_wac_per_kg = ?,
+          current_wac_per_mon = ?,
           updated_at = datetime('now', 'localtime')
         WHERE id = ?
-      `).run(p.net_weight_kg, p.bags_count, p.commodity_id);
+      `).run(newStockKg, newStockBags, newWacPerKg, newWacPerMon, p.commodity_id);
 
       // 2. Revert party balance
       const party = this.getPartyById(p.party_id);
@@ -578,12 +596,12 @@ export class AppDatabase {
       }
 
       // 3. Delete party ledger entries
-      this.db.prepare("DELETE FROM party_ledger WHERE reference_id = ? AND transaction_type IN ('PURCHASE', 'PAYMENT_GIVEN')")
-        .run(id);
+      this.db.prepare("DELETE FROM party_ledger WHERE (reference_id = ? OR reference_no = ?) AND transaction_type IN ('PURCHASE', 'PAYMENT_GIVEN')")
+        .run(id, p.invoice_no);
 
       // 4. Delete cashbook entries
-      this.db.prepare("DELETE FROM cashbook WHERE reference_id = ? AND (reference_no = ? OR category IN ('PURCHASE_CASH', 'EXPENSE'))")
-        .run(id, p.invoice_no);
+      this.db.prepare("DELETE FROM cashbook WHERE (reference_id = ? OR reference_no = ?) AND (reference_no = ? OR category IN ('PURCHASE_CASH', 'EXPENSE'))")
+        .run(id, p.invoice_no, p.invoice_no);
 
       // 5. Delete purchase record
       this.db.prepare('DELETE FROM purchases WHERE id = ?').run(id);
@@ -1011,6 +1029,46 @@ export class AppDatabase {
     return stmt.all(limit) as Sale[];
   }
 
+  public deleteSale(id: number): { success: boolean; message: string } {
+    const tx = this.db.transaction(() => {
+      const s = this.db.prepare('SELECT * FROM sales WHERE id = ?').get(id) as Sale | undefined;
+      if (!s) throw new Error('বিক্রয় চালান পাওয়া যায়নি');
+
+      // 1. Revert commodity stock
+      this.db.prepare(`
+        UPDATE commodities SET
+          current_stock_kg = current_stock_kg + ?,
+          current_stock_bags = current_stock_bags + ?,
+          updated_at = datetime('now', 'localtime')
+        WHERE id = ?
+      `).run(s.net_weight_kg, s.bags_count, s.commodity_id);
+
+      // 2. Revert party balance
+      const party = this.getPartyById(s.party_id);
+      if (party) {
+        const netCustomerChange = subMoney(s.net_invoice_amount, s.paid_amount);
+        const revertedBalance = subMoney(party.current_balance, netCustomerChange);
+        this.db.prepare("UPDATE parties SET current_balance = ?, updated_at = datetime('now', 'localtime') WHERE id = ?")
+          .run(revertedBalance, s.party_id);
+      }
+
+      // 3. Delete party ledger entries
+      this.db.prepare("DELETE FROM party_ledger WHERE (reference_id = ? OR reference_no = ?) AND transaction_type IN ('SALE', 'PAYMENT_RECEIVED')")
+        .run(id, s.invoice_no);
+
+      // 4. Delete cashbook entries
+      this.db.prepare("DELETE FROM cashbook WHERE (reference_id = ? OR reference_no = ?) AND category = 'SALE_CASH'")
+        .run(id, s.invoice_no);
+
+      // 5. Delete sale record
+      this.db.prepare('DELETE FROM sales WHERE id = ?').run(id);
+
+      return { success: true, message: 'বিক্রয় চালান সফলভাবে মুছে ফেলা হয়েছে' };
+    });
+
+    return tx();
+  }
+
   // ==================== STOCK ADJUSTMENT / WASTAGE (শুকতি ও ঘাটতি) ====================
   public createStockAdjustment(data: {
     adjustment_date: string;
@@ -1091,6 +1149,26 @@ export class AppDatabase {
       LIMIT ?
     `);
     return stmt.all(limit) as StockAdjustment[];
+  }
+
+  public deleteStockAdjustment(id: number): { success: boolean; message: string } {
+    const tx = this.db.transaction(() => {
+      const a = this.db.prepare('SELECT * FROM stock_adjustments WHERE id = ?').get(id) as StockAdjustment | undefined;
+      if (!a) throw new Error('শুকতি ঘাটতি রেকর্ড পাওয়া যায়নি');
+
+      this.db.prepare(`
+        UPDATE commodities SET
+          current_stock_kg = current_stock_kg + ?,
+          current_stock_bags = current_stock_bags + ?,
+          updated_at = datetime('now', 'localtime')
+        WHERE id = ?
+      `).run(a.lost_weight_kg, a.lost_bags, a.commodity_id);
+
+      this.db.prepare('DELETE FROM stock_adjustments WHERE id = ?').run(id);
+      return { success: true, message: 'শুকতি ঘাটতি রেকর্ড মুছে ফেলা হয়েছে এবং স্টক স্বাভাবিক করা হয়েছে' };
+    });
+
+    return tx();
   }
 
   // ==================== STOCK INTEGRITY EQUATION VERIFICATION ====================
@@ -1365,6 +1443,11 @@ export class AppDatabase {
     return this.db.prepare('SELECT * FROM cashbook WHERE id = ?').get(Number(res.lastInsertRowid)) as CashbookEntry;
   }
 
+  public deleteCashbook(id: number): { success: boolean } {
+    this.db.prepare('DELETE FROM cashbook WHERE id = ?').run(id);
+    return { success: true };
+  }
+
   // ==================== EXPENSES (দৈনিক পরিচালন খরচ) ====================
   public addExpense(data: {
     expense_date: string;
@@ -1430,6 +1513,21 @@ export class AppDatabase {
 
   public getAllExpenses(limit = 100): Expense[] {
     return this.db.prepare('SELECT * FROM expenses ORDER BY expense_date DESC, id DESC LIMIT ?').all(limit) as Expense[];
+  }
+
+  public deleteExpense(id: number): { success: boolean; message: string } {
+    const tx = this.db.transaction(() => {
+      const e = this.db.prepare('SELECT * FROM expenses WHERE id = ?').get(id) as Expense | undefined;
+      if (!e) throw new Error('খরচ রেকর্ড পাওয়া যায়নি');
+
+      this.db.prepare("DELETE FROM cashbook WHERE category = 'EXPENSE' AND amount = ? AND entry_date = ?")
+        .run(e.amount, e.expense_date);
+
+      this.db.prepare('DELETE FROM expenses WHERE id = ?').run(id);
+      return { success: true, message: 'খরচ রেকর্ড মুছে ফেলা হয়েছে' };
+    });
+
+    return tx();
   }
 
   // ==================== DASHBOARD & P&L REPORT ====================

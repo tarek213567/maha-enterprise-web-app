@@ -58,6 +58,14 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
   const [printModalPurchase, setPrintModalPurchase] = useState<Purchase | null>(null);
   const [deleteConfirmPurchase, setDeleteConfirmPurchase] = useState<Purchase | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast((cur) => (cur?.message === message ? null : cur));
+    }, 4500);
+  };
 
   useEffect(() => {
     loadData();
@@ -163,11 +171,11 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (totalKg <= 0) {
-      alert('সঠিক ওজন (মণ বা কেজি) প্রদান করুন');
+      showToast('সঠিক ওজন (মণ বা কেজি) প্রদান করুন', 'error');
       return;
     }
     if (pricePerMon <= 0) {
-      alert('শস্যের দর (প্রতি মণ ৳) প্রদান করুন');
+      showToast('শস্যের দর (প্রতি মণ ৳) প্রদান করুন', 'error');
       return;
     }
 
@@ -214,6 +222,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
       });
 
       setSuccessMessage('শস্য ক্রয় সফলভাবে সম্পন্ন এবং মজুদে যোগ করা হয়েছে!');
+      showToast('শস্য ক্রয় চালান সফলভাবে সংরক্ষিত হয়েছে এবং স্টক বৃদ্ধি করা হয়েছে', 'success');
       setPostSubmitPurchase(newPurchase);
 
       // Reset form
@@ -230,7 +239,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
       await loadData();
       setTimeout(() => setSuccessMessage(''), 4000);
     } catch (err: any) {
-      alert(`ত্রুটি: ${err.message}`);
+      showToast(`সংরক্ষণ করতে ব্যর্থ হয়েছে: ${err.message}`, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -244,8 +253,9 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
       await dbService.purchases.delete(deleteConfirmPurchase.id);
       setDeleteConfirmPurchase(null);
       await loadData();
+      showToast('চালানটি সফলভাবে মুছে ফেলা হয়েছে এবং স্টক ও হিসাব সমন্বয় করা হয়েছে', 'success');
     } catch (err: any) {
-      alert(`মুছতে ব্যর্থ হয়েছে: ${err.message}`);
+      showToast(`মুছতে ব্যর্থ হয়েছে: ${err.message}`, 'error');
     } finally {
       setDeleting(false);
     }
@@ -993,6 +1003,23 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* IN-APP TOAST NOTIFICATION */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl backdrop-blur-md border animate-in slide-in-from-bottom-5 duration-200 transition-all font-sans font-medium text-xs bg-slate-900/95 text-white border-slate-700">
+          {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
+          {toast.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />}
+          {toast.type === 'info' && <Wheat className="w-4 h-4 text-amber-400 shrink-0" />}
+          <span className="leading-snug">{toast.message}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="ml-2 text-slate-400 hover:text-white cursor-pointer p-0.5 rounded transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
     </div>

@@ -31,10 +31,12 @@ export const api = {
     getById: (id: number) => ipcRenderer.invoke('sales:getById', id),
     create: (data: any) => ipcRenderer.invoke('sales:create', data),
     createBatch: (data: any) => ipcRenderer.invoke('sales:createBatch', data),
+    delete: (id: number) => ipcRenderer.invoke('sales:delete', id),
   },
   stockAdjustments: {
     getAll: (limit?: number) => ipcRenderer.invoke('stockAdjustments:getAll', limit),
     create: (data: any) => ipcRenderer.invoke('stockAdjustments:create', data),
+    delete: (id: number) => ipcRenderer.invoke('stockAdjustments:delete', id),
   },
   ledgers: {
     getByParty: (partyId: number) => ipcRenderer.invoke('ledgers:getByParty', partyId),
@@ -43,10 +45,12 @@ export const api = {
   cashbook: {
     getDaily: (date: string) => ipcRenderer.invoke('cashbook:getDaily', date),
     addEntry: (data: any) => ipcRenderer.invoke('cashbook:addEntry', data),
+    delete: (id: number) => ipcRenderer.invoke('cashbook:delete', id),
   },
   expenses: {
     getAll: (limit?: number) => ipcRenderer.invoke('expenses:getAll', limit),
     create: (data: any) => ipcRenderer.invoke('expenses:create', data),
+    delete: (id: number) => ipcRenderer.invoke('expenses:delete', id),
   },
   notes: {
     getAll: (category?: string, search?: string) => ipcRenderer.invoke('notes:getAll', category, search),

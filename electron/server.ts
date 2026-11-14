@@ -245,6 +245,12 @@ export function startLocalServer(db: AppDatabase, port: number = 3030): http.Ser
             return sendJson(res, 201, data);
           }
         }
+        const saleMatch = pathname.match(/^\/api\/sales\/(\d+)$/);
+        if (saleMatch && req.method === 'DELETE') {
+          const id = parseInt(saleMatch[1], 10);
+          const data = db.deleteSale(id);
+          return sendJson(res, 200, data);
+        }
         if (pathname === '/api/sales/batch' && req.method === 'POST') {
           const body = await parseJsonBody(req);
           const data = db.createSaleBatch(body);
@@ -252,7 +258,7 @@ export function startLocalServer(db: AppDatabase, port: number = 3030): http.Ser
         }
 
         // --- STOCK ADJUSTMENTS ---
-        if (pathname === '/api/stock-adjustments') {
+        if (pathname === '/api/stock-adjustments' || pathname === '/api/shrinkage') {
           if (req.method === 'GET') {
             const limit = parsedUrl.query.limit ? parseInt(parsedUrl.query.limit as string, 10) : undefined;
             const data = db.getAllStockAdjustments(limit);
@@ -264,12 +270,24 @@ export function startLocalServer(db: AppDatabase, port: number = 3030): http.Ser
             return sendJson(res, 201, data);
           }
         }
+        const stockAdjMatch = pathname.match(/^\/api\/(?:stock-adjustments|shrinkage)\/(\d+)$/);
+        if (stockAdjMatch && req.method === 'DELETE') {
+          const id = parseInt(stockAdjMatch[1], 10);
+          const data = db.deleteStockAdjustment(id);
+          return sendJson(res, 200, data);
+        }
 
         // --- LEDGER & PAYMENT VOUCHERS ---
         const ledgerPartyMatch = pathname.match(/^\/api\/ledgers\/(\d+)$/);
         if (ledgerPartyMatch && req.method === 'GET') {
           const partyId = parseInt(ledgerPartyMatch[1], 10);
           const data = db.getPartyLedger(partyId);
+          return sendJson(res, 200, data);
+        }
+        const voucherDeleteMatch = pathname.match(/^\/api\/(?:ledgers\/voucher|parties\/voucher|ledgers)\/(\d+)$/);
+        if (voucherDeleteMatch && req.method === 'DELETE') {
+          const id = parseInt(voucherDeleteMatch[1], 10);
+          const data = db.deletePartyPaymentVoucher(id);
           return sendJson(res, 200, data);
         }
         if ((pathname === '/api/ledgers/voucher' || pathname === '/api/collect') && req.method === 'POST') {
@@ -291,6 +309,12 @@ export function startLocalServer(db: AppDatabase, port: number = 3030): http.Ser
             return sendJson(res, 201, data);
           }
         }
+        const cashbookMatch = pathname.match(/^\/api\/cashbook\/(\d+)$/);
+        if (cashbookMatch && req.method === 'DELETE') {
+          const id = parseInt(cashbookMatch[1], 10);
+          const data = db.deleteCashbook(id);
+          return sendJson(res, 200, data);
+        }
 
         // --- EXPENSES ---
         if (pathname === '/api/expenses') {
@@ -304,6 +328,12 @@ export function startLocalServer(db: AppDatabase, port: number = 3030): http.Ser
             const data = db.addExpense(body);
             return sendJson(res, 201, data);
           }
+        }
+        const expenseMatch = pathname.match(/^\/api\/expenses\/(\d+)$/);
+        if (expenseMatch && req.method === 'DELETE') {
+          const id = parseInt(expenseMatch[1], 10);
+          const data = db.deleteExpense(id);
+          return sendJson(res, 200, data);
         }
 
         // --- NOTES ---

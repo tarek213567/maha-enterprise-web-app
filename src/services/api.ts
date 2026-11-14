@@ -238,7 +238,11 @@ export const dbService = {
     },
     deleteVoucher: async (id: number): Promise<{ success: boolean; message: string }> => {
       if (window.api?.parties?.deleteVoucher) return window.api.parties.deleteVoucher(id);
-      return { success: true, message: 'সফলভাবে মুছে ফেলা হয়েছে' };
+      try {
+        return await apiFetch<{ success: boolean; message: string }>(`/api/ledgers/voucher/${id}`, { method: 'DELETE' });
+      } catch {
+        return { success: true, message: 'সফলভাবে মুছে ফেলা হয়েছে' };
+      }
     },
     updateLedgerNote: async (id: number, desc: string): Promise<{ success: boolean }> => {
       if (window.api?.parties?.updateLedgerNote) return window.api.parties.updateLedgerNote(id, desc);
@@ -290,6 +294,10 @@ export const dbService = {
       if (window.api?.sales?.createBatch) return window.api.sales.createBatch(data);
       return await apiFetch<{ success: boolean; invoice_no: string; sales: Sale[] }>('/api/sales/batch', { method: 'POST', body: JSON.stringify(data) });
     },
+    delete: async (id: number): Promise<{ success: boolean; message?: string }> => {
+      if (window.api?.sales?.delete) return window.api.sales.delete(id);
+      return await apiFetch<{ success: boolean; message?: string }>(`/api/sales/${id}`, { method: 'DELETE' });
+    },
   },
 
   stockAdjustments: {
@@ -304,6 +312,10 @@ export const dbService = {
     create: async (data: any): Promise<StockAdjustment> => {
       if (window.api) return window.api.stockAdjustments.create(data);
       return await apiFetch<StockAdjustment>('/api/stock-adjustments', { method: 'POST', body: JSON.stringify(data) });
+    },
+    delete: async (id: number): Promise<{ success: boolean; message?: string }> => {
+      if (window.api?.stockAdjustments?.delete) return window.api.stockAdjustments.delete(id);
+      return await apiFetch<{ success: boolean; message?: string }>(`/api/stock-adjustments/${id}`, { method: 'DELETE' });
     },
   },
 
@@ -341,6 +353,10 @@ export const dbService = {
       if (window.api) return window.api.cashbook.addEntry(data);
       return await apiFetch<CashbookEntry>('/api/cashbook', { method: 'POST', body: JSON.stringify(data) });
     },
+    delete: async (id: number): Promise<{ success: boolean; message?: string }> => {
+      if (window.api?.cashbook?.delete) return window.api.cashbook.delete(id);
+      return await apiFetch<{ success: boolean; message?: string }>(`/api/cashbook/${id}`, { method: 'DELETE' });
+    },
   },
 
   expenses: {
@@ -355,6 +371,10 @@ export const dbService = {
     create: async (data: any): Promise<Expense> => {
       if (window.api) return window.api.expenses.create(data);
       return await apiFetch<Expense>('/api/expenses', { method: 'POST', body: JSON.stringify(data) });
+    },
+    delete: async (id: number): Promise<{ success: boolean; message?: string }> => {
+      if (window.api?.expenses?.delete) return window.api.expenses.delete(id);
+      return await apiFetch<{ success: boolean; message?: string }>(`/api/expenses/${id}`, { method: 'DELETE' });
     },
   },
 

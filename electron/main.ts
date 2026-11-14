@@ -271,10 +271,12 @@ function initApp() {
   ipcMain.handle('sales:getById', (_, id) => db!.getSaleById(id));
   ipcMain.handle('sales:create', (_, data) => db!.createSale(data));
   ipcMain.handle('sales:createBatch', (_, data) => db!.createSaleBatch(data));
+  ipcMain.handle('sales:delete', (_, id) => db!.deleteSale(id));
 
   // Stock Adjustments
   ipcMain.handle('stockAdjustments:getAll', (_, limit) => db!.getAllStockAdjustments(limit));
   ipcMain.handle('stockAdjustments:create', (_, data) => db!.createStockAdjustment(data));
+  ipcMain.handle('stockAdjustments:delete', (_, id) => db!.deleteStockAdjustment(id));
 
   // Ledgers
   ipcMain.handle('ledgers:getByParty', (_, partyId) => db!.getPartyLedger(partyId));
@@ -283,10 +285,12 @@ function initApp() {
   // Cashbook
   ipcMain.handle('cashbook:getDaily', (_, date) => db!.getDailyCashbook(date));
   ipcMain.handle('cashbook:addEntry', (_, data) => db!.addCashbookEntry(data));
+  ipcMain.handle('cashbook:delete', (_, id) => db!.deleteCashbook(id));
 
   // Expenses
   ipcMain.handle('expenses:getAll', (_, limit) => db!.getAllExpenses(limit));
   ipcMain.handle('expenses:create', (_, data) => db!.addExpense(data));
+  ipcMain.handle('expenses:delete', (_, id) => db!.deleteExpense(id));
 
   // Dedicated Notebook
   ipcMain.handle('notes:getAll', (_, category, search) => db!.getAllNotes(category, search));

@@ -77,6 +77,19 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
   // Invoice Print Preview
   const [selectedInvoice, setSelectedInvoice] = useState<Sale | null>(null);
 
+  // Invoice Delete & Reversal State
+  const [deleteConfirmSale, setDeleteConfirmSale] = useState<Sale | null>(null);
+  const [deletingSale, setDeletingSale] = useState(false);
+
+  // In-App Toast
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast((cur) => (cur?.message === message ? null : cur));
+    }, 4500);
+  };
+
   // Fetch all initial data
   const fetchData = useCallback(async () => {
     try {
@@ -232,12 +245,12 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
   // Submit Sale Handler
   const handleProcessSale = async (shouldPrint: boolean) => {
     if (cart.length === 0) {
-      alert('অনুগ্রহ করে কার্টে কমপক্ষে একটি শস্যের জাত যুক্ত করুন।');
+      showToast('অনুগ্রহ করে কার্টে কমপক্ষে একটি শস্যের জাত যুক্ত করুন।', 'error');
       return;
     }
 
     if (closingDue > 0 && !selectedCustomerId && (!walkinName || walkinName.trim() === '' || walkinName === 'সাধারণ খুচরা ক্রেতা')) {
-      alert('বাকি বিক্রয়ের ক্ষেত্রে অবশ্যই নির্দিষ্ট পাইকারি ক্রেতা নির্বাচন করতে হবে।');
+      showToast('বাকি বিক্রয়ের ক্ষেত্রে অবশ্যই নির্দিষ্ট পাইকারি ক্রেতা নির্বাচন করতে হবে।', 'error');
       return;
     }
 
@@ -276,15 +289,30 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
       setCashPaidTouched(false);
       setNotes('');
 
+      showToast(`বিক্রয় সফল হয়েছে! চালান নং: ${res.invoice_no}`, 'success');
       if (shouldPrint && res.sales && res.sales.length > 0) {
         setSelectedInvoice(res.sales[0]);
-      } else {
-        alert(`✅ বিক্রয় সফল হয়েছে! চালান নং: ${res.invoice_no}`);
       }
     } catch (err: any) {
-      alert(`বিক্রয় ত্রুটি: ${err.message}`);
+      showToast(`বিক্রয় ত্রুটি: ${err.message}`, 'error');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Delete Sale Handler (Reversal)
+  const handleDeleteSale = async () => {
+    if (!deleteConfirmSale) return;
+    setDeletingSale(true);
+    try {
+      await dbService.sales.delete(deleteConfirmSale.id);
+      setDeleteConfirmSale(null);
+      await fetchData();
+      showToast('বিক্রয় চালানটি সফলভাবে মুছে ফেলা হয়েছে এবং শস্য স্টক গুদামে ফেরত দেওয়া হয়েছে', 'success');
+    } catch (err: any) {
+      showToast(`মুছতে ব্যর্থ হয়েছে: ${err.message}`, 'error');
+    } finally {
+      setDeletingSale(false);
     }
   };
 
@@ -292,7 +320,7 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
   const handleAddCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCustName.trim()) {
-      alert('অনুগ্রহ করে ক্রেতার নাম লিখুন।');
+      showToast('অনুগ্রহ করে ক্রেতার নাম লিখুন।', 'error');
       return;
     }
     setAddingCustomer(true);
@@ -313,9 +341,9 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
       setNewCustPhone('');
       setNewCustAddress('');
       setNewCustOpeningDue('0');
-      alert('নতুন পাইকারি ক্রেতা সফলভাবে তৈরি হয়েছে!');
+      showToast('নতুন পাইকারি ক্রেতা সফলভাবে তৈরি হয়েছে!', 'success');
     } catch (err: any) {
-      alert(`ত্রুটি: ${err.message}`);
+      showToast(`ত্রুটি: ${err.message}`, 'error');
     } finally {
       setAddingCustomer(false);
     }
@@ -1010,15 +1038,25 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
                       </span>
                     </td>
                     <td className="py-3 px-4 text-center whitespace-nowrap">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedInvoice(s)}
-                        className="px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-600 dark:text-amber-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1 mx-auto cursor-pointer"
-                        title="চালান দেখুন ও প্রিন্ট করুন"
-                      >
-                        <Printer className="w-3.5 h-3.5" />
-                        <span>প্রিন্ট / ভিউ</span>
-                      </button>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedInvoice(s)}
+                          className="px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-600 dark:text-amber-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                          title="চালান দেখুন ও প্রিন্ট করুন"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          <span>প্রিন্ট / ভিউ</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteConfirmSale(s)}
+                          className="p-1 text-rose-500 dark:text-rose-400 hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-md transition-colors cursor-pointer border border-rose-500/20"
+                          title="চালান বাতিল / মুছুন"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -1118,6 +1156,64 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
           sale={selectedInvoice}
           onClose={() => setSelectedInvoice(null)}
         />
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteConfirmSale && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-red-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-500/20 text-red-500 dark:text-red-400 flex items-center justify-center">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">বিক্রয় চালান বাতিলের নিশ্চিতকরণ</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">চালান নং: {deleteConfirmSale.invoice_no}</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 p-3 rounded-lg leading-relaxed">
+              সতর্কতা: এই চালানটি বাতিল বা মুছে ফেললে সংশ্লিষ্ট শস্যের বিক্রিত স্টক ({toBnDigits(deleteConfirmSale.bags_count)} বস্তা, {toBnDigits(deleteConfirmSale.net_weight_mon?.toFixed(1) || 0)} মণ) স্বয়ংক্রিয়ভাবে পুনরায় গুদাম মজুদে ফেরত দেওয়া হবে এবং গ্রাহকের বাকি ও ক্যাশ খতিয়ান সমন্বয় করা হবে।
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+              <button
+                type="button"
+                disabled={deletingSale}
+                onClick={() => setDeleteConfirmSale(null)}
+                className="px-4 py-2 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white cursor-pointer"
+              >
+                বাতিল
+              </button>
+              <button
+                type="button"
+                disabled={deletingSale}
+                onClick={handleDeleteSale}
+                className="px-4 py-2 text-xs font-bold rounded-lg bg-red-600 hover:bg-red-500 text-white flex items-center gap-1.5 shadow-md disabled:opacity-50 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{deletingSale ? 'মোছা হচ্ছে...' : 'হ্যাঁ, বাতিল ও ডিলিট করুন'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* IN-APP TOAST NOTIFICATION */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl backdrop-blur-md border animate-in slide-in-from-bottom-5 duration-200 transition-all font-sans font-medium text-xs bg-slate-900/95 text-white border-slate-700">
+          {toast.type === 'success' && <Check className="w-4 h-4 text-emerald-400 shrink-0" />}
+          {toast.type === 'error' && <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />}
+          {toast.type === 'info' && <ShoppingCart className="w-4 h-4 text-amber-400 shrink-0" />}
+          <span className="leading-snug">{toast.message}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="ml-2 text-slate-400 hover:text-white cursor-pointer p-0.5 rounded transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
       )}
     </div>
   );
