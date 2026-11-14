@@ -211,6 +211,13 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT NOT NULL
 );
 
+-- Default seeds for Parties (Walk-in & Standard Parties)
+INSERT OR IGNORE INTO parties (id, name, phone, address, party_type, opening_balance, current_balance, notes, is_active, is_pinned) VALUES
+(1, 'সাধারণ বিক্রেতা', '০১৭০০-০০০০০০', 'চাচকৈড় বাজার, গুরুদাসপুর', 'SUPPLIER', 0, 0, 'সাধারণ নগদ বিক্রেতা ও কৃষক', 1, 1),
+(2, 'সাধারণ খুচরা ক্রেতা', '০১৭০০-০০০০০০', 'চাচকৈড় বাজার, গুরুদাসপুর', 'BUYER', 0, 0, 'সাধারণ নগদ ক্রেতা ও পাইকার', 1, 1),
+(3, 'মোঃ করিম বেপারী', '01712345678', 'চলনবিল, গুরুদাসপুর', 'SUPPLIER', -25000, -25000, 'রবি শস্য সরবরাহকারী বেপারী', 1, 0),
+(4, 'রহমান ট্রেডার্স (মিল মালিক)', '01819876543', 'ঈশ্বরদী, পাবনা', 'BUYER', 145000, 145000, 'রাইস মিল ও পাইকারি খরিদ্দার', 1, 0);
+
 -- Default seeds for Commodities
 INSERT OR IGNORE INTO commodities (id, name_bn, name_en, default_bag_weight_kg, current_stock_kg, current_stock_bags, current_wac_per_kg, current_wac_per_mon, notes) VALUES
 (1, 'সরিষা (মাঘি/টোরি)', 'Mustard (Maghi/Tori)', 80.0, 0, 0, 0, 0, 'চাচকৈড় মোকামের প্রধান রবি শস্য'),

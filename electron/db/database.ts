@@ -341,9 +341,12 @@ export class AppDatabase {
       // Resolve party if not provided
       let partyId = data.party_id;
       if (!partyId || partyId <= 0) {
-        const sellerName = data.seller_name?.trim() || 'সাধারণ বিক্রেতা';
-        const sellerPhone = data.seller_phone?.trim() || '';
-        let existing = this.db.prepare("SELECT id FROM parties WHERE name = ? AND party_type = 'SUPPLIER'").get(sellerName) as { id: number } | undefined;
+        const sellerName = (data.seller_name || (data as any).supplier_name || 'সাধারণ বিক্রেতা').trim();
+        const sellerPhone = (data.seller_phone || (data as any).phone || '').trim();
+        let existing = this.db.prepare("SELECT id FROM parties WHERE name = ? AND (party_type = 'SUPPLIER' OR party_type = 'BOTH')").get(sellerName) as { id: number } | undefined;
+        if (!existing) {
+          existing = this.db.prepare("SELECT id FROM parties WHERE name = ?").get(sellerName) as { id: number } | undefined;
+        }
         if (!existing) {
           const ins = this.db.prepare("INSERT INTO parties (name, phone, address, party_type, opening_balance, current_balance, is_test_draft) VALUES (?, ?, 'চাঁচকৈড় বাজার, গুরুদাসপুর', 'SUPPLIER', 0, 0, ?)").run(sellerName, sellerPhone, isTest);
           partyId = Number(ins.lastInsertRowid);
@@ -669,6 +672,23 @@ export class AppDatabase {
       const dateStr = data.sale_date.replace(/-/g, '');
       const invoice_no = `SAL-${dateStr}-${nextNum}`;
 
+      // Resolve party if not provided
+      let partyId = data.party_id;
+      if (!partyId || partyId <= 0) {
+        const custName = (data.customer_name || (data as any).buyer_name || (data as any).party_name || 'সাধারণ খুচরা ক্রেতা').trim();
+        const custPhone = (data.customer_phone || (data as any).phone || '').trim();
+        let existing = this.db.prepare("SELECT id FROM parties WHERE name = ? AND (party_type = 'BUYER' OR party_type = 'BOTH')").get(custName) as { id: number } | undefined;
+        if (!existing) {
+          existing = this.db.prepare("SELECT id FROM parties WHERE name = ?").get(custName) as { id: number } | undefined;
+        }
+        if (!existing) {
+          const ins = this.db.prepare("INSERT INTO parties (name, phone, address, party_type, opening_balance, current_balance, is_test_draft) VALUES (?, ?, 'চাঁচকৈড় বাজার, গুরুদাসপুর', 'BUYER', 0, 0, ?)").run(custName, custPhone, isTest);
+          partyId = Number(ins.lastInsertRowid);
+        } else {
+          partyId = existing.id;
+        }
+      }
+
       // 2. Insert Sale Record
       const insertSale = this.db.prepare(`
         INSERT INTO sales (
@@ -689,7 +709,7 @@ export class AppDatabase {
       `);
 
       const res = insertSale.run(
-        invoice_no, data.sale_date, data.party_id, data.commodity_id, data.bags_count,
+        invoice_no, data.sale_date, partyId, data.commodity_id, data.bags_count,
         grossKg, bagDedKg, net_weight_kg, net_weight_mon,
         rateMon, gross_amount, loading, damage, discount,
         net_invoice_amount, paymentMethod, paid_amount, due_amount,
@@ -711,14 +731,14 @@ export class AppDatabase {
       `).run(remainingStockKg, remainingBags, data.commodity_id);
 
       // 4. Update Party Balance and Ledger
-      const party = this.getPartyById(data.party_id);
+      const party = this.getPartyById(partyId);
       if (!party) throw new Error('পার্টির তথ্য পাওয়া যায়নি');
 
       const netCustomerChange = subMoney(net_invoice_amount, paid_amount);
       const newPartyBalance = addMoney(party.current_balance, netCustomerChange);
 
       this.db.prepare("UPDATE parties SET current_balance = ?, updated_at = datetime('now', 'localtime') WHERE id = ?")
-        .run(newPartyBalance, data.party_id);
+        .run(newPartyBalance, partyId);
 
       const commodityName = commodity.name_bn;
       this.db.prepare(`
@@ -726,7 +746,7 @@ export class AppDatabase {
         VALUES (?, ?, 'SALE', ?, ?, ?, 0, ?, ?, ?)
       `).run(
         data.sale_date,
-        data.party_id,
+        partyId,
         saleId,
         invoice_no,
         net_invoice_amount,
@@ -741,7 +761,7 @@ export class AppDatabase {
           VALUES (?, ?, 'PAYMENT_RECEIVED', ?, ?, 0, ?, ?, ?, ?)
         `).run(
           data.sale_date,
-          data.party_id,
+          partyId,
           saleId,
           invoice_no,
           paid_amount,
@@ -755,6 +775,15 @@ export class AppDatabase {
           VALUES (?, 'INFLOW', 'SALE_CASH', ?, ?, ?, ?, ?, ?, ?)
         `).run(
           data.sale_date,
+          paid_amount,
+          paymentMethod === 'BANK' ? 'BANK' : 'CASH',
+          saleId,
+          invoice_no,
+          partyId,
+          isTest,
+          `বিক্রয় চালান আদায়: ${party.name} (${commodityName})`
+        );
+      }
           paid_amount,
           data.payment_method === 'BANK' ? 'BANK' : 'CASH',
           saleId,

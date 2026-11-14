@@ -71,8 +71,10 @@ let inMemoryStore = {
     { id: 5, name_bn: 'আমন ধান (স্বর্ণা)', name_en: 'Aman Paddy', default_bag_weight_kg: 75, current_stock_kg: 5250, current_stock_bags: 70, current_wac_per_kg: 32.5, current_wac_per_mon: 1300, is_active: 1 },
   ],
   parties: [
-    { id: 1, name: 'মোঃ করিম বেপারী', phone: '01712345678', address: 'চলনবিল, গুরুদাসপুর', party_type: 'SUPPLIER', opening_balance: -25000, current_balance: -25000, is_active: 1, is_pinned: 0 },
-    { id: 2, name: 'রহমান ট্রেডার্স (মিল মালিক)', phone: '01819876543', address: 'ঈশ্বরদী, পাবনা', party_type: 'BUYER', opening_balance: 145000, current_balance: 145000, is_active: 1, is_pinned: 0 },
+    { id: 1, name: 'সাধারণ বিক্রেতা', phone: '০১৭০০-০০০০০০', address: 'চাচকৈড় বাজার, গুরুদাসপুর', party_type: 'SUPPLIER', opening_balance: 0, current_balance: 0, is_active: 1, is_pinned: 1 },
+    { id: 2, name: 'সাধারণ খুচরা ক্রেতা', phone: '০১৭০০-০০০০০০', address: 'চাচকৈড় বাজার, গুরুদাসপুর', party_type: 'BUYER', opening_balance: 0, current_balance: 0, is_active: 1, is_pinned: 1 },
+    { id: 3, name: 'মোঃ করিম বেপারী', phone: '01712345678', address: 'চলনবিল, গুরুদাসপুর', party_type: 'SUPPLIER', opening_balance: -25000, current_balance: -25000, is_active: 1, is_pinned: 0 },
+    { id: 4, name: 'রহমান ট্রেডার্স (মিল মালিক)', phone: '01819876543', address: 'ঈশ্বরদী, পাবনা', party_type: 'BUYER', opening_balance: 145000, current_balance: 145000, is_active: 1, is_pinned: 0 },
   ],
   purchases: [],
   sales: [],
@@ -160,6 +162,94 @@ function extractIncomingPin(request, url) {
   if (queryPin) return normalizePin(queryPin);
 
   return '';
+}
+
+/**
+ * Auto-Resolve or Auto-Create Party Helper (Never fails with "Party Not Found")
+ * Resolves by partyId, exact phone, or exact name.
+ * If not found, automatically creates the party record in D1 or in-memory store.
+ */
+async function resolveOrCreateParty(db, partyId, partyName, partyPhone = '', partyType = 'SUPPLIER', isTest = 0) {
+  const defaultName = partyType === 'SUPPLIER' ? 'সাধারণ বিক্রেতা' : 'সাধারণ খুচরা ক্রেতা';
+  const cleanName = (partyName && String(partyName).trim()) ? String(partyName).trim() : defaultName;
+  const cleanPhone = (partyPhone && String(partyPhone).trim()) ? String(partyPhone).trim() : '';
+
+  if (db) {
+    let party = null;
+    // 1. If positive numeric partyId provided, lookup by ID
+    if (partyId && Number(partyId) > 0) {
+      party = await db.prepare('SELECT * FROM parties WHERE id = ?').bind(Number(partyId)).first().catch(() => null);
+      if (party) return party;
+    }
+
+    // 2. Lookup by exact name and phone
+    if (cleanPhone && cleanPhone !== '০১৭০০-০০০০০০' && cleanPhone !== '01700000000') {
+      party = await db.prepare('SELECT * FROM parties WHERE name = ? AND phone = ?').bind(cleanName, cleanPhone).first().catch(() => null);
+      if (party) return party;
+    }
+
+    // 3. Lookup by exact name
+    party = await db.prepare('SELECT * FROM parties WHERE name = ?').bind(cleanName).first().catch(() => null);
+    if (party) return party;
+
+    // 4. Auto-create new party record in D1
+    const res = await db.prepare(`
+      INSERT INTO parties (name, phone, address, party_type, opening_balance, current_balance, notes, is_pinned, is_test_draft)
+      VALUES (?, ?, ?, ?, 0, 0, '', 0, ?)
+    `).bind(
+      cleanName,
+      cleanPhone || '০১৭০০-০০০০০০',
+      'চাচকৈড় বাজার, গুরুদাসপুর',
+      partyType,
+      isTest ? 1 : 0
+    ).run().catch(() => null);
+
+    const newId = res?.meta?.last_row_id;
+    if (newId) {
+      party = await db.prepare('SELECT * FROM parties WHERE id = ?').bind(newId).first().catch(() => null);
+      if (party) return party;
+    }
+
+    // Fallback: lookup by name again
+    party = await db.prepare('SELECT * FROM parties WHERE name = ? ORDER BY id DESC').bind(cleanName).first().catch(() => null);
+    if (party) return party;
+
+    // Fallback: first party in DB
+    const firstParty = await db.prepare('SELECT * FROM parties ORDER BY id ASC LIMIT 1').first().catch(() => null);
+    if (firstParty) return firstParty;
+
+    return {
+      id: 1,
+      name: cleanName,
+      phone: cleanPhone || '০১৭০০-০০০০০০',
+      address: 'চাচকৈড় বাজার, গুরুদাসপুর',
+      party_type: partyType,
+      current_balance: 0,
+      opening_balance: 0,
+    };
+  } else {
+    // In-memory fallback
+    if (partyId && Number(partyId) > 0) {
+      const p = inMemoryStore.parties.find(x => x.id === Number(partyId));
+      if (p) return p;
+    }
+    let p = inMemoryStore.parties.find(x => x.name === cleanName);
+    if (p) return p;
+
+    const newParty = {
+      id: inMemoryStore.parties.length + 1,
+      name: cleanName,
+      phone: cleanPhone || '০১৭০০-০০০০০০',
+      address: 'চাচকৈড় বাজার, গুরুদাসপুর',
+      party_type: partyType,
+      opening_balance: 0,
+      current_balance: 0,
+      is_active: 1,
+      is_pinned: 0,
+    };
+    inMemoryStore.parties.push(newParty);
+    return newParty;
+  }
 }
 
 // Automatic D1 Initialization
@@ -362,6 +452,13 @@ async function ensureD1Initialized(db) {
       ('app_security_pin', '5555'),
       ('app_pin', '5555'),
       ('theme_mode', 'obsidian-gold');
+
+      -- Seed walk-in parties
+      INSERT OR IGNORE INTO parties (id, name, phone, address, party_type, opening_balance, current_balance, notes, is_active, is_pinned) VALUES
+      (1, 'সাধারণ বিক্রেতা', '০১৭০০-০০০০০০', 'চাচকৈড় বাজার, গুরুদাসপুর', 'SUPPLIER', 0, 0, 'সাধারণ নগদ বিক্রেতা ও কৃষক', 1, 1),
+      (2, 'সাধারণ খুচরা ক্রেতা', '০১৭০০-০০০০০০', 'চাচকৈড় বাজার, গুরুদাসপুর', 'BUYER', 0, 0, 'সাধারণ নগদ ক্রেতা ও পাইকার', 1, 1),
+      (3, 'মোঃ করিম বেপারী', '01712345678', 'চলনবিল, গুরুদাসপুর', 'SUPPLIER', -25000, -25000, 'রবি শস্য সরবরাহকারী বেপারী', 1, 0),
+      (4, 'রহমান ট্রেডার্স (মিল মালিক)', '01819876543', 'ঈশ্বরদী, পাবনা', 'BUYER', 145000, 145000, 'রাইস মিল ও পাইকারি খরিদ্দার', 1, 0);
     `).catch(() => null);
 
     // Check if initial commodities exist
@@ -733,8 +830,10 @@ export default {
               const commodity = await db.prepare('SELECT * FROM commodities WHERE id = ?').bind(body.commodity_id).first();
               if (!commodity) return sendJson({ success: false, error: 'শস্য পাওয়া যায়নি' }, 404);
 
-              const party = await db.prepare('SELECT * FROM parties WHERE id = ?').bind(body.party_id).first();
-              if (!party) return sendJson({ success: false, error: 'পার্টি পাওয়া যায়নি' }, 404);
+              const sellerName = (body.supplier_name || body.seller_name || body.party_name || '').trim();
+              const sellerPhone = (body.supplier_phone || body.seller_phone || body.phone || '').trim();
+              const party = await resolveOrCreateParty(db, body.party_id, sellerName, sellerPhone, 'SUPPLIER', isTest);
+              const partyId = party.id;
 
               const oldStockKg = roundWeight(commodity.current_stock_kg);
               const oldWacPerKg = commodity.current_wac_per_kg;
@@ -758,7 +857,7 @@ export default {
                     paid_amount, due_amount, previous_wac_per_kg, new_wac_per_kg, is_test_draft, notes
                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `).bind(
-                  invoiceNo, body.purchase_date, body.party_id, body.commodity_id, body.bags_count || 0,
+                  invoiceNo, body.purchase_date, partyId, body.commodity_id, body.bags_count || 0,
                   grossKg, bagDedKg, netKg, netMon,
                   rateMon, grossAmount, labor, transport, bag, other,
                   totalLandedCost, costPerMon, costPerKg, payMethod,
@@ -769,12 +868,12 @@ export default {
                     current_stock_kg = ?, current_stock_bags = ?, current_wac_per_kg = ?, current_wac_per_mon = ?, updated_at = CURRENT_TIMESTAMP
                   WHERE id = ?
                 `).bind(newStockKg, newStockBags, newWacPerKg, newWacPerMon, body.commodity_id),
-                db.prepare('UPDATE parties SET current_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(newPartyBal, body.party_id),
+                db.prepare('UPDATE parties SET current_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(newPartyBal, partyId),
                 db.prepare(`
                   INSERT INTO party_ledger (entry_date, party_id, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
                   VALUES (?, ?, 'PURCHASE', ?, 0, ?, ?, ?, ?)
                 `).bind(
-                  body.purchase_date, body.party_id, invoiceNo,
+                  body.purchase_date, partyId, invoiceNo,
                   grossAmount, subMoney(party.current_balance, grossAmount), isTest,
                   `ক্রয়: ${commodity.name_bn} (${netMon.toFixed(2)} মন / ${body.bags_count} বস্তা @ ৳${rateMon}/মন)`
                 )
@@ -785,11 +884,11 @@ export default {
                   db.prepare(`
                     INSERT INTO party_ledger (entry_date, party_id, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
                     VALUES (?, ?, 'PAYMENT_GIVEN', ?, ?, 0, ?, ?, ?)
-                  `).bind(body.purchase_date, body.party_id, invoiceNo, paidAmount, newPartyBal, isTest, `নগদ পরিশোধ (ক্রয় বিল: ${invoiceNo})`),
+                  `).bind(body.purchase_date, partyId, invoiceNo, paidAmount, newPartyBal, isTest, `নগদ পরিশোধ (ক্রয় বিল: ${invoiceNo})`),
                   db.prepare(`
                     INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, reference_no, party_id, is_test_draft, description)
                     VALUES (?, 'OUTFLOW', 'PURCHASE_CASH', ?, ?, ?, ?, ?, ?)
-                  `).bind(body.purchase_date, paidAmount, payMethod === 'BANK' ? 'BANK' : 'CASH', invoiceNo, body.party_id, isTest, `শস্য ক্রয়ে পরিশোধ: ${party.name} (${commodity.name_bn})`)
+                  `).bind(body.purchase_date, paidAmount, payMethod === 'BANK' ? 'BANK' : 'CASH', invoiceNo, partyId, isTest, `শস্য ক্রয়ে পরিশোধ: ${party.name} (${commodity.name_bn})`)
                 );
               }
 
@@ -798,7 +897,7 @@ export default {
                   db.prepare(`
                     INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, reference_no, party_id, is_test_draft, description)
                     VALUES (?, 'OUTFLOW', 'EXPENSE', ?, 'CASH', ?, ?, ?, ?)
-                  `).bind(body.purchase_date, directExp, invoiceNo, body.party_id, isTest, `ক্রয় আনুষঙ্গিক খরচ (চালান: ${invoiceNo})`)
+                  `).bind(body.purchase_date, directExp, invoiceNo, partyId, isTest, `ক্রয় আনুষঙ্গিক খরচ (চালান: ${invoiceNo})`)
                 );
               }
 
@@ -813,7 +912,23 @@ export default {
               return sendJson(created, 201);
             }
 
-            const mockPurchase = { id: Date.now(), invoice_no: invoiceNo, ...body, net_weight_kg: netKg, net_weight_mon: netMon, gross_amount: grossAmount, total_landed_cost: totalLandedCost, paid_amount: paidAmount, due_amount: dueAmount };
+            const sellerName = (body.supplier_name || body.seller_name || body.party_name || '').trim();
+            const sellerPhone = (body.supplier_phone || body.seller_phone || body.phone || '').trim();
+            const party = await resolveOrCreateParty(null, body.party_id, sellerName, sellerPhone, 'SUPPLIER', isTest);
+            const mockPurchase = {
+              id: Date.now(),
+              invoice_no: invoiceNo,
+              ...body,
+              party_id: party.id,
+              party_name: party.name,
+              party_phone: party.phone,
+              net_weight_kg: netKg,
+              net_weight_mon: netMon,
+              gross_amount: grossAmount,
+              total_landed_cost: totalLandedCost,
+              paid_amount: paidAmount,
+              due_amount: dueAmount
+            };
             inMemoryStore.purchases.unshift(mockPurchase);
             return sendJson(mockPurchase, 201);
           }
@@ -871,8 +986,10 @@ export default {
                 return sendJson({ success: false, error: `গুদামে পর্যাপ্ত মজুত নেই! বর্তমান মজুত: ${(commodity.current_stock_kg / 40).toFixed(2)} মণ` }, 400);
               }
 
-              const party = await db.prepare('SELECT * FROM parties WHERE id = ?').bind(body.party_id).first();
-              if (!party) return sendJson({ success: false, error: 'পার্টি পাওয়া যায়নি' }, 404);
+              const customerName = (body.customer_name || body.buyer_name || body.party_name || '').trim();
+              const customerPhone = (body.customer_phone || body.buyer_phone || body.phone || '').trim();
+              const party = await resolveOrCreateParty(db, body.party_id, customerName, customerPhone, 'BUYER', isTest);
+              const partyId = party.id;
 
               const cogs = roundMoney(netKg * commodity.current_wac_per_kg);
               const profit = subMoney(netInvoiceAmount, cogs);
@@ -892,7 +1009,7 @@ export default {
                     cogs_amount, realized_profit, is_test_draft, notes
                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `).bind(
-                  invoiceNo, body.sale_date, body.party_id, body.commodity_id, body.bags_count || 0,
+                  invoiceNo, body.sale_date, partyId, body.commodity_id, body.bags_count || 0,
                   grossKg, bagDedKg, netKg, netMon,
                   rateMon, grossAmount, loading, damage, discount,
                   netInvoiceAmount, payMethod, paidAmount, dueAmount,
@@ -902,12 +1019,12 @@ export default {
                 db.prepare(`
                   UPDATE commodities SET current_stock_kg = ?, current_stock_bags = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
                 `).bind(remainingStockKg, remainingBags, body.commodity_id),
-                db.prepare('UPDATE parties SET current_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(newPartyBal, body.party_id),
+                db.prepare('UPDATE parties SET current_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(newPartyBal, partyId),
                 db.prepare(`
                   INSERT INTO party_ledger (entry_date, party_id, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
                   VALUES (?, ?, 'SALE', ?, ?, 0, ?, ?, ?)
                 `).bind(
-                  body.sale_date, body.party_id, invoiceNo,
+                  body.sale_date, partyId, invoiceNo,
                   netInvoiceAmount, addMoney(party.current_balance, netInvoiceAmount), isTest,
                   `বিক্রয়: ${commodity.name_bn} (${netMon.toFixed(2)} মন / ${body.bags_count} বস্তা @ ৳${rateMon}/মন)`
                 )
@@ -918,11 +1035,11 @@ export default {
                   db.prepare(`
                     INSERT INTO party_ledger (entry_date, party_id, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
                     VALUES (?, ?, 'PAYMENT_RECEIVED', ?, 0, ?, ?, ?, ?)
-                  `).bind(body.sale_date, body.party_id, invoiceNo, paidAmount, newPartyBal, isTest, `নগদ আদায় (বিক্রয় চালান: ${invoiceNo})`),
+                  `).bind(body.sale_date, partyId, invoiceNo, paidAmount, newPartyBal, isTest, `নগদ আদায় (বিক্রয় চালান: ${invoiceNo})`),
                   db.prepare(`
                     INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, reference_no, party_id, is_test_draft, description)
                     VALUES (?, 'INFLOW', 'SALE_CASH', ?, ?, ?, ?, ?, ?)
-                  `).bind(body.sale_date, paidAmount, payMethod === 'BANK' ? 'BANK' : 'CASH', invoiceNo, body.party_id, isTest, `বিক্রয় নগদ আদায়: ${party.name} (${commodity.name_bn})`)
+                  `).bind(body.sale_date, paidAmount, payMethod === 'BANK' ? 'BANK' : 'CASH', invoiceNo, partyId, isTest, `বিক্রয় নগদ আদায়: ${party.name} (${commodity.name_bn})`)
                 );
               }
 
@@ -937,10 +1054,202 @@ export default {
               return sendJson(created, 201);
             }
 
-            const mockSale = { id: Date.now(), invoice_no: invoiceNo, ...body, net_weight_kg: netKg, net_weight_mon: netMon, net_invoice_amount: netInvoiceAmount, paid_amount: paidAmount, due_amount: dueAmount };
+            const customerName = (body.customer_name || body.buyer_name || body.party_name || '').trim();
+            const customerPhone = (body.customer_phone || body.buyer_phone || body.phone || '').trim();
+            const party = await resolveOrCreateParty(null, body.party_id, customerName, customerPhone, 'BUYER', isTest);
+            const mockSale = {
+              id: Date.now(),
+              invoice_no: invoiceNo,
+              ...body,
+              party_id: party.id,
+              party_name: party.name,
+              party_phone: party.phone,
+              net_weight_kg: netKg,
+              net_weight_mon: netMon,
+              net_invoice_amount: netInvoiceAmount,
+              paid_amount: paidAmount,
+              due_amount: dueAmount
+            };
             inMemoryStore.sales.unshift(mockSale);
             return sendJson(mockSale, 201);
           }
+        }
+
+        // --- BATCH SALES (পাইকারি বিক্রয় POS কার্ট) ---
+        if (url.pathname === '/api/sales/batch' && request.method === 'POST') {
+          const body = await request.json();
+          if (!body.items || body.items.length === 0) {
+            return sendJson({ success: false, error: 'কার্টে কমপক্ষে একটি শস্যের আইটেম যোগ করুন' }, 400);
+          }
+
+          const isTest = body.is_test_draft ? 1 : 0;
+          const dateStr = (body.sale_date || new Date().toISOString().split('T')[0]).replace(/-/g, '');
+          const baseInvoiceNo = `SAL-${dateStr}-${Date.now().toString().slice(-4)}`;
+
+          const custName = (body.customer_name || body.buyer_name || body.party_name || '').trim();
+          const custPhone = (body.customer_phone || body.buyer_phone || body.phone || '').trim();
+          const party = await resolveOrCreateParty(db, body.party_id, custName, custPhone, 'BUYER', isTest);
+          const partyId = party.id;
+
+          if (db) {
+            let grandTotalBill = 0;
+            const itemsProcessed = [];
+
+            for (let idx = 0; idx < body.items.length; idx++) {
+              const item = body.items[idx];
+              const commodity = await db.prepare('SELECT * FROM commodities WHERE id = ?').bind(item.commodity_id).first();
+              if (!commodity) return sendJson({ success: false, error: `শস্যের আইডি ${item.commodity_id} পাওয়া যায়নি` }, 404);
+
+              const bagsCount = Math.max(1, Number(item.bags_count) || 1);
+              let netMon = item.net_weight_mon ? Number(item.net_weight_mon) : (bagsCount * (commodity.default_bag_weight_kg || 80)) / 40.0;
+              netMon = roundWeight(netMon);
+              let netKg = item.net_weight_kg ? Number(item.net_weight_kg) : roundWeight(netMon * 40.0);
+              let grossKg = item.gross_weight_kg ? Number(item.gross_weight_kg) : netKg;
+              let bagDedKg = item.bag_deduction_kg ? Number(item.bag_deduction_kg) : 0;
+
+              if (commodity.current_stock_kg < netKg) {
+                const curMon = (commodity.current_stock_kg / 40.0).toFixed(1);
+                return sendJson({ success: false, error: `পর্যাপ্ত স্টক নেই! ${commodity.name_bn}-এর বর্তমান স্টক ${curMon} মণ (${commodity.current_stock_kg} কেজি)।` }, 400);
+              }
+
+              const rateMon = roundMoney(item.rate_per_mon);
+              const itemTotal = roundMoney(netMon * rateMon);
+              grandTotalBill = addMoney(grandTotalBill, itemTotal);
+
+              const cogs = roundMoney(netKg * (commodity.current_wac_per_kg || 0));
+              const profit = subMoney(itemTotal, cogs);
+
+              const itemInvoiceNo = body.items.length > 1 ? `${baseInvoiceNo}-${idx + 1}` : baseInvoiceNo;
+
+              itemsProcessed.push({
+                item,
+                commodity,
+                bagsCount,
+                netMon,
+                netKg,
+                grossKg,
+                bagDedKg,
+                rateMon,
+                itemTotal,
+                cogs,
+                profit,
+                itemInvoiceNo,
+              });
+            }
+
+            const totalPaid = roundMoney(body.cash_paid || 0);
+            const totalDue = roundMoney(Math.max(0, subMoney(grandTotalBill, totalPaid)));
+            let payMethod = 'CASH';
+            if (body.payment_method === 'BANK') payMethod = 'BANK';
+            else if (totalDue <= 0) payMethod = 'CASH';
+            else if (totalPaid <= 0) payMethod = 'DUE';
+            else payMethod = 'PARTIAL';
+
+            const batchStmts = [];
+            const itemSummaries = [];
+
+            for (let idx = 0; idx < itemsProcessed.length; idx++) {
+              const p = itemsProcessed[idx];
+              const itemPaid = idx === 0 ? Math.min(p.itemTotal, totalPaid) : 0;
+              const itemDue = Math.max(0, subMoney(p.itemTotal, itemPaid));
+
+              batchStmts.push(
+                db.prepare(`
+                  INSERT INTO sales (
+                    invoice_no, sale_date, party_id, commodity_id, bags_count,
+                    gross_weight_kg, bag_deduction_kg, net_weight_kg, net_weight_mon,
+                    rate_per_mon, gross_amount, loading_charge, damaged_bag_deduction, discount_amount,
+                    net_invoice_amount, payment_method, paid_amount, due_amount,
+                    vehicle_no, driver_name, driver_phone, destination,
+                    cogs_amount, realized_profit, is_test_draft, notes
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, '', '', '', '', ?, ?, ?, ?)
+                `).bind(
+                  p.itemInvoiceNo, body.sale_date, partyId, p.item.commodity_id, p.bagsCount,
+                  p.grossKg, p.bagDedKg, p.netKg, p.netMon,
+                  p.rateMon, p.itemTotal,
+                  p.itemTotal, payMethod, itemPaid, itemDue,
+                  p.cogs, p.profit, isTest, body.notes || ''
+                ),
+                db.prepare(`
+                  UPDATE commodities SET
+                    current_stock_kg = ?, current_stock_bags = ?, updated_at = CURRENT_TIMESTAMP
+                  WHERE id = ?
+                `).bind(
+                  roundWeight(subWeight(p.commodity.current_stock_kg, p.netKg)),
+                  Math.max(0, p.commodity.current_stock_bags - p.bagsCount),
+                  p.item.commodity_id
+                )
+              );
+
+              itemSummaries.push(`${p.commodity.name_bn} (${p.bagsCount} বস্তা, ${p.netMon.toFixed(1)} মণ @ ৳${p.rateMon})`);
+            }
+
+            const netCustomerChange = subMoney(grandTotalBill, totalPaid);
+            const newPartyBal = addMoney(party.current_balance, netCustomerChange);
+
+            batchStmts.push(
+              db.prepare('UPDATE parties SET current_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(newPartyBal, partyId),
+              db.prepare(`
+                INSERT INTO party_ledger (entry_date, party_id, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
+                VALUES (?, ?, 'SALE', ?, ?, 0, ?, ?, ?)
+              `).bind(
+                body.sale_date, partyId, baseInvoiceNo,
+                grandTotalBill, addMoney(party.current_balance, grandTotalBill), isTest,
+                `পাইকারি বিক্রয় চালান: ${itemSummaries.join(', ')}`
+              )
+            );
+
+            if (totalPaid > 0) {
+              batchStmts.push(
+                db.prepare(`
+                  INSERT INTO party_ledger (entry_date, party_id, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
+                  VALUES (?, ?, 'PAYMENT_RECEIVED', ?, 0, ?, ?, ?, ?)
+                `).bind(
+                  body.sale_date, partyId, baseInvoiceNo,
+                  totalPaid, newPartyBal, isTest,
+                  `নগদ আদায় (চালান নং: ${baseInvoiceNo})`
+                ),
+                db.prepare(`
+                  INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, reference_no, party_id, is_test_draft, description)
+                  VALUES (?, 'INFLOW', 'SALE_CASH', ?, ?, ?, ?, ?, ?)
+                `).bind(
+                  body.sale_date, totalPaid, payMethod === 'BANK' ? 'BANK' : 'CASH',
+                  baseInvoiceNo, partyId, isTest,
+                  `চালান নগদ আদায়: ${party.name} (${baseInvoiceNo})`
+                )
+              );
+            }
+
+            await db.batch(batchStmts);
+
+            const { results: createdSales } = await db.prepare(`
+              SELECT s.*, pt.name as party_name, pt.phone as party_phone, pt.address as party_address, c.name_bn as commodity_name
+              FROM sales s
+              JOIN parties pt ON s.party_id = pt.id
+              JOIN commodities c ON s.commodity_id = c.id
+              WHERE s.invoice_no LIKE ?
+              ORDER BY s.id ASC
+            `).bind(`${baseInvoiceNo}%`).all();
+
+            return sendJson({ success: true, invoice_no: baseInvoiceNo, sales: createdSales || [] }, 201);
+          }
+
+          const mockSales = body.items.map((item, idx) => ({
+            id: Date.now() + idx,
+            invoice_no: body.items.length > 1 ? `${baseInvoiceNo}-${idx + 1}` : baseInvoiceNo,
+            sale_date: body.sale_date,
+            party_id: party.id,
+            party_name: party.name,
+            commodity_id: item.commodity_id,
+            bags_count: item.bags_count || 1,
+            net_weight_mon: item.net_weight_mon || 1,
+            rate_per_mon: item.rate_per_mon || 0,
+            gross_amount: item.total_amount || 0,
+            net_invoice_amount: item.total_amount || 0,
+            paid_amount: idx === 0 ? (body.cash_paid || 0) : 0,
+            due_amount: 0,
+          }));
+          return sendJson({ success: true, invoice_no: baseInvoiceNo, sales: mockSales }, 201);
         }
 
         // --- STOCK ADJUSTMENTS (শুকতি ঘাটতি) ---
@@ -1444,25 +1753,25 @@ export default {
 
         if (url.pathname === '/api/system/purge-drafts' && request.method === 'POST') {
           if (db) {
-            // 1. Revert commodity stocks from test purchases
-            const testPurchases = (await db.prepare('SELECT commodity_id, net_weight_kg, bags_count FROM purchases WHERE is_test_draft = 1').all())?.results || [];
-            for (const p of testPurchases) {
-              await db.prepare('UPDATE commodities SET current_stock_kg = MAX(0, current_stock_kg - ?), current_stock_bags = MAX(0, current_stock_bags - ?) WHERE id = ?')
-                .bind(p.net_weight_kg, p.bags_count, p.commodity_id).run();
+            // 1. Revert commodity stocks from test shrinkage adjustments (add lost weight back)
+            const testAdjs = (await db.prepare('SELECT commodity_id, lost_weight_kg, lost_bags FROM stock_adjustments WHERE is_test_draft = 1').all())?.results || [];
+            for (const a of testAdjs) {
+              await db.prepare('UPDATE commodities SET current_stock_kg = current_stock_kg + ?, current_stock_bags = current_stock_bags + ? WHERE id = ?')
+                .bind(a.lost_weight_kg, a.lost_bags, a.commodity_id).run();
             }
 
-            // 2. Revert commodity stocks from test sales
+            // 2. Revert commodity stocks from test sales (add sold stock back first)
             const testSales = (await db.prepare('SELECT commodity_id, net_weight_kg, bags_count FROM sales WHERE is_test_draft = 1').all())?.results || [];
             for (const s of testSales) {
               await db.prepare('UPDATE commodities SET current_stock_kg = current_stock_kg + ?, current_stock_bags = current_stock_bags + ? WHERE id = ?')
                 .bind(s.net_weight_kg, s.bags_count, s.commodity_id).run();
             }
 
-            // 3. Revert commodity stocks from test shrinkage adjustments
-            const testAdjs = (await db.prepare('SELECT commodity_id, lost_weight_kg, lost_bags FROM stock_adjustments WHERE is_test_draft = 1').all())?.results || [];
-            for (const a of testAdjs) {
-              await db.prepare('UPDATE commodities SET current_stock_kg = current_stock_kg + ?, current_stock_bags = current_stock_bags + ? WHERE id = ?')
-                .bind(a.lost_weight_kg, a.lost_bags, a.commodity_id).run();
+            // 3. Revert commodity stocks from test purchases (subtract purchased stock)
+            const testPurchases = (await db.prepare('SELECT commodity_id, net_weight_kg, bags_count FROM purchases WHERE is_test_draft = 1').all())?.results || [];
+            for (const p of testPurchases) {
+              await db.prepare('UPDATE commodities SET current_stock_kg = MAX(0, current_stock_kg - ?), current_stock_bags = MAX(0, current_stock_bags - ?) WHERE id = ?')
+                .bind(p.net_weight_kg, p.bags_count, p.commodity_id).run();
             }
 
             // 4. Purge tables

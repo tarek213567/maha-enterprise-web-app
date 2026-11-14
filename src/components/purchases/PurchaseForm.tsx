@@ -139,8 +139,8 @@ export const PurchaseForm: React.FC<PurchaseFormProps> = ({
       setError('অনুগ্রহ করে ক্রয়ের তারিখ নির্বাচন করুন');
       return;
     }
-    if (!selectedPartyId) {
-      setError('অনুগ্রহ করে বেপারী বা বিক্রেতা নির্বাচন করুন');
+    if (!selectedPartyId && actualPaid < grossAmount) {
+      setError('বাকিতে ক্রয়ের ক্ষেত্রে অবশ্যই বেপারী বা বিক্রেতা নির্বাচন করুন');
       return;
     }
     if (!selectedCommodityId) {
@@ -176,10 +176,14 @@ export const PurchaseForm: React.FC<PurchaseFormProps> = ({
         'BANK': 'BANK',
       };
       const resolvedPaymentMethod = paymentMap[paymentMethod] || (actualPaid >= grossAmount ? 'CASH' : actualPaid <= 0 ? 'DUE' : 'PARTIAL');
+      const selectedParty = parties.find(p => p.id === Number(selectedPartyId));
 
       const created = await dbService.purchases.create({
         purchase_date: purchaseDate,
-        party_id: Number(selectedPartyId),
+        party_id: selectedPartyId ? Number(selectedPartyId) : 0,
+        supplier_name: selectedParty ? selectedParty.name : 'সাধারণ বিক্রেতা',
+        seller_name: selectedParty ? selectedParty.name : 'সাধারণ বিক্রেতা',
+        phone: selectedParty ? selectedParty.phone : '',
         commodity_id: Number(selectedCommodityId),
         bags_count: bagsCount,
         gross_weight_kg: grossWeightKg,
@@ -286,7 +290,7 @@ export const PurchaseForm: React.FC<PurchaseFormProps> = ({
               onChange={(e) => setSelectedPartyId(e.target.value ? Number(e.target.value) : '')}
               className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-semibold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-amber-500 outline-none"
             >
-              <option value="">বেপারী নির্বাচন করুন...</option>
+              <option value="">সাধারণ বিক্রেতা (নগদ কেনাবেচা / খুচরা)</option>
               {parties.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} ({p.phone}) - ব্যালেন্স: {formatBanglaCurrency(p.current_balance, isBn)}

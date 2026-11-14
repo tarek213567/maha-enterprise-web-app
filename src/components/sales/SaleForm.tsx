@@ -144,8 +144,8 @@ export const SaleForm: React.FC<SaleFormProps> = ({
       setError('অনুগ্রহ করে বিক্রয়ের তারিখ নির্বাচন করুন');
       return;
     }
-    if (!selectedPartyId) {
-      setError('অনুগ্রহ করে মিলার বা ক্রেতা নির্বাচন করুন');
+    if (!selectedPartyId && actualPaid < netInvoiceAmount) {
+      setError('বাকি বিক্রয়ের ক্ষেত্রে অবশ্যই মিলার বা ক্রেতা নির্বাচন করুন');
       return;
     }
     if (!selectedCommodityId) {
@@ -169,9 +169,14 @@ export const SaleForm: React.FC<SaleFormProps> = ({
       setIsSubmitting(true);
       setError('');
 
+      const selectedParty = parties.find(p => p.id === Number(selectedPartyId));
+
       const created = await dbService.sales.create({
         sale_date: saleDate,
-        party_id: Number(selectedPartyId),
+        party_id: selectedPartyId ? Number(selectedPartyId) : 0,
+        customer_name: selectedParty ? selectedParty.name : 'সাধারণ খুচরা ক্রেতা',
+        buyer_name: selectedParty ? selectedParty.name : 'সাধারণ খুচরা ক্রেতা',
+        phone: selectedParty ? selectedParty.phone : '',
         commodity_id: Number(selectedCommodityId),
         bags_count: bagsCount,
         gross_weight_kg: grossWeightKg,
@@ -282,7 +287,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
               onChange={(e) => setSelectedPartyId(e.target.value ? Number(e.target.value) : '')}
               className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-semibold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 outline-none"
             >
-              <option value="">ক্রেতা নির্বাচন করুন...</option>
+              <option value="">সাধারণ খুচরা ক্রেতা (নগদ কেনাবেচা)</option>
               {parties.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} ({p.phone}) - পূর্বের পাওনা: {formatBanglaCurrency(p.current_balance, isBn)}

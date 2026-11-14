@@ -246,8 +246,10 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
       const payload = {
         sale_date: saleDate,
         party_id: selectedCustomerId || 0,
-        customer_name: selectedCustomer ? selectedCustomer.name : walkinName.trim(),
-        customer_phone: selectedCustomer ? selectedCustomer.phone : walkinPhone.trim() || '০১৭০০-০০০০০০',
+        customer_name: selectedCustomer ? selectedCustomer.name : (walkinName.trim() || 'সাধারণ খুচরা ক্রেতা'),
+        customer_phone: selectedCustomer ? selectedCustomer.phone : (walkinPhone.trim() || ''),
+        buyer_name: selectedCustomer ? selectedCustomer.name : (walkinName.trim() || 'সাধারণ খুচরা ক্রেতা'),
+        phone: selectedCustomer ? selectedCustomer.phone : (walkinPhone.trim() || ''),
         items: cart.map((i) => ({
           commodity_id: i.commodityId,
           bags_count: i.bags,

@@ -197,6 +197,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
         party_id: 0,
         seller_name: sellerName.trim() || 'সাধারণ বিক্রেতা',
         seller_phone: sellerPhone.trim() || '',
+        supplier_name: sellerName.trim() || 'সাধারণ বিক্রেতা',
+        phone: sellerPhone.trim() || '',
         commodity_id: selectedCommodityId || (commodities[0]?.id ?? 1),
         bags_count: bagsCount,
         gross_weight_kg: totalKg,
