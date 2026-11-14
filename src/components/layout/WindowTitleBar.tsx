@@ -16,7 +16,7 @@ declare global {
 }
 
 interface WindowTitleBarProps {
-  onQuickBackup?: () => void;
+  onQuickBackup?: () => void | Promise<void>;
 }
 
 export const WindowTitleBar: React.FC<WindowTitleBarProps> = ({ onQuickBackup }) => {
@@ -55,7 +55,7 @@ export const WindowTitleBar: React.FC<WindowTitleBarProps> = ({ onQuickBackup })
     setIsBackingUp(true);
     try {
       if (onQuickBackup) {
-        onQuickBackup();
+        await onQuickBackup();
       } else {
         await dbService.system.backup();
       }
@@ -102,15 +102,16 @@ export const WindowTitleBar: React.FC<WindowTitleBarProps> = ({ onQuickBackup })
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         className="flex items-center gap-2 sm:gap-2.5"
       >
-        {/* 1. 🗂️ ব্যাকআপ */}
+        {/* 1. 💾 তাৎক্ষণিক ব্যাকআপ */}
         <button
           onClick={handleBackup}
           disabled={isBackingUp}
           className="border border-amber-500/60 bg-amber-950/40 hover:bg-amber-900/60 text-amber-400 rounded-lg px-3 py-1 text-xs flex items-center gap-1.5 font-bold cursor-pointer transition-all active:scale-95 disabled:opacity-50"
-          title="ডাটাবেজ ব্যাকআপ নিন"
+          title="ডাটাবেজ ও রয়্যাল এক্সেল (.xlsx) ব্যাকআপ ডাউনলোড করুন"
         >
-          <span>🗂️</span>
-          <span>{isBackingUp ? 'ব্যাকআপ...' : 'ব্যাকআপ'}</span>
+          <span>💾</span>
+          <span className="hidden sm:inline">{isBackingUp ? 'ব্যাকআপ হচ্ছে...' : 'তাৎক্ষণিক ব্যাকআপ'}</span>
+          <span className="sm:hidden">{isBackingUp ? '...' : 'ব্যাকআপ'}</span>
         </button>
 
         {/* 2. 🌙 ডার্ক / ☀️ লাইট */}

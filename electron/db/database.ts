@@ -693,8 +693,8 @@ export class AppDatabase {
       // Resolve party if not provided
       let partyId = data.party_id;
       if (!partyId || partyId <= 0) {
-        const custName = (data.customer_name || (data as any).buyer_name || (data as any).party_name || 'সাধারণ খুচরা ক্রেতা').trim();
-        const custPhone = (data.customer_phone || (data as any).phone || '').trim();
+        const custName = ((data as any).customer_name || (data as any).buyer_name || (data as any).party_name || 'সাধারণ খুচরা ক্রেতা').trim();
+        const custPhone = ((data as any).customer_phone || (data as any).phone || '').trim();
         let existing = this.db.prepare("SELECT id FROM parties WHERE name = ? AND (party_type = 'BUYER' OR party_type = 'BOTH')").get(custName) as { id: number } | undefined;
         if (!existing) {
           existing = this.db.prepare("SELECT id FROM parties WHERE name = ?").get(custName) as { id: number } | undefined;
@@ -800,15 +800,6 @@ export class AppDatabase {
           partyId,
           isTest,
           `বিক্রয় চালান আদায়: ${party.name} (${commodityName})`
-        );
-      }
-          paid_amount,
-          data.payment_method === 'BANK' ? 'BANK' : 'CASH',
-          saleId,
-          invoice_no,
-          data.party_id,
-          isTest,
-          `বিক্রয় নগদ আদায়: ${party.name} (${commodityName})`
         );
       }
 

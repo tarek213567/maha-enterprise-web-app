@@ -40,7 +40,7 @@ export function getDynamicPin(): string {
 }
 
 // Helper for Web / Mobile HTTP API fetch when running in remote browser or iPhone Safari
-async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const pin = getDynamicPin();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -526,28 +526,35 @@ export const dbService = {
 
   system: {
     backup: async (destDir?: string): Promise<{ success: boolean; filePath: string; message: string; data?: any }> => {
-      if (window.api) return window.api.system.backup(destDir);
-      try {
-        const res = await apiFetch<any>('/api/system/backup', { method: 'POST' });
-        // Auto-download JSON backup file in browser
-        if (res && res.backup) {
-          const blob = new Blob([JSON.stringify(res.backup, null, 2)], { type: 'application/json' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          const dateStr = new Date().toISOString().split('T')[0];
-          a.href = url;
-          a.download = `maha_enterprise_backup_${dateStr}.json`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
+      let electronRes: any = null;
+      if (window.api) {
+        try {
+          electronRes = await window.api.system.backup(destDir);
+        } catch (e: any) {
+          console.warn('Electron system.backup error:', e);
         }
+      }
+      try {
+        let snapshot = null;
+        if (!window.api) {
+          const res = await apiFetch<any>('/api/system/backup', { method: 'POST' });
+          if (res && res.backup) {
+            snapshot = res.backup;
+          }
+        }
+        // Auto-generate & download Royal Multi-Sheet Excel Backup (.xlsx)
+        const { generateAndDownloadExcelBackup } = await import('./excelBackupService');
+        const excelRes = await generateAndDownloadExcelBackup(snapshot);
         return {
           success: true,
-          filePath: res?.filePath || 'maha_enterprise_cloud_backup.json',
-          message: res?.message || 'ক্লাউড ও লোকাল ব্যাকআপ সফলভাবে সংরক্ষিত হয়েছে',
+          filePath: excelRes.fileName,
+          message: electronRes?.message
+            ? `${electronRes.message} এবং ${excelRes.message}`
+            : excelRes.message,
+          data: snapshot,
         };
       } catch (err: any) {
+        if (electronRes && electronRes.success) return electronRes;
         return { success: false, filePath: '', message: `ব্যাকআপ ত্রুটি: ${err.message}` };
       }
     },

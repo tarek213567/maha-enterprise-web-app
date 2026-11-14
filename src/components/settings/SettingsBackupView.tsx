@@ -507,9 +507,10 @@ export const SettingsBackupView: React.FC = () => {
               onClick={handleManualBackup}
               disabled={isBackingUp}
               className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+              title="সম্পূর্ণ ডাটাবেজ সহ রয়্যাল এক্সেল (.xlsx) ব্যাকআপ ডাউনলোড করুন"
             >
               <Download className={`w-3.5 h-3.5 ${isBackingUp ? 'animate-spin' : ''}`} />
-              <span>{isBackingUp ? 'তৈরি হচ্ছে...' : '📥 ম্যানুয়াল ব্যাকআপ নিন'}</span>
+              <span>{isBackingUp ? 'তৈরি হচ্ছে...' : '↓ 💾 ম্যানুয়াল ব্যাকআপ নিন'}</span>
             </button>
             <button
               onClick={handleSnapshotRestore}
