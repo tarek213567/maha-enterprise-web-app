@@ -8,6 +8,7 @@ import { TopHeader } from './components/layout/TopHeader';
 import { BottomStatusBar } from './components/layout/BottomStatusBar';
 import { MobileNav } from './components/layout/MobileNav';
 import { MobileSidebarDrawer } from './components/layout/MobileSidebarDrawer';
+import { CalculatorModal } from './components/calculator/CalculatorModal';
 import { DashboardView } from './components/dashboard/DashboardView';
 import { PurchasesView } from './components/purchases/PurchasesView';
 import { SalesView } from './components/sales/SalesView';
@@ -26,6 +27,7 @@ import { CheckCircle2, AlertCircle, MoreVertical } from 'lucide-react';
 const AppContent: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Load initial zoom factor & listen to changes
@@ -118,6 +120,12 @@ const AppContent: React.FC = () => {
         }
       }
 
+      if (e.key === 'F8') {
+        e.preventDefault();
+        setIsCalculatorOpen((prev) => !prev);
+        return;
+      }
+
       const target = e.target as HTMLElement;
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable) {
         return;
@@ -174,6 +182,7 @@ const AppContent: React.FC = () => {
           currentTab={currentTab}
           onTabChange={setCurrentTab}
           onQuickBackup={handleQuickBackup}
+          onOpenCalculator={() => setIsCalculatorOpen(true)}
         />
 
         {/* Right Scrollable Content Viewport */}
@@ -232,13 +241,13 @@ const AppContent: React.FC = () => {
         onOpenMenu={() => setIsMobileDrawerOpen(true)}
       />
 
-      {/* Mobile Floating Three-Dot / Menu Trigger Button (⋮) */}
+      {/* Mobile Floating Three-Dot (⋮) Menu Button on Left Side */}
       <button
         type="button"
         onClick={() => setIsMobileDrawerOpen(true)}
-        className="fixed top-2.5 right-3 z-40 md:hidden flex items-center justify-center w-9 h-9 rounded-full bg-slate-900/90 backdrop-blur-md border border-amber-500/50 text-amber-300 hover:text-amber-200 active:scale-95 shadow-xl transition-all cursor-pointer"
-        title="সকল মেনু ও কন্ট্রোল খুলুন"
-        aria-label="সকল মেনু ও কন্ট্রোল খুলুন"
+        className="fixed top-3 left-3 z-40 md:hidden flex items-center justify-center w-9 h-9 rounded-full border border-amber-400/50 bg-slate-950/80 backdrop-blur-md text-amber-300 hover:text-amber-200 shadow-lg active:scale-95 transition-all cursor-pointer"
+        title="মেনু ড্রয়ার খুলুন"
+        aria-label="মেনু ড্রয়ার খুলুন"
       >
         <MoreVertical className="w-5 h-5 text-amber-300" />
       </button>
@@ -250,6 +259,13 @@ const AppContent: React.FC = () => {
         currentTab={currentTab}
         onTabChange={setCurrentTab}
         onQuickBackup={handleQuickBackup}
+        onOpenCalculator={() => setIsCalculatorOpen(true)}
+      />
+
+      {/* Interactive Business Calculator Modal (F8) */}
+      <CalculatorModal
+        isOpen={isCalculatorOpen}
+        onClose={() => setIsCalculatorOpen(false)}
       />
 
       {/* Floating Toast Notification */}

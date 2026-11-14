@@ -1,11 +1,12 @@
-const CACHE_NAME = 'maha-enterprise-v1.6.0-excel-cache';
+const CACHE_NAME = 'maha-enterprise-v1.7.0-smart-calculator-cache';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
   '/icon.png',
   '/logo.png',
-  '/icon.ico'
+  '/icon.ico',
+  '/hero-wheat-banner.jpg'
 ];
 
 self.addEventListener('install', (event) => {

@@ -128,7 +128,7 @@ export const HeroWheatBanner: React.FC = () => {
       </div>
 
       {/* Top-Right Glassmorphic Bengali & Bongabdo Date Badge */}
-      <div className="relative z-10 flex justify-end md:absolute md:top-4 md:right-5 mb-3 md:mb-0 pr-10 sm:pr-12 md:pr-0">
+      <div className="relative z-10 flex justify-end md:absolute md:top-4 md:right-5 mb-3 md:mb-0">
         <div className="bg-slate-900/70 backdrop-blur-md border border-teal-400/35 rounded-xl px-3 sm:px-4 py-2 shadow-xl flex items-center gap-2.5 sm:gap-3 transition-transform hover:scale-[1.02]">
           {/* Cyan/Blue Calendar Icon with subtle glow */}
           <div className="p-1.5 rounded-lg bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.3)]">

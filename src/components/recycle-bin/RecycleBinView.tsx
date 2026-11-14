@@ -59,7 +59,7 @@ export const RecycleBinView: React.FC = () => {
     try {
       setLoading(true);
       const data = await dbService.recycleBin.getAll(selectedModule !== 'ALL' ? selectedModule : undefined);
-      setItems(data || []);
+      setItems(Array.isArray(data) ? data : []);
     } catch (err: any) {
       console.error(err);
       showToast(`ডাটা লোড ত্রুটি: ${err.message}`, 'error');
@@ -117,7 +117,7 @@ export const RecycleBinView: React.FC = () => {
     }
   };
 
-  const filteredItems = items.filter((item) => {
+  const filteredItems = (items || []).filter((item) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     const titleMatch = (item.title || '').toLowerCase().includes(q);

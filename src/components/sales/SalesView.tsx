@@ -167,8 +167,8 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
     const totalRequiredBags = currentBagsInCart + bagsToAdd;
     const totalRequiredKg = (existingIndex >= 0 ? cart[existingIndex].weightKg : 0) + kgToAdd;
 
-    if (totalRequiredKg > activeCommodity.current_stock_kg) {
-      const curMon = (activeCommodity.current_stock_kg / 40).toFixed(1);
+    if (totalRequiredKg > (activeCommodity.current_stock_kg || 0)) {
+      const curMon = ((activeCommodity.current_stock_kg || 0) / 40).toFixed(1);
       alert(
         `পর্যাপ্ত স্টক নেই! ${activeCommodity.name_bn}-এর বর্তমান স্টক ${toBnDigits(curMon)} মণ (${toBnDigits(activeCommodity.current_stock_bags)} বস্তা)। আপনি ইতিমধ্যে কার্টে ${toBnDigits(currentBagsInCart)} বস্তা রেখেছেন।`
       );
@@ -659,7 +659,7 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
                 >
                   {commodities.map((c) => {
                     const isZero = (c.current_stock_kg || 0) <= 0;
-                    const monStock = (c.current_stock_kg / 40).toFixed(1);
+                    const monStock = ((c.current_stock_kg || 0) / 40).toFixed(1);
                     return (
                       <option key={c.id} value={c.id} disabled={isZero}>
                         {c.name_bn} {isZero ? '(স্টক নেই)' : `(মজুদ: ${toBnDigits(monStock)} মণ, ${toBnDigits(c.current_stock_bags)} বস্তা)`}

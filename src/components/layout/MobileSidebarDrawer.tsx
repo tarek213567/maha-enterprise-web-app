@@ -24,6 +24,7 @@ interface MobileSidebarDrawerProps {
   currentTab: string;
   onTabChange: (tab: string) => void;
   onQuickBackup?: () => void | Promise<void>;
+  onOpenCalculator?: () => void;
 }
 
 const menuItems = [
@@ -38,6 +39,7 @@ const menuItems = [
   { id: 'settings', name: 'ব্যাকআপ ও সেটিংস', icon: Settings },
   { id: 'notebook', name: 'নোটবুক', icon: NotebookPen },
   { id: 'recycle_bin', name: 'রিসাইকেল বিন', icon: Trash2 },
+  { id: 'calculator', name: 'ক্যালকুলেটর', shortcut: 'F8', icon: Calculator },
 ];
 
 export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
@@ -46,6 +48,7 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
   currentTab,
   onTabChange,
   onQuickBackup,
+  onOpenCalculator,
 }) => {
   const [recycleCount, setRecycleCount] = useState<number>(0);
   const [isBackingUp, setIsBackingUp] = useState(false);
@@ -133,11 +136,18 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
                 key={item.id}
                 type="button"
                 onClick={() => {
-                  onTabChange(item.id);
-                  onClose();
+                  if (item.id === 'calculator') {
+                    onClose();
+                    onOpenCalculator?.();
+                  } else {
+                    onTabChange(item.id);
+                    onClose();
+                  }
                 }}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all text-left cursor-pointer ${
-                  isActive
+                  item.id === 'calculator'
+                    ? 'text-amber-300 hover:text-white hover:bg-amber-500/15 border border-amber-500/25 bg-amber-950/20'
+                    : isActive
                     ? 'border border-emerald-400/80 bg-emerald-950/60 text-white font-bold shadow-sm'
                     : 'text-slate-300 hover:text-white hover:bg-white/5 border border-transparent'
                 }`}
@@ -145,7 +155,11 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
                 <div className="flex items-center gap-2.5 truncate">
                   <Icon
                     className={`w-4 h-4 shrink-0 ${
-                      isActive ? 'text-emerald-400' : 'text-slate-400'
+                      item.id === 'calculator'
+                        ? 'text-amber-400'
+                        : isActive
+                        ? 'text-emerald-400'
+                        : 'text-slate-400'
                     }`}
                   />
                   <span className="truncate">{item.name}</span>
@@ -158,7 +172,9 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
                 ) : item.shortcut ? (
                   <span
                     className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ml-1 ${
-                      isActive
+                      item.id === 'calculator'
+                        ? 'bg-amber-900/60 text-amber-300 border border-amber-500/40'
+                        : isActive
                         ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-500/40'
                         : 'bg-slate-800 text-slate-400'
                     }`}
@@ -171,7 +187,7 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
           })}
         </div>
 
-        {/* Divider directly below রিসাইকেল বিন */}
+        {/* Divider directly below ক্যালকুলেটর */}
         <div className="my-2 border-t border-[#0f1d38]" />
 
         {/* Controls Panel (Theme Toggle, Lock, Instant Backup) */}

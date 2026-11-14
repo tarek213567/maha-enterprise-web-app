@@ -314,7 +314,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
               <option value="">শস্য নির্বাচন করুন...</option>
               {commodities.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name_bn} (মজুত: {(c.current_stock_kg / 40).toFixed(1)} মন | গড়: {formatBanglaCurrency(c.current_wac_per_mon, isBn)}/মন)
+                  {c.name_bn} (মজুত: {((c.current_stock_kg || 0) / 40).toFixed(1)} মন | গড়: {formatBanglaCurrency(c.current_wac_per_mon || 0, isBn)}/মন)
                 </option>
               ))}
             </select>
@@ -333,7 +333,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
             <div className="flex items-center gap-2">
               <span className="font-bold">{selectedCommodity.name_bn} গুদাম মজুত:</span>
               <span>
-                <strong>{(selectedCommodity.current_stock_kg / 40).toFixed(2)} মন</strong> ({selectedCommodity.current_stock_kg.toFixed(0)} কেজি) / {selectedCommodity.current_stock_bags} বস্তা
+                <strong>{((selectedCommodity.current_stock_kg || 0) / 40).toFixed(2)} মন</strong> ({((selectedCommodity.current_stock_kg || 0)).toFixed(0)} কেজি) / {selectedCommodity.current_stock_bags || 0} বস্তা
               </span>
               <span className="text-slate-400">|</span>
               <span>গড় ক্রয় খরচ (WAC): <strong>{formatBanglaCurrency(selectedCommodity.current_wac_per_mon, isBn)} /মন</strong></span>

@@ -106,7 +106,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   };
 
   return (
-    <header className="print:hidden bg-[var(--surface)] text-[var(--text-primary)] border-b border-[var(--border-color)] px-4 pr-12 md:px-5 md:pr-5 py-3 sticky top-0 z-10 shadow-2xs transition-colors duration-200">
+    <header className="print:hidden bg-[var(--surface)] text-[var(--text-primary)] border-b border-[var(--border-color)] pl-14 pr-4 md:px-5 py-3 sticky top-0 z-10 shadow-2xs transition-colors duration-200">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         {/* Left: Active Tab Title & Subtitle */}
         <div className="min-w-0">

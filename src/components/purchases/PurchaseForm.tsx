@@ -312,7 +312,7 @@ export const PurchaseForm: React.FC<PurchaseFormProps> = ({
               <option value="">শস্য নির্বাচন করুন...</option>
               {commodities.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name_bn} (বর্তমান স্টক: {(c.current_stock_kg / 40).toFixed(1)} মন / {c.current_stock_bags} বস্তা)
+                  {c.name_bn} (বর্তমান স্টক: {((c.current_stock_kg || 0) / 40).toFixed(1)} মন / {c.current_stock_bags || 0} বস্তা)
                 </option>
               ))}
             </select>

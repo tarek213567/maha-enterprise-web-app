@@ -493,7 +493,7 @@ export const StockView: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {auditData.reports.map((r: any) => (
+                    {(auditData?.reports || []).map((r: any) => (
                       <tr key={r.commodity_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                         <td className="py-2 px-3 font-bold text-slate-900 dark:text-slate-100">{r.commodity_name}</td>
                         <td className="py-2 px-3 text-right">{isBn ? toBnDigits(r.purchased_kg) : r.purchased_kg}</td>
