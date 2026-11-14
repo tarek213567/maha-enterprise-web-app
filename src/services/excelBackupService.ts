@@ -33,6 +33,17 @@ export function getBnTime(d: Date = new Date()): string {
 }
 
 // ============================================================================
+// EXCEL WORKSHEET NAME SANITIZER (Max 31 chars, strip invalid chars & parens)
+// ============================================================================
+export const sanitizeSheetName = (name: string): string => {
+  return name
+    .replace(/[/\\?*\[\]:]/g, '_') // Replace invalid Excel chars with underscore
+    .replace(/[()]/g, '')           // Remove parentheses to prevent naming issues
+    .trim()
+    .substring(0, 31);              // Excel sheet name max length is 31 chars
+};
+
+// ============================================================================
 // ROYAL COLOR PALETTE (ARGB Hex Format for ExcelJS)
 // ============================================================================
 const COLORS = {
@@ -377,10 +388,32 @@ export async function downloadStyledExcelBackup(snapshotData?: any): Promise<{
   wb.created = now;
   wb.modified = now;
 
+  // Sheet name sanitizer & uniqueness tracker (Max 31 chars, strip invalid chars: / \ ? * [ ] : and parens)
+  const usedSheetNames = new Set<string>();
+  const getUniqueSheetName = (baseName: string): string => {
+    let clean = sanitizeSheetName(baseName);
+    if (!clean) clean = 'Sheet';
+    if (!usedSheetNames.has(clean)) {
+      usedSheetNames.add(clean);
+      return clean;
+    }
+    let counter = 2;
+    while (counter < 100) {
+      const suffix = `_${counter}`;
+      const candidate = clean.substring(0, 31 - suffix.length) + suffix;
+      if (!usedSheetNames.has(candidate)) {
+        usedSheetNames.add(candidate);
+        return candidate;
+      }
+      counter++;
+    }
+    return clean.substring(0, 31);
+  };
+
   // ============================================================================
   // TAB 1: ১. সকল শস্যের স্টক (Green Tab: FF16A34A)
   // ============================================================================
-  const ws1 = wb.addWorksheet('১. সকল শস্যের স্টক', {
+  const ws1 = wb.addWorksheet(getUniqueSheetName('১. সকল শস্যের স্টক'), {
     views: [{ showGridLines: true }],
   });
   ws1.properties.tabColor = { argb: COLORS.TAB_GREEN };
@@ -524,7 +557,7 @@ export async function downloadStyledExcelBackup(snapshotData?: any): Promise<{
 
   commodities.forEach((c, cIdx) => {
     const cropName = c.name_bn || c.name_en || `শস্য-${c.id}`;
-    const tabName = `${toBnDigits(cIdx + 2)}. ${cropName} স্টক`;
+    const tabName = getUniqueSheetName(`${toBnDigits(cIdx + 2)}. ${cropName} স্টক`);
     const wsCrop = wb.addWorksheet(tabName, { views: [{ showGridLines: true }] });
     wsCrop.properties.tabColor = { argb: cropTabColors[cIdx % cropTabColors.length] };
 
@@ -704,7 +737,7 @@ export async function downloadStyledExcelBackup(snapshotData?: any): Promise<{
   // ============================================================================
   // TAB: বাকি খাতা (Orange Tab: FFEA580C)
   // ============================================================================
-  const wsDues = wb.addWorksheet('বাকি খাতা', { views: [{ showGridLines: true }] });
+  const wsDues = wb.addWorksheet(getUniqueSheetName('বাকি খাতা'), { views: [{ showGridLines: true }] });
   wsDues.properties.tabColor = { argb: COLORS.TAB_ORANGE };
 
   addRoyalBanner(wsDues, 'মাহা এন্টারপ্রাইজ — খরিদ্দার বাকি খাতা (কাস্টমার বকেয়া)', '‘সততাই ব্যবসার মূলধন’ — চাচকৈড় বাজার, গুরুদাসপুর, নাটোর', clockFormatted, dateFormatted, 6, 7, 8);
@@ -811,7 +844,7 @@ export async function downloadStyledExcelBackup(snapshotData?: any): Promise<{
   // ============================================================================
   // TAB: পাওনাদার হিসাব (Red Tab: FFDC2626)
   // ============================================================================
-  const wsSupp = wb.addWorksheet('পাওনাদার হিসাব', { views: [{ showGridLines: true }] });
+  const wsSupp = wb.addWorksheet(getUniqueSheetName('পাওনাদার হিসাব'), { views: [{ showGridLines: true }] });
   wsSupp.properties.tabColor = { argb: COLORS.TAB_RED };
 
   addRoyalBanner(wsSupp, 'মাহা এন্টারপ্রাইজ — মহাজন ও বেপারি পাওনাদার খাতা', '‘সততাই ব্যবসার মূলধন’ — চাচকৈড় বাজার, গুরুদাসপুর, নাটোর', clockFormatted, dateFormatted, 6, 7, 8);
@@ -918,7 +951,7 @@ export async function downloadStyledExcelBackup(snapshotData?: any): Promise<{
   // ============================================================================
   // TAB: বিক্রয় ইতিহাস (Blue Tab: FF0284C7)
   // ============================================================================
-  const wsSalesHist = wb.addWorksheet('বিক্রয় ইতিহাস', { views: [{ showGridLines: true }] });
+  const wsSalesHist = wb.addWorksheet(getUniqueSheetName('বিক্রয় ইতিহাস'), { views: [{ showGridLines: true }] });
   wsSalesHist.properties.tabColor = { argb: COLORS.TAB_BLUE };
 
   addRoyalBanner(wsSalesHist, 'মাহা এন্টারপ্রাইজ — পাইকারি বিক্রয় ইতিহাস ও লাভ-লোকসান', '‘সততাই ব্যবসার মূলধন’ — চাচকৈড় বাজার, গুরুদাসপুর, নাটোর', clockFormatted, dateFormatted, 11, 12, 13);
@@ -1050,7 +1083,7 @@ export async function downloadStyledExcelBackup(snapshotData?: any): Promise<{
   // ============================================================================
   // TAB: শস্য ক্রয় তালিকা (Purple Tab: FF7E22CE)
   // ============================================================================
-  const wsPurList = wb.addWorksheet('শস্য ক্রয় তালিকা', { views: [{ showGridLines: true }] });
+  const wsPurList = wb.addWorksheet(getUniqueSheetName('শস্য ক্রয় তালিকা'), { views: [{ showGridLines: true }] });
   wsPurList.properties.tabColor = { argb: COLORS.TAB_PURPLE };
 
   addRoyalBanner(wsPurList, 'মাহা এন্টারপ্রাইজ — শস্য ক্রয় চালান ও সরবরাহ তালিকা', '‘সততাই ব্যবসার মূলধন’ — চাচকৈড় বাজার, গুরুদাসপুর, নাটোর', clockFormatted, dateFormatted, 10, 11, 12);
@@ -1178,7 +1211,7 @@ export async function downloadStyledExcelBackup(snapshotData?: any): Promise<{
   // ============================================================================
   // TAB: দোকানের খরচ ও ক্যাশ (Slate Tab: FF475569)
   // ============================================================================
-  const wsCashExp = wb.addWorksheet('দোকানের খরচ ও ক্যাশ', { views: [{ showGridLines: true }] });
+  const wsCashExp = wb.addWorksheet(getUniqueSheetName('দোকানের খরচ ও ক্যাশ'), { views: [{ showGridLines: true }] });
   wsCashExp.properties.tabColor = { argb: COLORS.TAB_SLATE };
 
   addRoyalBanner(wsCashExp, 'মাহা এন্টারপ্রাইজ — দৈনিক ক্যাশ বই ও পরিচালন খরচ', '‘সততাই ব্যবসার মূলধন’ — চাচকৈড় বাজার, গুরুদাসপুর, নাটোর', clockFormatted, dateFormatted, 7, 8, 9);
