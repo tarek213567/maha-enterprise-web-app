@@ -6,12 +6,13 @@ import {
   Boxes,
   Users,
   Wallet,
-  Settings,
+  Menu,
 } from 'lucide-react';
 
 interface MobileNavProps {
   currentTab: string;
   onTabChange: (tab: string) => void;
+  onOpenMenu?: () => void;
 }
 
 const mobileItems = [
@@ -21,10 +22,9 @@ const mobileItems = [
   { id: 'stock', name: 'স্টক', icon: Boxes },
   { id: 'ledgers', name: 'বাকি খাতা', icon: Users },
   { id: 'cashbook', name: 'ক্যাশ', icon: Wallet },
-  { id: 'settings', name: 'সেটিংস', icon: Settings },
 ];
 
-export const MobileNav: React.FC<MobileNavProps> = ({ currentTab, onTabChange }) => {
+export const MobileNav: React.FC<MobileNavProps> = ({ currentTab, onTabChange, onOpenMenu }) => {
   return (
     <nav className="md:hidden flex items-center justify-around bg-[#0B0F19]/95 backdrop-blur-lg border-t border-slate-800 py-1.5 px-2 shrink-0 z-50 text-[11px] font-bold select-none pb-[calc(env(safe-area-inset-bottom,4px)+6px)] shadow-2xl">
       {mobileItems.map((item) => {
@@ -35,7 +35,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentTab, onTabChange })
             key={item.id}
             type="button"
             onClick={() => onTabChange(item.id)}
-            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all ${
+            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all cursor-pointer ${
               isActive
                 ? 'text-emerald-400 bg-emerald-500/15'
                 : 'text-slate-400 hover:text-slate-200'
@@ -46,6 +46,19 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentTab, onTabChange })
           </button>
         );
       })}
+
+      {/* Full Drawer Menu Trigger Button */}
+      {onOpenMenu && (
+        <button
+          type="button"
+          onClick={onOpenMenu}
+          className="flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all text-amber-400 hover:text-amber-300 active:scale-95 cursor-pointer"
+          title="সকল মেনু ও কন্ট্রোল খুলুন"
+        >
+          <Menu className="w-5 h-5 mb-0.5 text-amber-400" />
+          <span className="text-[10px] leading-tight truncate font-bold">মেনু</span>
+        </button>
+      )}
     </nav>
   );
 };

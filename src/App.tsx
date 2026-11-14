@@ -7,6 +7,7 @@ import { Sidebar } from './components/layout/Sidebar';
 import { TopHeader } from './components/layout/TopHeader';
 import { BottomStatusBar } from './components/layout/BottomStatusBar';
 import { MobileNav } from './components/layout/MobileNav';
+import { MobileSidebarDrawer } from './components/layout/MobileSidebarDrawer';
 import { DashboardView } from './components/dashboard/DashboardView';
 import { PurchasesView } from './components/purchases/PurchasesView';
 import { SalesView } from './components/sales/SalesView';
@@ -20,10 +21,11 @@ import { NotebookView } from './components/notebook/NotebookView';
 import { RecycleBinView } from './components/recycle-bin/RecycleBinView';
 import { dbService } from './services/api';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
-import { CheckCircle2, AlertCircle } from 'lucide-react';
+import { CheckCircle2, AlertCircle, MoreVertical } from 'lucide-react';
 
 const AppContent: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Load initial zoom factor & listen to changes
@@ -224,7 +226,31 @@ const AppContent: React.FC = () => {
       <BottomStatusBar />
 
       {/* 4. Mobile Bottom Navigation Bar (iPhone / Smartphone Safari & Chrome) */}
-      <MobileNav currentTab={currentTab} onTabChange={setCurrentTab} />
+      <MobileNav
+        currentTab={currentTab}
+        onTabChange={setCurrentTab}
+        onOpenMenu={() => setIsMobileDrawerOpen(true)}
+      />
+
+      {/* Mobile Floating Three-Dot / Menu Trigger Button (⋮) */}
+      <button
+        type="button"
+        onClick={() => setIsMobileDrawerOpen(true)}
+        className="fixed top-2.5 right-3 z-40 md:hidden flex items-center justify-center w-9 h-9 rounded-full bg-slate-900/90 backdrop-blur-md border border-amber-500/50 text-amber-300 hover:text-amber-200 active:scale-95 shadow-xl transition-all cursor-pointer"
+        title="সকল মেনু ও কন্ট্রোল খুলুন"
+        aria-label="সকল মেনু ও কন্ট্রোল খুলুন"
+      >
+        <MoreVertical className="w-5 h-5 text-amber-300" />
+      </button>
+
+      {/* Slide-over Full Mobile Sidebar Drawer */}
+      <MobileSidebarDrawer
+        isOpen={isMobileDrawerOpen}
+        onClose={() => setIsMobileDrawerOpen(false)}
+        currentTab={currentTab}
+        onTabChange={setCurrentTab}
+        onQuickBackup={handleQuickBackup}
+      />
 
       {/* Floating Toast Notification */}
       {toast && (

@@ -13,6 +13,7 @@ import { DashboardStats, Commodity } from '../../types';
 import { dbService } from '../../services/api';
 import { toBnDigits, formatTakaBn } from '../../utils/bengaliNumbers';
 import { totalKgToMonKg } from '../../utils/weightConverter';
+import { HeroWheatBanner } from './HeroWheatBanner';
 
 interface DashboardViewProps {
   onNavigate: (tab: string) => void;
@@ -55,29 +56,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  // Dynamic Bengali Date for Top-Right Pill (e.g. শনিবার, ১৪ নভেম্বর ২০২৬)
-  const today = new Date();
-  const days = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
-  const months = [
-    'জানুয়ারি',
-    'ফেব্রুয়ারি',
-    'মার্চ',
-    'এপ্রিল',
-    'মে',
-    'জুন',
-    'জুলাই',
-    'আগস্ট',
-    'সেপ্টেম্বর',
-    'অক্টোবর',
-    'নভেম্বর',
-    'ডিসেম্বর',
-  ];
-  const formattedDayName = days[today.getDay()];
-  const formattedDayNum = toBnDigits(today.getDate());
-  const formattedMonthName = months[today.getMonth()];
-  const formattedYear = toBnDigits(today.getFullYear());
-  const currentDateText = `${formattedDayName}, ${formattedDayNum} ${formattedMonthName} ${formattedYear}`;
-
   const todayTotalSale = stats?.today_sales_amount ?? stats?.todaySales?.total_amount ?? 0;
   const todayCashSale = stats?.today_sales_cash ?? stats?.todaySales?.cash_amount ?? 0;
   const todayDueSale = stats?.today_sales_due ?? stats?.todaySales?.due_amount ?? 0;
@@ -91,76 +69,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   return (
     <div className="space-y-4 max-w-[1550px] mx-auto w-full font-sans select-none">
       {/* ========================================================================= */}
-      {/* 3. HERO BANNER CARD (Inside Main Light Canvas bg-[#f1f5f9])               */}
+      {/* 3. ROYAL 3D GOLD & EMERALD WHEAT HERO BANNER                               */}
       {/* ========================================================================= */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-sm mb-4 relative">
-        {/* Top-Right Corner Date Pill Badge: 📅 শনিবার, ১৪ নভেম্বর ২০২৬ */}
-        <div className="flex justify-end sm:absolute sm:top-5 sm:right-5 mb-3 sm:mb-0">
-          <div className="bg-slate-50 border border-slate-200 rounded-full px-3.5 py-1.5 text-xs text-slate-700 font-medium flex items-center gap-1.5 shadow-2xs">
-            <span>📅</span>
-            <span>{currentDateText}</span>
-          </div>
-        </div>
-
-        {/* Center: Large golden wheat & green leaf SVG logo + | + Title (মাহা golden-amber & এন্টারপ্রাইজ deep forest green) */}
-        <div className="flex flex-col items-center justify-center text-center pt-1 sm:pt-2">
-          <div className="flex items-center justify-center gap-3.5">
-            {/* Emblem SVG Logo */}
-            <div className="w-12 h-12 flex items-center justify-center shrink-0">
-              <svg viewBox="0 0 48 48" className="w-12 h-12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M24 42C24 42 24 20 34 11" stroke="#065f46" strokeWidth="3.5" strokeLinecap="round" />
-                <path d="M24 42C24 42 24 16 14 9" stroke="#c27803" strokeWidth="3.5" strokeLinecap="round" />
-                <circle cx="14" cy="9" r="4" fill="#f59e0b" />
-                <circle cx="21" cy="14" r="3.2" fill="#d97706" />
-                <circle cx="34" cy="11" r="4" fill="#10b981" />
-                <circle cx="28" cy="20" r="3.2" fill="#065f46" />
-                <circle cx="19" cy="25" r="3" fill="#c27803" />
-              </svg>
-            </div>
-
-            <span className="text-3xl text-slate-300 font-light select-none">|</span>
-
-            <h1 className="text-3xl sm:text-4xl font-black tracking-tight flex items-center gap-2">
-              <span className="text-[#c27803]">মাহা</span>
-              <span className="text-[#065f46]">এন্টারপ্রাইজ</span>
-            </h1>
-          </div>
-
-          {/* Underneath Title: Horizontal golden gradient line + centered green motto */}
-          <div className="flex items-center justify-center gap-3 mt-2 w-full max-w-sm sm:max-w-md mx-auto">
-            <div className="h-[1.5px] flex-1 bg-gradient-to-r from-transparent via-[#c27803]/50 to-transparent" />
-            <span className="text-xs sm:text-[13px] font-semibold text-emerald-800 tracking-wide whitespace-nowrap">
-              সততাই ব্যবসার মূলধন
-            </span>
-            <div className="h-[1.5px] flex-1 bg-gradient-to-r from-transparent via-[#c27803]/50 to-transparent" />
-          </div>
-        </div>
-
-        {/* Bottom Bar Inside Hero Card: Left location pin + Right quick buttons */}
-        <div className="bg-slate-50/80 border border-slate-200/80 rounded-xl px-4 py-2.5 mt-5 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-slate-700 text-sm font-medium">
-            <span className="text-base">📍</span>
-            <span>চাঁচকৈড় বাজার, গুরুদাসপুর, নাটোর</span>
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            <button
-              onClick={onOpenQuickPurchase}
-              className="bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold rounded-full px-4 py-1.5 text-xs shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              <span>🛒</span>
-              <span>+ ক্রয় (F2)</span>
-            </button>
-            <button
-              onClick={onOpenQuickSale}
-              className="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold rounded-full px-4 py-1.5 text-xs shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              <span>📈</span>
-              <span>+ বিক্রয় (F3)</span>
-            </button>
-          </div>
-        </div>
-      </div>
+      <HeroWheatBanner />
 
       {/* ========================================================================= */}
       {/* 4. FOUR COLORED KPI CARDS ROW (grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4) */}
