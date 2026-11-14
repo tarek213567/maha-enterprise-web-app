@@ -33,9 +33,17 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const getActivePin = useCallback((): string => {
     if (typeof window !== 'undefined') {
       try {
-        const stored = localStorage.getItem('maha_app_pin');
-        if (stored && /^\d{4}$/.test(stored)) {
-          return stored;
+        const raw =
+          localStorage.getItem('maha_pin') ||
+          localStorage.getItem('maha_app_pin') ||
+          localStorage.getItem('pin') ||
+          sessionStorage.getItem('maha_pin') ||
+          sessionStorage.getItem('maha_app_pin');
+        if (raw) {
+          const cleaned = String(raw).replace(/[০-৯]/g, (d) => "০১২৩৪৫৬৭৮৯".indexOf(d).toString()).trim();
+          if (/^\d{4}$/.test(cleaned)) {
+            return cleaned;
+          }
         }
       } catch (e) {
         // Fallback below
@@ -44,18 +52,26 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return DEFAULT_PIN;
   }, []);
 
-  // Sync PIN from SQLite on mount
+  // Sync PIN from backend on mount
   useEffect(() => {
     let isMounted = true;
     dbService.system.getSettings().then((settings) => {
       if (!isMounted) return;
-      if (settings?.app_pin && /^\d{4}$/.test(settings.app_pin)) {
-        try {
-          localStorage.setItem('maha_app_pin', settings.app_pin);
-        } catch (e) {}
+      const remotePin = settings?.app_pin || settings?.app_security_pin;
+      if (remotePin) {
+        const cleaned = String(remotePin).replace(/[০-৯]/g, (d) => "০১২৩৪৫৬৭৮৯".indexOf(d).toString()).trim();
+        if (/^\d{4}$/.test(cleaned)) {
+          try {
+            localStorage.setItem('maha_pin', cleaned);
+            localStorage.setItem('maha_app_pin', cleaned);
+            localStorage.setItem('pin', cleaned);
+            sessionStorage.setItem('maha_pin', cleaned);
+            sessionStorage.setItem('maha_app_pin', cleaned);
+          } catch (e) {}
+        }
       }
     }).catch((err) => {
-      console.warn('Failed to fetch security PIN from SQLite settings:', err);
+      console.warn('Failed to fetch security PIN from backend settings:', err);
     });
     return () => {
       isMounted = false;
@@ -72,18 +88,32 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const changePin = useCallback(async (currentPin: string, newPin: string): Promise<{ success: boolean; message: string }> => {
+    const cleanedCurrent = String(currentPin).replace(/[০-৯]/g, (d) => "০১২৩৪৫৬৭৮৯".indexOf(d).toString()).trim();
+    const cleanedNew = String(newPin).replace(/[০-৯]/g, (d) => "০১২৩৪৫৬৭৮৯".indexOf(d).toString()).trim();
     const active = getActivePin();
-    if (currentPin !== active) {
+
+    if (cleanedCurrent !== active) {
       return { success: false, message: 'বর্তমান পিন কোডটি সঠিক নয়!' };
     }
-    if (!/^\d{4}$/.test(newPin)) {
+    if (!/^\d{4}$/.test(cleanedNew)) {
       return { success: false, message: 'নতুন পিন অবশ্যই ৪ সংখ্যার হতে হবে!' };
     }
 
     try {
-      localStorage.setItem('maha_app_pin', newPin);
-      await dbService.system.updateSetting('app_pin', newPin);
-      return { success: true, message: `পিন কোড সফলভাবে পরিবর্তন করা হয়েছে (নতুন পিন: ${newPin})` };
+      // 1. Immediately store new PIN across local & session storage
+      localStorage.setItem('maha_pin', cleanedNew);
+      localStorage.setItem('maha_app_pin', cleanedNew);
+      localStorage.setItem('pin', cleanedNew);
+      sessionStorage.setItem('maha_pin', cleanedNew);
+      sessionStorage.setItem('maha_app_pin', cleanedNew);
+
+      // 2. Call backend auth changePin endpoint
+      const res = await dbService.auth.changePin(cleanedCurrent, cleanedNew);
+      if (!res.success) {
+        throw new Error(res.message);
+      }
+
+      return { success: true, message: `পিন কোড সফলভাবে পরিবর্তন করা হয়েছে (নতুন পিন: ${cleanedNew})` };
     } catch (err: any) {
       return { success: false, message: `পিন সংরক্ষণে সমস্যা: ${err?.message || 'অজানা ত্রুটি'}` };
     }

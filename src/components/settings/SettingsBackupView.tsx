@@ -450,6 +450,13 @@ export const SettingsBackupView: React.FC = () => {
       const res = await changePin(enCurrentPin, enNewPin);
       setPinFeedback({ isSuccess: res.success, text: res.message });
       if (res.success) {
+        try {
+          localStorage.setItem('maha_pin', enNewPin);
+          localStorage.setItem('maha_app_pin', enNewPin);
+          localStorage.setItem('pin', enNewPin);
+          sessionStorage.setItem('maha_pin', enNewPin);
+          sessionStorage.setItem('maha_app_pin', enNewPin);
+        } catch (_) {}
         setCurrentPinInput('');
         setNewPinInput('');
         setConfirmPinInput('');

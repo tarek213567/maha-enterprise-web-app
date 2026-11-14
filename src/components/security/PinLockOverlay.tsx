@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Lock, Delete, Shield, AlertCircle } from 'lucide-react';
 import { useSecurity } from '../../context/SecurityContext';
 import { APP_CONFIG } from '../../config/appConfig';
+import { dbService } from '../../services/api';
+import { toEnglishDigits } from '../../utils/bengaliNumbers';
 
 export const PinLockOverlay: React.FC = () => {
   const { isLocked, unlockApp, getActivePin } = useSecurity();
@@ -11,14 +13,33 @@ export const PinLockOverlay: React.FC = () => {
   const [unlockedSuccess, setUnlockedSuccess] = useState(false);
 
   // Unlock verification
-  const verifyPin = useCallback((candidate: string) => {
+  const verifyPin = useCallback(async (candidate: string) => {
+    const candidateEn = toEnglishDigits(candidate).trim();
     const activePin = getActivePin();
-    if (candidate === activePin) {
+
+    let isValid = candidateEn === activePin;
+
+    // If local comparison fails, check remote backend in case PIN was changed on another device/session
+    if (!isValid) {
+      try {
+        const remoteValid = await dbService.auth.verifyPin(candidateEn);
+        if (remoteValid) {
+          isValid = true;
+        }
+      } catch (e) {
+        // network or offline, keep isValid false
+      }
+    }
+
+    if (isValid) {
       setUnlockedSuccess(true);
       setErrorMessage('');
       try {
-        sessionStorage.setItem('maha_app_pin', candidate);
-        localStorage.setItem('maha_app_pin', candidate);
+        sessionStorage.setItem('maha_pin', candidateEn);
+        sessionStorage.setItem('maha_app_pin', candidateEn);
+        localStorage.setItem('maha_pin', candidateEn);
+        localStorage.setItem('maha_app_pin', candidateEn);
+        localStorage.setItem('pin', candidateEn);
       } catch (e) {}
       setTimeout(() => {
         unlockApp();

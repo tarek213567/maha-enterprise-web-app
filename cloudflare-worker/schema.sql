@@ -206,6 +206,11 @@ CREATE TABLE IF NOT EXISTS app_settings (
   value TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
 -- Default seeds for Commodities
 INSERT OR IGNORE INTO commodities (id, name_bn, name_en, default_bag_weight_kg, current_stock_kg, current_stock_bags, current_wac_per_kg, current_wac_per_mon, notes) VALUES
 (1, 'সরিষা (মাঘি/টোরি)', 'Mustard (Maghi/Tori)', 80.0, 0, 0, 0, 0, 'চাচকৈড় মোকামের প্রধান রবি শস্য'),
@@ -226,4 +231,16 @@ INSERT OR IGNORE INTO app_settings (key, value) VALUES
 ('auto_backup_on_exit', 'true'),
 ('mon_kg_rate', '40'),
 ('app_security_pin', '5555'),
+('app_pin', '5555'),
+('theme_mode', 'obsidian-gold');
+
+INSERT OR IGNORE INTO settings (key, value) VALUES
+('org_name', 'মাহা এন্টারপ্রাইজ'),
+('proprietor', 'মোঃ আব্দুর রশিদ সরকার এন্ড সন্স'),
+('contacts', 'আলজাবির: 01711054499 | আব্দুর রশিদ: 01711703241'),
+('location', 'চাচকৈড় বাজার, গুরুদাসপুর, নাটোর'),
+('auto_backup_on_exit', 'true'),
+('mon_kg_rate', '40'),
+('app_security_pin', '5555'),
+('app_pin', '5555'),
 ('theme_mode', 'obsidian-gold');

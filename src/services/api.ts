@@ -20,13 +20,34 @@ declare global {
   }
 }
 
+// Dynamic PIN retriever ensuring latest unlocked/stored PIN is always used
+export function getDynamicPin(): string {
+  if (typeof window === 'undefined') return '5555';
+  try {
+    const rawPin =
+      sessionStorage.getItem('maha_pin') ||
+      sessionStorage.getItem('maha_app_pin') ||
+      localStorage.getItem('maha_pin') ||
+      localStorage.getItem('maha_app_pin') ||
+      localStorage.getItem('pin') ||
+      '5555';
+    // Convert any Bengali digits to English digits
+    const cleaned = String(rawPin).replace(/[০-৯]/g, (d) => "০১২৩৪৫৬৭৮৯".indexOf(d).toString()).trim();
+    return /^\d{4}$/.test(cleaned) ? cleaned : '5555';
+  } catch {
+    return '5555';
+  }
+}
+
 // Helper for Web / Mobile HTTP API fetch when running in remote browser or iPhone Safari
 async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const pin = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('maha_app_pin') : null) ||
-              (typeof localStorage !== 'undefined' ? localStorage.getItem('maha_app_pin') : null) || '5555';
+  const pin = getDynamicPin();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'x-app-pin': pin,
+    'x-auth-pin': pin,
+    'x-pin': pin,
+    'Authorization': `Bearer ${pin}`,
     ...((options.headers as Record<string, string>) || {}),
   };
   const res = await fetch(endpoint, { ...options, headers });
@@ -566,14 +587,10 @@ export const dbService = {
     },
     updateSetting: async (key: string, value: string) => {
       if (window.api) return window.api.system.updateSetting(key, value);
-      try {
-        await apiFetch('/api/system/settings', {
-          method: 'POST',
-          body: JSON.stringify({ key, value }),
-        });
-      } catch (e) {
-        console.error('Update setting error:', e);
-      }
+      await apiFetch('/api/system/settings', {
+        method: 'POST',
+        body: JSON.stringify({ key, value }),
+      });
     },
     getPaths: async (): Promise<{ dbPath: string; backupDir: string }> => {
       if (window.api) return window.api.system.getPaths();
@@ -625,6 +642,45 @@ export const dbService = {
           tunnelCommand: 'cloudflared tunnel --url http://localhost:3030',
           permanentDomain: 'https://maha.nexobd.pro',
         };
+      }
+    },
+  },
+
+  auth: {
+    verifyPin: async (candidatePin: string): Promise<boolean> => {
+      if (window.api?.auth?.verifyPin) return window.api.auth.verifyPin(candidatePin);
+      try {
+        const cleaned = String(candidatePin).replace(/[০-৯]/g, (d) => "০১২৩৪৫৬৭৮৯".indexOf(d).toString()).trim();
+        const res = await apiFetch<{ success: boolean; valid: boolean }>('/api/auth/verify-pin', {
+          method: 'POST',
+          body: JSON.stringify({ pin: cleaned }),
+        });
+        return Boolean(res.success || res.valid);
+      } catch {
+        return false;
+      }
+    },
+    changePin: async (currentPin: string, newPin: string): Promise<{ success: boolean; message: string }> => {
+      if (window.api?.auth?.changePin) return window.api.auth.changePin(currentPin, newPin);
+      const enCurrent = String(currentPin).replace(/[০-৯]/g, (d) => "০১২৩৪৫৬৭৮৯".indexOf(d).toString()).trim();
+      const enNew = String(newPin).replace(/[০-৯]/g, (d) => "০১২৩৪৫৬৭৮৯".indexOf(d).toString()).trim();
+      try {
+        const res = await apiFetch<{ success: boolean; message?: string; error?: string }>('/api/settings/pin', {
+          method: 'POST',
+          body: JSON.stringify({ currentPin: enCurrent, newPin: enNew }),
+        });
+        return {
+          success: Boolean(res.success),
+          message: res.message || 'পিন কোড সফলভাবে পরিবর্তন করা হয়েছে',
+        };
+      } catch (err: any) {
+        // Fallback to updating system setting
+        try {
+          await dbService.system.updateSetting('app_pin', enNew);
+          return { success: true, message: `পিন কোড সফলভাবে পরিবর্তন করা হয়েছে (নতুন পিন: ${enNew})` };
+        } catch (e: any) {
+          return { success: false, message: err?.message || e?.message || 'পিন পরিবর্তন ব্যর্থ হয়েছে' };
+        }
       }
     },
   },

@@ -12,7 +12,7 @@ binding = "ASSETS"
 [[d1_databases]]
 binding = "DB"
 database_name = "maha-enterprise-db"
-database_id = "maha-enterprise-db-production"
+database_id = "25eaf05d-93a6-4011-9f80-336b854725ac"
 
 [vars]
 ENVIRONMENT = "production"

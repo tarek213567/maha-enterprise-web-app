@@ -39,9 +39,26 @@ function sendJson(data, status = 200) {
       'Content-Type': 'application/json; charset=utf-8',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-app-pin',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-app-pin, x-auth-pin, x-pin',
     },
   });
+}
+
+function normalizePin(val) {
+  if (val === null || val === undefined) return '';
+  const str = String(val).trim();
+  const bengaliDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+  let res = '';
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    const idx = bengaliDigits.indexOf(ch);
+    if (idx !== -1) {
+      res += idx.toString();
+    } else {
+      res += ch;
+    }
+  }
+  return res.trim();
 }
 
 // In-Memory Fallback State if D1 is not bound
@@ -73,9 +90,77 @@ let inMemoryStore = {
     contacts: 'আলজাবির: 01711054499 | আব্দুর রশিদ: 01711703241',
     location: 'চাচকৈড় বাজার, গুরুদাসপুর, নাটোর',
     app_security_pin: '5555',
+    app_pin: '5555',
     theme_mode: 'obsidian-gold',
   },
 };
+
+async function getActivePin(db) {
+  if (!db) {
+    return normalizePin(inMemoryStore.settings.app_pin || inMemoryStore.settings.app_security_pin || '5555');
+  }
+  try {
+    // 1. Check settings table first
+    let row = await db.prepare("SELECT value FROM settings WHERE key = 'app_pin'").first().catch(() => null);
+    if (row && row.value) return normalizePin(row.value);
+
+    row = await db.prepare("SELECT value FROM settings WHERE key = 'app_security_pin'").first().catch(() => null);
+    if (row && row.value) return normalizePin(row.value);
+
+    // 2. Check app_settings table
+    row = await db.prepare("SELECT value FROM app_settings WHERE key = 'app_pin'").first().catch(() => null);
+    if (row && row.value) return normalizePin(row.value);
+
+    row = await db.prepare("SELECT value FROM app_settings WHERE key = 'app_security_pin'").first().catch(() => null);
+    if (row && row.value) return normalizePin(row.value);
+  } catch (err) {
+    console.error('Error fetching PIN from D1:', err);
+  }
+  return normalizePin(inMemoryStore.settings.app_pin || inMemoryStore.settings.app_security_pin || '5555');
+}
+
+async function updateActivePinInDB(db, newPin) {
+  const norm = normalizePin(newPin);
+  inMemoryStore.settings.app_pin = norm;
+  inMemoryStore.settings.app_security_pin = norm;
+  if (!db) return true;
+  try {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    `).catch(() => null);
+
+    await db.prepare("INSERT INTO settings (key, value) VALUES ('app_pin', ?) ON CONFLICT(key) DO UPDATE SET value = ?").bind(norm, norm).run().catch(() => null);
+    await db.prepare("INSERT INTO settings (key, value) VALUES ('app_security_pin', ?) ON CONFLICT(key) DO UPDATE SET value = ?").bind(norm, norm).run().catch(() => null);
+    await db.prepare("INSERT INTO app_settings (key, value) VALUES ('app_pin', ?) ON CONFLICT(key) DO UPDATE SET value = ?").bind(norm, norm).run().catch(() => null);
+    await db.prepare("INSERT INTO app_settings (key, value) VALUES ('app_security_pin', ?) ON CONFLICT(key) DO UPDATE SET value = ?").bind(norm, norm).run().catch(() => null);
+    return true;
+  } catch (err) {
+    console.error('Error updating PIN in D1:', err);
+    throw err;
+  }
+}
+
+function extractIncomingPin(request, url) {
+  const headerPin = request.headers.get('x-app-pin') ||
+                    request.headers.get('x-auth-pin') ||
+                    request.headers.get('x-pin');
+  if (headerPin) return normalizePin(headerPin);
+
+  const authHeader = request.headers.get('Authorization') || request.headers.get('authorization');
+  if (authHeader) {
+    const parts = authHeader.split(' ');
+    if (parts.length === 2 && (parts[0].toLowerCase() === 'bearer' || parts[0].toLowerCase() === 'pin')) {
+      return normalizePin(parts[1]);
+    }
+    return normalizePin(authHeader);
+  }
+
+  const queryPin = url.searchParams.get('pin');
+  if (queryPin) return normalizePin(queryPin);
+
+  return '';
+}
 
 // Automatic D1 Initialization
 let d1Initialized = false;
@@ -247,7 +332,37 @@ async function ensureD1Initialized(db) {
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
     `);
+
+    // Ensure settings tables have default seeds
+    await db.exec(`
+      INSERT OR IGNORE INTO app_settings (key, value) VALUES
+      ('org_name', 'মাহা এন্টারপ্রাইজ'),
+      ('proprietor', 'মোঃ আব্দুর রশিদ সরকার এন্ড সন্স'),
+      ('contacts', 'আলজাবির: 01711054499 | আব্দুর রশিদ: 01711703241'),
+      ('location', 'চাচকৈড় বাজার, গুরুদাসপুর, নাটোর'),
+      ('auto_backup_on_exit', 'true'),
+      ('mon_kg_rate', '40'),
+      ('app_security_pin', '5555'),
+      ('app_pin', '5555'),
+      ('theme_mode', 'obsidian-gold');
+
+      INSERT OR IGNORE INTO settings (key, value) VALUES
+      ('org_name', 'মাহা এন্টারপ্রাইজ'),
+      ('proprietor', 'মোঃ আব্দুর রশিদ সরকার এন্ড সন্স'),
+      ('contacts', 'আলজাবির: 01711054499 | আব্দুর রশিদ: 01711703241'),
+      ('location', 'চাচকৈড় বাজার, গুরুদাসপুর, নাটোর'),
+      ('auto_backup_on_exit', 'true'),
+      ('mon_kg_rate', '40'),
+      ('app_security_pin', '5555'),
+      ('app_pin', '5555'),
+      ('theme_mode', 'obsidian-gold');
+    `).catch(() => null);
 
     // Check if initial commodities exist
     const countCheck = await db.prepare('SELECT COUNT(*) as c FROM commodities').first();
@@ -290,7 +405,7 @@ export default {
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-app-pin',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-app-pin, x-auth-pin, x-pin',
         },
       });
     }
@@ -314,20 +429,39 @@ export default {
 
     // 3. API Route Handler
     if (url.pathname.startsWith('/api/')) {
-      const pinHeader = request.headers.get('x-app-pin') || url.searchParams.get('pin');
+      const incomingPin = extractIncomingPin(request, url);
       
-      // Verify PIN Endpoint
+      // Verify PIN Endpoint (Always public, authenticates candidate against D1)
       if (url.pathname === '/api/auth/verify-pin' && request.method === 'POST') {
         const body = await request.json().catch(() => ({}));
-        let storedPin = '5555';
-        if (db) {
-          const row = await db.prepare("SELECT value FROM app_settings WHERE key = 'app_security_pin'").first();
-          if (row && row.value) storedPin = row.value;
-        } else {
-          storedPin = inMemoryStore.settings.app_security_pin || '5555';
+        const candidate = normalizePin(body.pin || incomingPin);
+        const activePin = await getActivePin(db);
+        const isValid = Boolean(candidate && candidate === activePin);
+        return sendJson({ success: isValid, valid: isValid, pin: isValid ? candidate : undefined });
+      }
+
+      // Dedicated PIN Change Endpoint (POST /api/settings/pin or /api/auth/change-pin)
+      if ((url.pathname === '/api/settings/pin' || url.pathname === '/api/auth/change-pin') && request.method === 'POST') {
+        const body = await request.json().catch(() => ({}));
+        const currentCandidate = normalizePin(body.currentPin || body.current_pin || incomingPin);
+        const newCandidate = normalizePin(body.newPin || body.new_pin);
+        const activePin = await getActivePin(db);
+
+        if (!newCandidate || newCandidate.length !== 4 || !/^\d{4}$/.test(newCandidate)) {
+          return sendJson({ success: false, error: 'নতুন পিন অবশ্যই ৪ সংখ্যার হতে হবে!' }, 400);
         }
-        const isValid = (body.pin || pinHeader) === storedPin;
-        return sendJson({ success: isValid, valid: isValid });
+
+        // Verify current PIN if provided
+        if (currentCandidate && currentCandidate !== activePin) {
+          return sendJson({ success: false, error: 'বর্তমান পিন কোডটি সঠিক নয়!' }, 403);
+        }
+
+        await updateActivePinInDB(db, newCandidate);
+        return sendJson({
+          success: true,
+          message: `পিন কোড সফলভাবে পরিবর্তন করা হয়েছে (নতুন পিন: ${newCandidate})`,
+          activePin: newCandidate,
+        });
       }
 
       // Network / System Info Endpoint
@@ -342,16 +476,27 @@ export default {
         });
       }
 
-      // PIN Authorization Check for Mutations & Data
-      let currentPin = '5555';
-      if (db) {
-        const row = await db.prepare("SELECT value FROM app_settings WHERE key = 'app_security_pin'").first();
-        if (row && row.value) currentPin = row.value;
-      } else {
-        currentPin = inMemoryStore.settings.app_security_pin || '5555';
+      if (url.pathname === '/api/system/version') {
+        return sendJson({ version: '1.5.0 PRO' });
       }
 
-      if (pinHeader && pinHeader !== currentPin) {
+      // Check if this is a PIN change via /api/system/settings
+      let isSettingsPinUpdate = false;
+      let settingsBody = null;
+      if (url.pathname === '/api/system/settings' && request.method === 'POST') {
+        try {
+          const cloned = request.clone();
+          settingsBody = await cloned.json();
+          if (settingsBody && (settingsBody.key === 'app_pin' || settingsBody.key === 'app_security_pin')) {
+            isSettingsPinUpdate = true;
+          }
+        } catch (_) {}
+      }
+
+      // PIN Authorization Check for Protected Routes
+      const activePin = await getActivePin(db);
+
+      if (incomingPin && !isSettingsPinUpdate && incomingPin !== activePin) {
         return sendJson({ success: false, error: 'অননুমোদিত এক্সেস: সঠিক পিন কোড প্রদান করুন' }, 401);
       }
 
@@ -1195,21 +1340,42 @@ export default {
         // --- SYSTEM (Settings, Backup, Purge) ---
         if (url.pathname === '/api/system/settings') {
           if (request.method === 'GET') {
+            const map = {};
             if (db) {
-              const { results } = await db.prepare('SELECT key, value FROM app_settings').all();
-              const map = {};
-              for (const r of results) map[r.key] = r.value;
-              return sendJson(map);
+              const r1 = await db.prepare('SELECT key, value FROM app_settings').all().catch(() => ({ results: [] }));
+              for (const r of (r1.results || [])) map[r.key] = r.value;
+              const r2 = await db.prepare('SELECT key, value FROM settings').all().catch(() => ({ results: [] }));
+              for (const r of (r2.results || [])) {
+                if (!map[r.key]) map[r.key] = r.value;
+              }
+            } else {
+              Object.assign(map, inMemoryStore.settings);
             }
-            return sendJson(inMemoryStore.settings);
+            const activePin = await getActivePin(db);
+            map.app_pin = activePin;
+            map.app_security_pin = activePin;
+            return sendJson(map);
           }
           if (request.method === 'POST') {
-            const body = await request.json();
+            const body = settingsBody || (await request.json().catch(() => ({})));
+            const key = body.key;
+            const value = body.value;
+
+            if (key === 'app_pin' || key === 'app_security_pin') {
+              const normPin = normalizePin(value);
+              if (!normPin || normPin.length !== 4 || !/^\d{4}$/.test(normPin)) {
+                return sendJson({ success: false, error: 'নতুন পিন অবশ্যই ৪ সংখ্যার হতে হবে!' }, 400);
+              }
+              await updateActivePinInDB(db, normPin);
+              return sendJson({ success: true, activePin: normPin });
+            }
+
             if (db) {
-              await db.prepare('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?').bind(body.key, body.value, body.value).run();
+              await db.prepare('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?').bind(key, value, value).run().catch(() => null);
+              await db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?').bind(key, value, value).run().catch(() => null);
               return sendJson({ success: true });
             }
-            inMemoryStore.settings[body.key] = body.value;
+            inMemoryStore.settings[key] = value;
             return sendJson({ success: true });
           }
         }
