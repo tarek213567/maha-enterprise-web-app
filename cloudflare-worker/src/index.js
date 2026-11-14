@@ -1,3 +1,5 @@
+import { sendExcelBackupToTelegram, generateRoyalExcelBuffer } from './royalExcelBackup.js';
+
 /**
  * মাহা এন্টারপ্রাইজ (Maha Enterprise v1.5.0 PRO)
  * Cloudflare Worker + Cloudflare D1 Full-Stack Cloud Server & PWA Gateway
@@ -495,6 +497,18 @@ async function ensureD1Initialized(db) {
 
       CREATE INDEX IF NOT EXISTS idx_recycle_bin_expires ON recycle_bin(expires_at);
       CREATE INDEX IF NOT EXISTS idx_recycle_bin_module ON recycle_bin(module_type);
+
+      CREATE TABLE IF NOT EXISTS backup_logs (
+        id TEXT PRIMARY KEY,
+        file_name TEXT NOT NULL,
+        trigger_type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        telegram_message_id TEXT,
+        file_size_formatted TEXT,
+        error_message TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_backup_logs_created_at ON backup_logs(created_at DESC);
     `);
 
     // Ensure settings tables have default seeds
@@ -508,7 +522,9 @@ async function ensureD1Initialized(db) {
       ('mon_kg_rate', '40'),
       ('app_security_pin', '5555'),
       ('app_pin', '5555'),
-      ('theme_mode', 'obsidian-gold');
+      ('theme_mode', 'obsidian-gold'),
+      ('telegram_bot_token', '9038319945:AAFFZJoJvHaHdrhOuVP3QeEKKRjyFDx72Bk'),
+      ('telegram_chat_id', '1904683489');
 
       INSERT OR IGNORE INTO settings (key, value) VALUES
       ('org_name', 'মাহা এন্টারপ্রাইজ'),
@@ -519,7 +535,9 @@ async function ensureD1Initialized(db) {
       ('mon_kg_rate', '40'),
       ('app_security_pin', '5555'),
       ('app_pin', '5555'),
-      ('theme_mode', 'obsidian-gold');
+      ('theme_mode', 'obsidian-gold'),
+      ('telegram_bot_token', '9038319945:AAFFZJoJvHaHdrhOuVP3QeEKKRjyFDx72Bk'),
+      ('telegram_chat_id', '1904683489');
 
       -- Seed walk-in parties
       INSERT OR IGNORE INTO parties (id, name, phone, address, party_type, opening_balance, current_balance, notes, is_active, is_pinned) VALUES
@@ -2701,6 +2719,42 @@ export default {
           });
         }
 
+        // Trigger live Telegram Excel Backup (POST /api/backup/telegram or GET /api/backup/telegram)
+        if ((url.pathname === '/api/backup/telegram' || url.pathname === '/api/system/backup/telegram') && (request.method === 'POST' || request.method === 'GET')) {
+          try {
+            const result = await sendExcelBackupToTelegram(env, 'MANUAL_CLOUD');
+            return sendJson(result, result.success ? 200 : 500);
+          } catch (err) {
+            return sendJson({ success: false, error: err.message }, 500);
+          }
+        }
+
+        // View cloud backup logs (GET /api/backup/logs)
+        if (url.pathname === '/api/backup/logs' || url.pathname === '/api/system/backup/logs') {
+          if (db) {
+            const logs = (await db.prepare('SELECT * FROM backup_logs ORDER BY created_at DESC LIMIT 50').all().catch(() => ({ results: [] }))).results;
+            return sendJson({ success: true, logs: logs || [] });
+          }
+          return sendJson({ success: true, logs: [] });
+        }
+
+        // Download live Royal Excel File directly from server (GET /api/backup/download-excel)
+        if (url.pathname === '/api/backup/download-excel' || url.pathname === '/api/system/backup/excel') {
+          try {
+            const { buffer, summary } = await generateRoyalExcelBuffer(db);
+            const fileName = `Maha_Enterprise_Backup_${summary.fileTimestamp}.xlsx`;
+            return new Response(buffer, {
+              status: 200,
+              headers: {
+                'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition': `attachment; filename="${fileName}"`,
+              },
+            });
+          } catch (err) {
+            return sendJson({ success: false, error: err.message }, 500);
+          }
+        }
+
         // Restore JSON Database Snapshot
         if (url.pathname === '/api/system/restore' && request.method === 'POST') {
           const body = await request.json();
@@ -2794,5 +2848,10 @@ export default {
       status: 200,
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     });
+  },
+
+  async scheduled(event, env, ctx) {
+    console.log('[Cloudflare Cron Scheduled Trigger]:', event.cron, new Date().toISOString());
+    ctx.waitUntil(sendExcelBackupToTelegram(env, 'AUTO_SCHEDULED'));
   },
 };

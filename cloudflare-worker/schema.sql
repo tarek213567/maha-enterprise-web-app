@@ -270,3 +270,23 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
 ('app_security_pin', '5555'),
 ('app_pin', '5555'),
 ('theme_mode', 'obsidian-gold');
+-- 11. Cloud Backup Logs (Telegram & Server Backups)
+CREATE TABLE IF NOT EXISTS backup_logs (
+  id TEXT PRIMARY KEY,
+  file_name TEXT NOT NULL,
+  trigger_type TEXT NOT NULL, -- 'AUTO_SCHEDULED' or 'MANUAL_CLOUD'
+  status TEXT NOT NULL,       -- 'SUCCESS' or 'FAILED'
+  telegram_message_id TEXT,
+  file_size_formatted TEXT,
+  error_message TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_backup_logs_created_at ON backup_logs(created_at DESC);
+
+INSERT OR IGNORE INTO app_settings (key, value) VALUES
+('telegram_bot_token', '9038319945:AAFFZJoJvHaHdrhOuVP3QeEKKRjyFDx72Bk'),
+('telegram_chat_id', '1904683489');
+
+INSERT OR IGNORE INTO settings (key, value) VALUES
+('telegram_bot_token', '9038319945:AAFFZJoJvHaHdrhOuVP3QeEKKRjyFDx72Bk'),
+('telegram_chat_id', '1904683489');

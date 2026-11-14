@@ -18,11 +18,9 @@ database_id = "25eaf05d-93a6-4011-9f80-336b854725ac"
 ENVIRONMENT = "production"
 APP_NAME = "Maha Enterprise"
 VERSION = "1.5.0 PRO"
+TELEGRAM_BOT_TOKEN = "9038319945:AAFFZJoJvHaHdrhOuVP3QeEKKRjyFDx72Bk"
+TELEGRAM_CHAT_ID = "1904683489"
 
-# Custom Domain Configuration:
-# To bind to maha.nexobd.pro:
-# Option 1: Cloudflare Dashboard > Workers & Pages > maha-enterprise > Settings > Domains & Routes > Add Custom Domain: maha.nexobd.pro
-# Option 2:
-# routes = [
-#   { pattern = "maha.nexobd.pro/*", zone_name = "nexobd.pro" }
-# ]
+# Automatic Twice-Daily Backups (1:00 PM and 7:00 PM Bangladesh Time UTC+6 = 07:00 and 13:00 UTC)
+[triggers]
+crons = ["0 7 * * *", "0 13 * * *"]
