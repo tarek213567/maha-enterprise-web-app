@@ -12,6 +12,7 @@ import type {
   PartyType,
   PaymentMethod,
   Note,
+  RecycleBinItem,
 } from '../types';
 
 declare global {
@@ -332,6 +333,19 @@ export const dbService = {
       if (window.api) return window.api.ledgers.recordVoucher(data);
       return await apiFetch<{ success: boolean; newBalance: number }>('/api/collect', { method: 'POST', body: JSON.stringify(data) });
     },
+    updateEntry: async (id: number, data: any): Promise<{ success: boolean; message: string; running_balance?: number }> => {
+      if ((window.api?.ledgers as any)?.updateEntry) return (window.api.ledgers as any).updateEntry(id, data);
+      return await apiFetch<{ success: boolean; message: string; running_balance?: number }>(`/api/ledgers/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    },
+    deleteEntry: async (id: number): Promise<{ success: boolean; message: string }> => {
+      if ((window.api?.ledgers as any)?.deleteEntry) return (window.api.ledgers as any).deleteEntry(id);
+      return await apiFetch<{ success: boolean; message: string }>(`/api/ledgers/${id}`, {
+        method: 'DELETE',
+      });
+    },
   },
 
   cashbook: {
@@ -470,6 +484,50 @@ export const dbService = {
         mockNotes = mockNotes.filter((n) => n.id !== id);
         return { success: true, message: 'নোটটি সফলভাবে মুছে ফেলা হয়েছে' };
       }
+    },
+  },
+
+  recycleBin: {
+    getAll: async (module?: string): Promise<RecycleBinItem[]> => {
+      if ((window.api as any)?.recycleBin?.getAll) return (window.api as any).recycleBin.getAll(module);
+      try {
+        return await apiFetch<RecycleBinItem[]>(`/api/recycle-bin${module && module !== 'ALL' ? `?module=${encodeURIComponent(module)}` : ''}`);
+      } catch {
+        return [];
+      }
+    },
+    getCount: async (): Promise<number> => {
+      if ((window.api as any)?.recycleBin?.getCount) return (window.api as any).recycleBin.getCount();
+      try {
+        const res = await apiFetch<{ count: number }>('/api/recycle-bin/count');
+        return res?.count || 0;
+      } catch {
+        return 0;
+      }
+    },
+    restore: async (id: string): Promise<{ success: boolean; message: string }> => {
+      if ((window.api as any)?.recycleBin?.restore) return (window.api as any).recycleBin.restore(id);
+      return await apiFetch<{ success: boolean; message: string }>(`/api/recycle-bin/restore/${id}`, {
+        method: 'POST',
+      });
+    },
+    deletePermanent: async (id: string): Promise<{ success: boolean; message?: string }> => {
+      if ((window.api as any)?.recycleBin?.deletePermanent) return (window.api as any).recycleBin.deletePermanent(id);
+      return await apiFetch<{ success: boolean; message?: string }>(`/api/recycle-bin/${id}`, {
+        method: 'DELETE',
+      });
+    },
+    empty: async (): Promise<{ success: boolean; message?: string }> => {
+      if ((window.api as any)?.recycleBin?.empty) return (window.api as any).recycleBin.empty();
+      return await apiFetch<{ success: boolean; message?: string }>('/api/recycle-bin/empty', {
+        method: 'DELETE',
+      });
+    },
+    purge: async (): Promise<{ success: boolean; purged?: number }> => {
+      if ((window.api as any)?.recycleBin?.purge) return (window.api as any).recycleBin.purge();
+      return await apiFetch<{ success: boolean; purged?: number }>('/api/recycle-bin/purge', {
+        method: 'DELETE',
+      });
     },
   },
 

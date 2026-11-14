@@ -17,6 +17,7 @@ import { ExpenseView } from './components/expenses/ExpenseView';
 import { PnLView } from './components/reports/PnLView';
 import { SettingsBackupView } from './components/settings/SettingsBackupView';
 import { NotebookView } from './components/notebook/NotebookView';
+import { RecycleBinView } from './components/recycle-bin/RecycleBinView';
 import { dbService } from './services/api';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
@@ -212,6 +213,8 @@ const AppContent: React.FC = () => {
               {currentTab === 'settings' && <SettingsBackupView />}
 
               {currentTab === 'notebook' && <NotebookView />}
+
+              {currentTab === 'recycle_bin' && <RecycleBinView />}
             </main>
           </ErrorBoundary>
         </div>

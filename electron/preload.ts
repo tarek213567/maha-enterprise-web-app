@@ -41,6 +41,8 @@ export const api = {
   ledgers: {
     getByParty: (partyId: number) => ipcRenderer.invoke('ledgers:getByParty', partyId),
     recordVoucher: (data: any) => ipcRenderer.invoke('ledgers:recordVoucher', data),
+    updateEntry: (id: number, data: any) => ipcRenderer.invoke('ledgers:updateEntry', id, data),
+    deleteEntry: (id: number) => ipcRenderer.invoke('ledgers:deleteEntry', id),
   },
   cashbook: {
     getDaily: (date: string) => ipcRenderer.invoke('cashbook:getDaily', date),
@@ -59,6 +61,14 @@ export const api = {
     update: (id: number, data: any) => ipcRenderer.invoke('notes:update', id, data),
     togglePin: (id: number) => ipcRenderer.invoke('notes:togglePin', id),
     delete: (id: number) => ipcRenderer.invoke('notes:delete', id),
+  },
+  recycleBin: {
+    getAll: (module?: string) => ipcRenderer.invoke('recycleBin:getAll', module),
+    getCount: () => ipcRenderer.invoke('recycleBin:getCount'),
+    restore: (id: string) => ipcRenderer.invoke('recycleBin:restore', id),
+    deletePermanent: (id: string) => ipcRenderer.invoke('recycleBin:deletePermanent', id),
+    empty: () => ipcRenderer.invoke('recycleBin:empty'),
+    purge: () => ipcRenderer.invoke('recycleBin:purge'),
   },
   reports: {
     getDashboardStats: () => ipcRenderer.invoke('reports:getDashboardStats'),

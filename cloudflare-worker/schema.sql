@@ -99,6 +99,8 @@ CREATE TABLE IF NOT EXISTS sales (
   payment_method TEXT NOT NULL CHECK(payment_method IN ('CASH', 'BANK', 'DUE', 'PARTIAL')),
   paid_amount REAL NOT NULL DEFAULT 0.0,
   due_amount REAL NOT NULL DEFAULT 0.0,
+  previous_due REAL NOT NULL DEFAULT 0.0,
+  remaining_due REAL NOT NULL DEFAULT 0.0,
   vehicle_no TEXT,
   driver_name TEXT,
   driver_phone TEXT,
@@ -147,10 +149,27 @@ CREATE TABLE IF NOT EXISTS party_ledger (
   running_balance REAL NOT NULL,
   is_test_draft INTEGER NOT NULL DEFAULT 0,
   description TEXT NOT NULL,
+  notes TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_ledger_party_date ON party_ledger(party_id, entry_date);
+
+-- 6.1 Recycle Bin (রিসাইকেল বিন - ৬০ দিনের ডেটা সুরক্ষা ও রিস্টোর)
+CREATE TABLE IF NOT EXISTS recycle_bin (
+  id TEXT PRIMARY KEY,
+  module_type TEXT NOT NULL,
+  module_label TEXT NOT NULL,
+  original_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  amount REAL DEFAULT 0.0,
+  payload_json TEXT NOT NULL,
+  deleted_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_recycle_bin_expires ON recycle_bin(expires_at);
+CREATE INDEX IF NOT EXISTS idx_recycle_bin_module ON recycle_bin(module_type);
 
 -- 7. Daily Cashbook (দৈনিক ক্যাশ বই)
 CREATE TABLE IF NOT EXISTS cashbook (

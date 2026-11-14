@@ -281,6 +281,8 @@ function initApp() {
   // Ledgers
   ipcMain.handle('ledgers:getByParty', (_, partyId) => db!.getPartyLedger(partyId));
   ipcMain.handle('ledgers:recordVoucher', (_, data) => db!.recordPartyPaymentVoucher(data));
+  ipcMain.handle('ledgers:updateEntry', (_, id, data) => db!.updatePartyLedgerEntry(id, data));
+  ipcMain.handle('ledgers:deleteEntry', (_, id) => db!.deleteLedgerEntry(id));
 
   // Cashbook
   ipcMain.handle('cashbook:getDaily', (_, date) => db!.getDailyCashbook(date));
@@ -299,6 +301,14 @@ function initApp() {
   ipcMain.handle('notes:update', (_, id, data) => db!.updateNote(id, data));
   ipcMain.handle('notes:togglePin', (_, id) => db!.toggleNotePin(id));
   ipcMain.handle('notes:delete', (_, id) => db!.deleteNote(id));
+
+  // Recycle Bin (60-Day)
+  ipcMain.handle('recycleBin:getAll', (_, module) => db!.getRecycleBinItems(module));
+  ipcMain.handle('recycleBin:getCount', () => db!.getRecycleBinCount());
+  ipcMain.handle('recycleBin:restore', (_, id) => db!.restoreRecycleBinItem(id));
+  ipcMain.handle('recycleBin:deletePermanent', (_, id) => db!.deleteRecycleBinItem(id));
+  ipcMain.handle('recycleBin:empty', () => db!.emptyRecycleBin());
+  ipcMain.handle('recycleBin:purge', () => db!.purgeExpiredRecycleBin());
 
   // Reports
   ipcMain.handle('reports:getDashboardStats', () => db!.getDashboardStats());

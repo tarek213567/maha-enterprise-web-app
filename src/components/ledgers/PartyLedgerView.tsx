@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { Party, LedgerEntry } from '../../types';
 import { dbService } from '../../services/api';
-import { toBnDigits, formatBanglaCurrency, formatDate, parseSmartNumber, toBengaliDigits, formatTaka, formatTakaBn } from '../../utils/bengaliNumbers';
+import { toBnDigits, formatBanglaCurrency, formatDate, parseSmartNumber, toBengaliDigits, toEnglishDigits, formatTaka, formatTakaBn } from '../../utils/bengaliNumbers';
 
 export const PartyLedgerView: React.FC = () => {
   const [dues, setDues] = useState<Party[]>([]);
@@ -63,6 +63,19 @@ export const PartyLedgerView: React.FC = () => {
   } | null>(null);
   const [customerEntries, setCustomerEntries] = useState<LedgerEntry[]>([]);
   const [loadingEntries, setLoadingEntries] = useState(false);
+
+  // Royal Excel Ledger State
+  const [statementViewMode, setStatementViewMode] = useState<'EXCEL' | 'COLUMNS'>('EXCEL');
+  const [currentDateTime, setCurrentDateTime] = useState<string>('');
+  const [partyNoteText, setPartyNoteText] = useState<string>('');
+  const [savingPartyNote, setSavingPartyNote] = useState<boolean>(false);
+  const [editingLedgerId, setEditingLedgerId] = useState<number | null>(null);
+  const [editLedgerDate, setEditLedgerDate] = useState<string>('');
+  const [editLedgerDesc, setEditLedgerDesc] = useState<string>('');
+  const [editLedgerDebit, setEditLedgerDebit] = useState<string>('0');
+  const [editLedgerCredit, setEditLedgerCredit] = useState<string>('0');
+  const [editLedgerNotes, setEditLedgerNotes] = useState<string>('');
+  const [savingLedgerRow, setSavingLedgerRow] = useState<boolean>(false);
 
   // 3-Dot Dropdown State & Pinning
   const [activeDropdownId, setActiveDropdownId] = useState<number | null>(null);
@@ -114,6 +127,19 @@ export const PartyLedgerView: React.FC = () => {
     return () => window.removeEventListener('click', handleCloseMenu);
   }, []);
 
+  // Live Bengali Clock & Date
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('bn-BD', { day: 'numeric', month: 'long', year: 'numeric' });
+      const timeStr = now.toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+      setCurrentDateTime(`${dateStr}, ${timeStr}`);
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   // 1. Toggle Pin (সর্বোচ্চ ১০টি পিন নিশ্চিতকরণ)
   const handleTogglePin = async (party: Party) => {
     setActiveDropdownId(null);
@@ -153,9 +179,11 @@ export const PartyLedgerView: React.FC = () => {
     }
   };
 
-  // Open Full-Featured Two-Column Statement
+  // Open Full-Featured Two-Column Statement & Royal Excel Ledger
   const openCustomerStatement = async (customer: Party) => {
     setStatementCustomer(customer);
+    setPartyNoteText(customer.notes || '');
+    setEditingLedgerId(null);
     setLoadingEntries(true);
     try {
       const res = await dbService.parties.getDetailedStatement(customer.id);
@@ -164,12 +192,13 @@ export const PartyLedgerView: React.FC = () => {
         setCustomerEntries(res.ledger || []);
       } else {
         const entries = await dbService.ledgers.getByParty(customer.id);
-        const payments = entries.filter((e) => e.credit > 0 || e.transaction_type === 'PAYMENT_RECEIVED');
-        const invoices = entries.filter((e) => e.debit > 0 && e.transaction_type !== 'OPENING');
-        setCustomerEntries(entries || []);
+        const safeEntries = entries || [];
+        const payments = safeEntries.filter((e) => e.credit > 0 || e.transaction_type === 'PAYMENT_RECEIVED');
+        const invoices = safeEntries.filter((e) => e.debit > 0 && e.transaction_type !== 'OPENING');
+        setCustomerEntries(safeEntries);
         setStatementData({
           party: customer,
-          ledger: entries || [],
+          ledger: safeEntries,
           sales: [],
           payments,
           invoices,
@@ -183,6 +212,78 @@ export const PartyLedgerView: React.FC = () => {
       console.error(err);
     } finally {
       setLoadingEntries(false);
+    }
+  };
+
+  // Save Party Remark / Notes to D1
+  const handleSavePartyNotes = async () => {
+    if (!statementCustomer) return;
+    setSavingPartyNote(true);
+    try {
+      await dbService.parties.update(statementCustomer.id, {
+        notes: partyNoteText.trim(),
+      });
+      const updated = { ...statementCustomer, notes: partyNoteText.trim() };
+      setStatementCustomer(updated);
+      setDues(prev => prev.map(p => p.id === statementCustomer.id ? { ...p, notes: partyNoteText.trim() } : p));
+      alert('গ্রাহকের মন্তব্য / টীকা সফলভাবে সংরক্ষিত হয়েছে!');
+    } catch (e: any) {
+      alert(`নোট সংরক্ষণ ত্রুটি: ${e.message}`);
+    } finally {
+      setSavingPartyNote(false);
+    }
+  };
+
+  // Row Inline Edit Handlers
+  const handleStartEditRow = (row: LedgerEntry) => {
+    setEditingLedgerId(row.id);
+    setEditLedgerDate(row.entry_date ? row.entry_date.split('T')[0] : '');
+    setEditLedgerDesc(row.description || '');
+    setEditLedgerDebit(String(row.debit || 0));
+    setEditLedgerCredit(String(row.credit || 0));
+    setEditLedgerNotes(row.notes || '');
+  };
+
+  const handleCancelEditRow = () => {
+    setEditingLedgerId(null);
+  };
+
+  const handleSaveRow = async (rowId: number) => {
+    setSavingLedgerRow(true);
+    try {
+      const debitNum = parseSmartNumber(editLedgerDebit);
+      const creditNum = parseSmartNumber(editLedgerCredit);
+      await dbService.ledgers.updateEntry(rowId, {
+        entry_date: editLedgerDate,
+        description: editLedgerDesc.trim(),
+        debit: debitNum,
+        credit: creditNum,
+        notes: editLedgerNotes.trim(),
+      });
+      setEditingLedgerId(null);
+      if (statementCustomer) {
+        await openCustomerStatement(statementCustomer);
+      }
+      await fetchParties();
+    } catch (e: any) {
+      alert(`লেজার আপডেট ত্রুটি: ${e.message}`);
+    } finally {
+      setSavingLedgerRow(false);
+    }
+  };
+
+  const handleDeleteLedgerRow = async (row: LedgerEntry) => {
+    if (!confirm(`আপনি কি এই লেনদেন রেকর্ডটি (${row.description || row.reference_no || 'ভাউচার'}) মুছে ফেলতে চান?\n\nমুছে ফেললে রানিং ব্যালেন্স ও গ্রাহকের দেনা-পাওনা স্বয়ংক্রিয়ভাবে সমন্বয় করা হবে।`)) {
+      return;
+    }
+    try {
+      await dbService.ledgers.deleteEntry(row.id);
+      if (statementCustomer) {
+        await openCustomerStatement(statementCustomer);
+      }
+      await fetchParties();
+    } catch (e: any) {
+      alert(`মুছতে ব্যর্থ: ${e.message}`);
     }
   };
 
@@ -864,232 +965,547 @@ export const PartyLedgerView: React.FC = () => {
       )}
 
       {/* ======================================================== */}
-      {/* MODAL 3: TRADITIONAL TWO-COLUMN KHOTIAN STATEMENT MODAL   */}
+      {/* MODAL 3: ROYAL EXCEL-STYLE EDITABLE PARTY LEDGER MODAL    */}
       {/* ======================================================== */}
       {statementCustomer && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl max-w-6xl w-full shadow-2xl flex flex-col max-h-[92vh] overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150">
-            {/* 1. Header */}
-            <div className="p-4 bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="p-2.5 bg-blue-500/10 text-cyan-600 dark:text-cyan-400 rounded-xl border border-blue-500/30 shrink-0">
-                  <History className="w-5 h-5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-black text-slate-900 dark:text-white text-base sm:text-lg truncate">
-                      {statementCustomer.name} — খতিয়ান লেজার হিসাব
-                    </h3>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditCustomer(statementCustomer);
-                        setEditName(statementCustomer.name);
-                        setEditPhone(statementCustomer.phone || '');
-                        setEditAddress(statementCustomer.address || '');
-                        setEditPhoneError('');
-                      }}
-                      className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 dark:text-amber-300 border border-amber-500/30 flex items-center gap-1 transition-all cursor-pointer"
-                      title="গ্রাহকের তথ্য সম্পাদনা"
-                    >
-                      <Edit2 className="w-3 h-3" />
-                      <span>সম্পাদনা</span>
-                    </button>
-                    {statementCustomer.is_pinned === 1 && (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40">
-                        📌 পিন করা
-                      </span>
-                    )}
+          <div className="bg-white dark:bg-slate-900 border-2 border-emerald-600 dark:border-emerald-500/60 rounded-2xl max-w-7xl w-full shadow-2xl flex flex-col max-h-[94vh] overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150">
+            {/* 1. TOP ROYAL EMERALD GREEN & GOLD BANNER */}
+            <div className="bg-[#047857] text-white p-4 sm:p-5 border-b-4 border-[#fbbf24] shadow-md">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                {/* Left: Shop and Customer Title */}
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-white/10 border border-[#fbbf24]/50 flex items-center justify-center text-[#fbbf24] text-xl font-bold shadow-inner">
+                    👑
                   </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5 truncate">
-                    মোবাইল: <strong className="text-slate-800 dark:text-slate-200 font-mono">{statementCustomer.phone && statementCustomer.phone.trim() ? statementCustomer.phone : '-'}</strong> &bull; ঠিকানা: <strong className="text-slate-800 dark:text-slate-200">{statementCustomer.address || 'চাঁচকৈড় বাজার, গুরুদাসপুর'}</strong>
-                  </p>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-xl sm:text-2xl font-black tracking-wide text-white drop-shadow-sm">
+                        মেসার্স মাহা এন্টারপ্রাইজ
+                      </h2>
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#fbbf24] text-slate-900 border border-amber-400">
+                        রয়েল এক্সেল লেজার
+                      </span>
+                    </div>
+                    <p className="text-xs text-emerald-100 flex items-center gap-2 mt-0.5">
+                      <span>চাঁচকৈড় বাজার, গুরুদাসপুর, নাটোর</span>
+                      <span>•</span>
+                      <span>স্বত্বাধিকারী: মো: তারেক হাসান</span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Right: Live Clock & Action Buttons */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  {/* Live Bengali Clock & Date */}
+                  <div className="bg-black/30 backdrop-blur-xs border border-[#fbbf24]/40 rounded-xl px-3.5 py-1.5 text-right shadow-sm">
+                    <span className="text-[10px] uppercase font-bold text-[#fbbf24] block tracking-wider">বর্তমান সময় ও তারিখ</span>
+                    <span className="font-mono font-bold text-xs text-white">{currentDateTime}</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => dbService.system.print()}
+                    className="px-3.5 py-2 bg-[#fbbf24] hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
+                    title="এক্সেল শিট প্রিন্ট করুন"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>প্রিন্ট শিট</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setStatementCustomer(null)}
+                    className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
+                    title="বন্ধ করুন"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => dbService.system.print()}
-                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-                  title="সম্পূর্ণ খতিয়ান প্রিন্ট করুন"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>🖨️ খতিয়ান প্রিন্ট</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStatementCustomer(null)}
-                  className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                  title="বন্ধ করুন"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+              {/* Party Info Bar inside Banner */}
+              <div className="mt-3.5 pt-3 border-t border-emerald-600/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="font-bold text-emerald-200">ক্রেতা/পার্টি:</span>
+                  <strong className="text-white text-sm font-black underline decoration-[#fbbf24] decoration-2 underline-offset-4">
+                    {statementCustomer.name}
+                  </strong>
+                  <span className="text-emerald-300 font-mono">
+                    📞 {statementCustomer.phone && statementCustomer.phone.trim() ? statementCustomer.phone : 'ফোন নেই'}
+                  </span>
+                  <span className="text-emerald-200">
+                    📍 {statementCustomer.address || 'চাঁচকৈড় বাজার, গুরুদাসপুর'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditCustomer(statementCustomer);
+                      setEditName(statementCustomer.name);
+                      setEditPhone(statementCustomer.phone || '');
+                      setEditAddress(statementCustomer.address || '');
+                      setEditPhoneError('');
+                    }}
+                    className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/20 hover:bg-white/30 text-white flex items-center gap-1 transition-all cursor-pointer"
+                    title="গ্রাহকের বিবরণ সম্পাদনা"
+                  >
+                    <Edit2 className="w-2.5 h-2.5" />
+                    <span>প্রোফাইল সম্পাদনা</span>
+                  </button>
+                </div>
+
+                {/* Party Note / Remark Editor */}
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <span className="text-[11px] font-bold text-[#fbbf24] shrink-0">টীকা/মন্তব্য:</span>
+                  <input
+                    type="text"
+                    placeholder="গ্রাহকের বিশেষ মন্তব্য লিখুন..."
+                    value={partyNoteText}
+                    onChange={(e) => setPartyNoteText(e.target.value)}
+                    className="bg-black/30 border border-emerald-400/40 rounded-lg px-2.5 py-1 text-xs text-white placeholder-emerald-200/50 outline-none focus:border-[#fbbf24] w-full sm:w-56 font-sans"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSavePartyNotes}
+                    disabled={savingPartyNote}
+                    className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 border border-[#fbbf24]/50 text-[#fbbf24] hover:text-white rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer disabled:opacity-50"
+                  >
+                    {savingPartyNote ? 'সেভ...' : '💾 সেভ'}
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* 2. Top 4 Balance Summary Cards */}
+            {/* 2. TOP 4 COLORED KPI CARDS */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 p-4 bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 text-xs">
-              <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-                <span className="text-slate-600 dark:text-slate-400 block font-semibold">প্রারম্ভিক বকেয়া</span>
-                <span className="font-mono font-bold text-slate-900 dark:text-slate-100 text-base mt-1 block">
+              {/* Card 1: Green Opening Due */}
+              <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border-2 border-emerald-500/40 shadow-xs">
+                <span className="text-emerald-700 dark:text-emerald-300 block font-bold text-[11px]">১. প্রারম্ভিক জের (Opening Due)</span>
+                <span className="font-mono font-black text-slate-900 dark:text-slate-100 text-base mt-1 block">
                   {formatTakaBn(statementData?.openingDue ?? statementCustomer.opening_balance ?? 0, true)}
                 </span>
               </div>
-              <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-blue-500/30">
-                <span className="text-blue-700 dark:text-blue-300 block font-semibold">মোট ক্রয় (চালান)</span>
-                <span className="font-mono font-bold text-blue-600 dark:text-blue-400 text-base mt-1 block">
+              {/* Card 2: Blue Total Bills */}
+              <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border-2 border-blue-500/40 shadow-xs">
+                <span className="text-blue-700 dark:text-blue-300 block font-bold text-[11px]">২. মোট ক্রয়/চালান (+ বিল বৃদ্ধি)</span>
+                <span className="font-mono font-black text-blue-600 dark:text-blue-400 text-base mt-1 block">
                   {formatTakaBn(statementData?.totalInvoices ?? 0, true)}
                 </span>
               </div>
-              <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-emerald-500/30">
-                <span className="text-emerald-700 dark:text-emerald-300 block font-semibold">মোট জমা (পরিশোধ)</span>
-                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-base mt-1 block">
+              {/* Card 3: Teal/Emerald Total Paid */}
+              <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border-2 border-teal-500/40 shadow-xs">
+                <span className="text-teal-700 dark:text-teal-300 block font-bold text-[11px]">৩. মোট জমা/পরিশোধ (- আদায়)</span>
+                <span className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-base mt-1 block">
                   {formatTakaBn(statementData?.totalInflow ?? 0, true)}
                 </span>
               </div>
+              {/* Card 4: Gold/Amber Current Net Balance */}
               <div className="p-3 bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950 rounded-xl shadow-md border-2 border-amber-300">
-                <span className="text-slate-950 block font-black text-xs uppercase tracking-wide">বর্তমান নীট বাকি</span>
+                <span className="text-slate-950 block font-black text-xs uppercase tracking-wide">৪. বর্তমান চলমান জের (Net Balance)</span>
                 <span className="font-mono font-black text-slate-950 text-lg mt-0.5 block">
                   {formatTakaBn(statementData?.netDue ?? statementCustomer.current_balance ?? 0, true)}
                 </span>
               </div>
             </div>
 
-            {/* 3. Traditional Dual Side-by-Side Tables */}
-            <div className="flex-1 overflow-y-auto p-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {/* Left Side: জমা / পরিশোধ (Cash Received) */}
-                <div className="bg-white dark:bg-slate-900 border border-emerald-500/40 rounded-2xl overflow-hidden flex flex-col shadow-sm">
-                  <div className="bg-gradient-to-r from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:via-emerald-900 dark:to-emerald-950 border-b border-emerald-500/40 px-4 py-2.5 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"></span>
-                      <h4 className="font-bold text-emerald-900 dark:text-emerald-300">জমা / পরিশোধ (Cash Received)</h4>
-                    </div>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
-                      {toBnDigits(statementData?.payments.length || 0)} টি এন্ট্রি
-                    </span>
-                  </div>
+            {/* View Mode Toggle Bar */}
+            <div className="px-4 py-2 bg-slate-100 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-slate-600 dark:text-slate-400 text-xs">ভিউ মোড:</span>
+                <button
+                  type="button"
+                  onClick={() => setStatementViewMode('EXCEL')}
+                  className={`px-3 py-1 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+                    statementViewMode === 'EXCEL'
+                      ? 'bg-[#0d2847] text-[#fbbf24] shadow-xs border border-amber-400'
+                      : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                  }`}
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>📊 রয়েল এক্সেল শিট লেজার (Master Grid)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatementViewMode('COLUMNS')}
+                  className={`px-3 py-1 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+                    statementViewMode === 'COLUMNS'
+                      ? 'bg-[#0d2847] text-[#fbbf24] shadow-xs border border-amber-400'
+                      : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                  }`}
+                >
+                  <History className="w-3.5 h-3.5" />
+                  <span>📑 দুই কলাম খতিয়ান ভিউ (Dual Columns)</span>
+                </button>
+              </div>
 
-                  <div className="flex-1 overflow-y-auto max-h-[380px]">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead className="bg-slate-100 dark:bg-[#0B0F19] text-slate-700 dark:text-slate-400 uppercase text-[10px] font-bold sticky top-0 border-b border-slate-200 dark:border-slate-800">
-                        <tr>
-                          <th className="py-2.5 px-3">তারিখ</th>
-                          <th className="py-2.5 px-3">রশিদ নং / মাধ্যম</th>
-                          <th className="py-2.5 px-3 text-right">জমার পরিমাণ (৳)</th>
-                          <th className="py-2.5 px-3 text-center">অ্যাকশন</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                        {loadingEntries ? (
-                          <tr><td colSpan={4} className="py-8 text-center text-slate-400">লোড হচ্ছে...</td></tr>
-                        ) : !statementData || statementData.payments.length === 0 ? (
-                          <tr><td colSpan={4} className="py-8 text-center text-slate-500">কোনো জমার এন্ট্রি নেই</td></tr>
-                        ) : (
-                          statementData.payments.map((p) => (
-                            <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                              <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300 whitespace-nowrap">{formatDate(p.entry_date)}</td>
-                              <td className="py-2.5 px-3 text-slate-800 dark:text-slate-200">
-                                <div>{p.description || p.reference_no || 'ক্যাশ জমা'}</div>
-                                {p.reference_no && <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">{p.reference_no}</div>}
-                              </td>
-                              <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                                {formatTakaBn(p.credit || 0, true)}
-                              </td>
-                              <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteVoucher(p.id, p.credit || 0)}
-                                  className="p-1 text-rose-500 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 hover:bg-rose-500/20 rounded transition-colors cursor-pointer"
-                                  title="জমার রেকর্ড বাতিল / মুছুন"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className="bg-emerald-50 dark:bg-emerald-950/80 border-t-2 border-emerald-500 text-emerald-900 dark:text-emerald-200 px-4 py-2.5 font-bold flex items-center justify-between text-xs">
-                    <span>মোট জমা:</span>
-                    <span className="font-mono text-sm text-emerald-700 dark:text-emerald-300 font-black">
-                      = {formatTakaBn(statementData?.totalInflow || 0, true)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Right Side: খরচ বা ক্রয় / চালান (Invoices & Dues) */}
-                <div className="bg-white dark:bg-slate-900 border border-blue-500/40 rounded-2xl overflow-hidden flex flex-col shadow-sm">
-                  <div className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950 dark:via-blue-900 dark:to-blue-950 border-b border-blue-500/40 px-4 py-2.5 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-blue-500 dark:bg-blue-400 animate-pulse"></span>
-                      <h4 className="font-bold text-blue-900 dark:text-blue-300">খরচ বা ক্রয় / চালান (Invoices & Dues)</h4>
-                    </div>
-                    <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-800 dark:text-blue-300 text-[10px] font-bold border border-blue-500/30">
-                      {toBnDigits(statementData?.invoices.length || 0)} টি চালান
-                    </span>
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto max-h-[380px]">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead className="bg-slate-100 dark:bg-[#0B0F19] text-slate-700 dark:text-slate-400 uppercase text-[10px] font-bold sticky top-0 border-b border-slate-200 dark:border-slate-800">
-                        <tr>
-                          <th className="py-2.5 px-3">তারিখ</th>
-                          <th className="py-2.5 px-3">চালান নং / আইটেম বিবরণ</th>
-                          <th className="py-2.5 px-3 text-right">মোট বিল (৳)</th>
-                          <th className="py-2.5 px-3 text-center">অ্যাকশন</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                        {loadingEntries ? (
-                          <tr><td colSpan={4} className="py-8 text-center text-slate-400">লোড হচ্ছে...</td></tr>
-                        ) : !statementData || statementData.invoices.length === 0 ? (
-                          <tr><td colSpan={4} className="py-8 text-center text-slate-500">কোনো ক্রয়ের চালান নেই</td></tr>
-                        ) : (
-                          statementData.invoices.map((inv) => {
-                            const matchingSale = statementData.sales?.find((s: any) => s.invoice_no === inv.reference_no);
-                            return (
-                              <tr key={inv.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                                <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300 whitespace-nowrap">{formatDate(inv.entry_date)}</td>
-                                <td className="py-2.5 px-3 text-slate-800 dark:text-slate-200">
-                                  <div className="font-semibold text-blue-600 dark:text-blue-300 font-mono">{inv.reference_no || 'চালান'}</div>
-                                  <div className="text-[11px] text-slate-600 dark:text-slate-300">
-                                    {matchingSale
-                                      ? `${matchingSale.commodity_name_bn || 'শস্য'} • ${toBnDigits(matchingSale.net_weight_mon || 0)} মণ`
-                                      : inv.description}
-                                  </div>
-                                </td>
-                                <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-600 dark:text-amber-400 whitespace-nowrap">
-                                  {formatTakaBn(inv.debit || 0, true)}
-                                </td>
-                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                                  <span className="text-[10px] text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 font-mono">
-                                    {inv.transaction_type === 'SALE' ? 'চালান' : inv.transaction_type === 'ADJUSTMENT' ? 'পূর্বের বাকি' : inv.transaction_type}
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className="bg-blue-50 dark:bg-blue-950/80 border-t-2 border-blue-500 text-blue-900 dark:text-blue-200 px-4 py-2.5 font-bold flex items-center justify-between text-xs">
-                    <span>মোট ক্রয়:</span>
-                    <span className="font-mono text-sm text-blue-700 dark:text-blue-300 font-black">
-                      = {formatTakaBn(statementData?.totalInvoices || 0, true)}
-                    </span>
-                  </div>
-                </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                মোট রেকর্ড: <strong>{toBnDigits((customerEntries || []).length)}</strong> টি
               </div>
             </div>
 
-            {/* 4. Modal Footer Equation Bar */}
+            {/* 3. MAIN TABLE BODY */}
+            <div className="flex-1 overflow-y-auto p-4 bg-slate-50/50 dark:bg-slate-950/40">
+              {statementViewMode === 'EXCEL' ? (
+                /* ======================================================== */
+                /* ROYAL EXCEL-GRID LEDGER TABLE                            */
+                /* ======================================================== */
+                <div className="overflow-x-auto rounded-xl border-2 border-slate-300 dark:border-slate-700 shadow-md bg-white dark:bg-slate-900">
+                  <table className="w-full text-left text-xs border-collapse font-sans">
+                    {/* Navy Header with Gold Text */}
+                    <thead className="bg-[#0d2847] text-[#fbbf24] sticky top-0 border-b-2 border-amber-400 uppercase text-[11px] font-black tracking-wider">
+                      <tr>
+                        <th className="py-3 px-3 text-center border-r border-blue-900/60 w-12">ক্রম</th>
+                        <th className="py-3 px-3 border-r border-blue-900/60 w-28">তারিখ ও সময়</th>
+                        <th className="py-3 px-3 border-r border-blue-900/60 w-36">চালান / ভাউচার নং</th>
+                        <th className="py-3 px-4 border-r border-blue-900/60">বিবরণ / শস্যের নাম ও ওজন</th>
+                        <th className="py-3 px-3 text-right border-r border-blue-900/60 w-32">মোট বিল (+ ৳)</th>
+                        <th className="py-3 px-3 text-right border-r border-blue-900/60 w-32">জমা / আদায় (- ৳)</th>
+                        <th className="py-3 px-3 text-right border-r border-blue-900/60 w-36">চলমান ব্যালেন্স (৳)</th>
+                        <th className="py-3 px-3 border-r border-blue-900/60 w-36">মন্তব্য / টীকা</th>
+                        <th className="py-3 px-3 text-center w-24">অ্যাকশন</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                      {loadingEntries ? (
+                        <tr>
+                          <td colSpan={9} className="py-12 text-center text-slate-400 font-bold">
+                            লোড হচ্ছে...
+                          </td>
+                        </tr>
+                      ) : (customerEntries || []).length === 0 ? (
+                        <tr>
+                          <td colSpan={9} className="py-12 text-center text-slate-500 font-medium">
+                            কোনো লেনদেন রেকর্ড পাওয়া যায়নি।
+                          </td>
+                        </tr>
+                      ) : (
+                        (customerEntries || []).map((row, idx) => {
+                          const isEditing = editingLedgerId === row.id;
+                          return (
+                            <tr
+                              key={row.id}
+                              className={`transition-colors border-b border-slate-200 dark:border-slate-800 ${
+                                isEditing
+                                  ? 'bg-amber-50/80 dark:bg-amber-950/30'
+                                  : idx % 2 === 0
+                                  ? 'bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                                  : 'bg-slate-50/60 dark:bg-slate-800/30 hover:bg-slate-100/70 dark:hover:bg-slate-800/60'
+                              }`}
+                            >
+                              {/* 1. ক্রম */}
+                              <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-500 border-r border-slate-200 dark:border-slate-800">
+                                {toBnDigits(idx + 1)}
+                              </td>
+
+                              {/* 2. তারিখ ও সময় */}
+                              <td className="py-2.5 px-3 border-r border-slate-200 dark:border-slate-800 whitespace-nowrap">
+                                {isEditing ? (
+                                  <input
+                                    type="date"
+                                    value={editLedgerDate}
+                                    onChange={(e) => setEditLedgerDate(e.target.value)}
+                                    className="w-full bg-white dark:bg-slate-800 border border-amber-500 rounded px-1.5 py-1 text-xs outline-none font-mono"
+                                  />
+                                ) : (
+                                  <span className="text-slate-800 dark:text-slate-200 font-mono text-[11px]">
+                                    {formatDate(row.entry_date)}
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* 3. চালান / ভাউচার নং */}
+                              <td className="py-2.5 px-3 border-r border-slate-200 dark:border-slate-800 font-mono font-bold text-cyan-700 dark:text-cyan-400 text-xs">
+                                {row.reference_no || '-'}
+                              </td>
+
+                              {/* 4. বিবরণ */}
+                              <td className="py-2.5 px-4 border-r border-slate-200 dark:border-slate-800">
+                                {isEditing ? (
+                                  <input
+                                    type="text"
+                                    value={editLedgerDesc}
+                                    onChange={(e) => setEditLedgerDesc(e.target.value)}
+                                    className="w-full bg-white dark:bg-slate-800 border border-amber-500 rounded px-2 py-1 text-xs outline-none"
+                                  />
+                                ) : (
+                                  <span className="text-slate-900 dark:text-slate-100 font-medium">
+                                    {row.description || '-'}
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* 5. মোট বিল (+ ৳) */}
+                              <td className="py-2.5 px-3 text-right border-r border-slate-200 dark:border-slate-800 font-mono whitespace-nowrap">
+                                {isEditing ? (
+                                  <input
+                                    type="text"
+                                    value={editLedgerDebit}
+                                    onChange={(e) => setEditLedgerDebit(toEnglishDigits(e.target.value))}
+                                    className="w-full bg-white dark:bg-slate-800 border border-amber-500 rounded px-1.5 py-1 text-xs outline-none text-right font-mono font-bold"
+                                  />
+                                ) : row.debit > 0 ? (
+                                  <span className="font-bold text-blue-600 dark:text-blue-400">
+                                    +{formatTakaBn(row.debit, true)}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">-</span>
+                                )}
+                              </td>
+
+                              {/* 6. জমা / আদায় (- ৳) */}
+                              <td className="py-2.5 px-3 text-right border-r border-slate-200 dark:border-slate-800 font-mono whitespace-nowrap">
+                                {isEditing ? (
+                                  <input
+                                    type="text"
+                                    value={editLedgerCredit}
+                                    onChange={(e) => setEditLedgerCredit(toEnglishDigits(e.target.value))}
+                                    className="w-full bg-white dark:bg-slate-800 border border-amber-500 rounded px-1.5 py-1 text-xs outline-none text-right font-mono font-bold"
+                                  />
+                                ) : row.credit > 0 ? (
+                                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                    -{formatTakaBn(row.credit, true)}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">-</span>
+                                )}
+                              </td>
+
+                              {/* 7. চলমান ব্যালেন্স (৳) */}
+                              <td className="py-2.5 px-3 text-right border-r border-slate-200 dark:border-slate-800 font-mono whitespace-nowrap font-black">
+                                <span
+                                  className={
+                                    row.running_balance > 0
+                                      ? 'text-rose-600 dark:text-rose-400'
+                                      : 'text-emerald-600 dark:text-emerald-400'
+                                  }
+                                >
+                                  {formatTakaBn(row.running_balance, true)}
+                                </span>
+                              </td>
+
+                              {/* 8. মন্তব্য / টীকা */}
+                              <td className="py-2.5 px-3 border-r border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400">
+                                {isEditing ? (
+                                  <input
+                                    type="text"
+                                    value={editLedgerNotes}
+                                    onChange={(e) => setEditLedgerNotes(e.target.value)}
+                                    placeholder="মন্তব্য..."
+                                    className="w-full bg-white dark:bg-slate-800 border border-amber-500 rounded px-1.5 py-1 text-xs outline-none"
+                                  />
+                                ) : (
+                                  row.notes || '-'
+                                )}
+                              </td>
+
+                              {/* 9. অ্যাকশন */}
+                              <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                {isEditing ? (
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSaveRow(row.id)}
+                                      disabled={savingLedgerRow}
+                                      className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold shadow-xs cursor-pointer"
+                                      title="সংরক্ষণ করুন"
+                                    >
+                                      {savingLedgerRow ? '...' : '💾 সেভ'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={handleCancelEditRow}
+                                      className="px-1.5 py-1 bg-slate-300 hover:bg-slate-400 dark:bg-slate-700 text-slate-800 dark:text-white rounded text-[10px] cursor-pointer"
+                                      title="বাতিল"
+                                    >
+                                      ❌
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStartEditRow(row)}
+                                      className="p-1 text-amber-600 hover:text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded transition-colors cursor-pointer"
+                                      title="এন্ট্রি এডিট করুন"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteLedgerRow(row)}
+                                      className="p-1 text-rose-500 hover:text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded transition-colors cursor-pointer"
+                                      title="এন্ট্রি মুছুন"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+
+                    {/* GOLDEN সর্বমোট SUMMARY ROW */}
+                    <tfoot className="bg-amber-100/90 dark:bg-amber-950/80 border-t-2 border-amber-400 text-slate-950 dark:text-amber-200 font-bold text-xs">
+                      <tr>
+                        <td colSpan={4} className="py-3 px-4 text-right font-black border-r border-amber-300 dark:border-amber-800">
+                          সর্বমোট লেজার হিসাব:
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono font-black text-blue-700 dark:text-blue-300 border-r border-amber-300 dark:border-amber-800">
+                          +{formatTakaBn(statementData?.totalInvoices || 0, true)}
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono font-black text-emerald-700 dark:text-emerald-300 border-r border-amber-300 dark:border-amber-800">
+                          -{formatTakaBn(statementData?.totalInflow || 0, true)}
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono font-black text-sm text-slate-950 dark:text-amber-100 border-r border-amber-300 dark:border-amber-800">
+                          = {formatTakaBn(statementData?.netDue || 0, true)}
+                        </td>
+                        <td colSpan={2} className="py-3 px-3 text-center font-bold text-[11px] text-amber-900 dark:text-amber-300">
+                          {statementData && statementData.netDue > 0 ? '⚠️ পাওনা বাকি' : '✅ পরিশোধিত'}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              ) : (
+                /* ======================================================== */
+                /* TRADITIONAL DUAL SIDE-BY-SIDE TABLES (CRASH-PROOF)      */
+                /* ======================================================== */
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {/* Left Side: জমা / পরিশোধ (Cash Received) */}
+                  <div className="bg-white dark:bg-slate-900 border border-emerald-500/40 rounded-2xl overflow-hidden flex flex-col shadow-sm">
+                    <div className="bg-gradient-to-r from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:via-emerald-900 dark:to-emerald-950 border-b border-emerald-500/40 px-4 py-2.5 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"></span>
+                        <h4 className="font-bold text-emerald-900 dark:text-emerald-300">জমা / পরিশোধ (Cash Received)</h4>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
+                        {toBnDigits((statementData?.payments || []).length)} টি এন্ট্রি
+                      </span>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto max-h-[380px]">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-slate-100 dark:bg-[#0B0F19] text-slate-700 dark:text-slate-400 uppercase text-[10px] font-bold sticky top-0 border-b border-slate-200 dark:border-slate-800">
+                          <tr>
+                            <th className="py-2.5 px-3">তারিখ</th>
+                            <th className="py-2.5 px-3">রশিদ নং / মাধ্যম</th>
+                            <th className="py-2.5 px-3 text-right">জমার পরিমাণ (৳)</th>
+                            <th className="py-2.5 px-3 text-center">অ্যাকশন</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                          {loadingEntries ? (
+                            <tr><td colSpan={4} className="py-8 text-center text-slate-400">লোড হচ্ছে...</td></tr>
+                          ) : (statementData?.payments || []).length === 0 ? (
+                            <tr><td colSpan={4} className="py-8 text-center text-slate-500">কোনো জমার এন্ট্রি নেই</td></tr>
+                          ) : (
+                            (statementData?.payments || []).map((p) => (
+                              <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300 whitespace-nowrap">{formatDate(p.entry_date)}</td>
+                                <td className="py-2.5 px-3 text-slate-800 dark:text-slate-200">
+                                  <div>{p.description || p.reference_no || 'ক্যাশ জমা'}</div>
+                                  {p.reference_no && <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">{p.reference_no}</div>}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                                  {formatTakaBn(p.credit || 0, true)}
+                                </td>
+                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteVoucher(p.id, p.credit || 0)}
+                                    className="p-1 text-rose-500 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 hover:bg-rose-500/20 rounded transition-colors cursor-pointer"
+                                    title="জমার রেকর্ড বাতিল / মুছুন"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="bg-emerald-50 dark:bg-emerald-950/80 border-t-2 border-emerald-500 text-emerald-900 dark:text-emerald-200 px-4 py-2.5 font-bold flex items-center justify-between text-xs">
+                      <span>মোট জমা:</span>
+                      <span className="font-mono text-sm text-emerald-700 dark:text-emerald-300 font-black">
+                        = {formatTakaBn(statementData?.totalInflow || 0, true)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Right Side: খরচ বা ক্রয় / চালান (Invoices & Dues) */}
+                  <div className="bg-white dark:bg-slate-900 border border-blue-500/40 rounded-2xl overflow-hidden flex flex-col shadow-sm">
+                    <div className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950 dark:via-blue-900 dark:to-blue-950 border-b border-blue-500/40 px-4 py-2.5 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-blue-500 dark:bg-blue-400 animate-pulse"></span>
+                        <h4 className="font-bold text-blue-900 dark:text-blue-300">খরচ বা ক্রয় / চালান (Invoices & Dues)</h4>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-800 dark:text-blue-300 text-[10px] font-bold border border-blue-500/30">
+                        {toBnDigits((statementData?.invoices || []).length)} টি চালান
+                      </span>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto max-h-[380px]">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-slate-100 dark:bg-[#0B0F19] text-slate-700 dark:text-slate-400 uppercase text-[10px] font-bold sticky top-0 border-b border-slate-200 dark:border-slate-800">
+                          <tr>
+                            <th className="py-2.5 px-3">তারিখ</th>
+                            <th className="py-2.5 px-3">চালান নং / আইটেম বিবরণ</th>
+                            <th className="py-2.5 px-3 text-right">মোট বিল (৳)</th>
+                            <th className="py-2.5 px-3 text-center">অ্যাকশন</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                          {loadingEntries ? (
+                            <tr><td colSpan={4} className="py-8 text-center text-slate-400">লোড হচ্ছে...</td></tr>
+                          ) : (statementData?.invoices || []).length === 0 ? (
+                            <tr><td colSpan={4} className="py-8 text-center text-slate-500">কোনো ক্রয়ের চালান নেই</td></tr>
+                          ) : (
+                            (statementData?.invoices || []).map((inv) => {
+                              const matchingSale = statementData?.sales?.find((s: any) => s.invoice_no === inv.reference_no);
+                              return (
+                                <tr key={inv.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                  <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300 whitespace-nowrap">{formatDate(inv.entry_date)}</td>
+                                  <td className="py-2.5 px-3 text-slate-800 dark:text-slate-200">
+                                    <div className="font-semibold text-blue-600 dark:text-blue-300 font-mono">{inv.reference_no || 'চালান'}</div>
+                                    <div className="text-[11px] text-slate-600 dark:text-slate-300">
+                                      {matchingSale
+                                        ? `${matchingSale.commodity_name_bn || 'শস্য'} • ${toBnDigits(matchingSale.net_weight_mon || 0)} মণ`
+                                        : inv.description}
+                                    </div>
+                                  </td>
+                                  <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-600 dark:text-amber-400 whitespace-nowrap">
+                                    {formatTakaBn(inv.debit || 0, true)}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                    <span className="text-[10px] text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 font-mono">
+                                      {inv.transaction_type === 'SALE' ? 'চালান' : inv.transaction_type === 'ADJUSTMENT' ? 'পূর্বের বাকি' : inv.transaction_type}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="bg-blue-50 dark:bg-blue-950/80 border-t-2 border-blue-500 text-blue-900 dark:text-blue-200 px-4 py-2.5 font-bold flex items-center justify-between text-xs">
+                      <span>মোট ক্রয়:</span>
+                      <span className="font-mono text-sm text-blue-700 dark:text-blue-300 font-black">
+                        = {formatTakaBn(statementData?.totalInvoices || 0, true)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 4. MODAL FOOTER EQUATION BAR */}
             <div className="bg-slate-100 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-5 py-3.5 flex flex-col md:flex-row items-center justify-between gap-3 text-xs">
               <div className="flex items-center gap-2 flex-wrap font-medium text-slate-700 dark:text-slate-300">
                 <span className="text-slate-500 dark:text-slate-400">প্রারম্ভিক বকেয়া:</span>

@@ -82,6 +82,7 @@ let inMemoryStore = {
   partyLedger: [],
   cashbook: [],
   expenses: [],
+  recycle_bin: [],
   notes: [
     { id: 1, title: 'চলনবিল হাট সরিষার দরদাম', content: 'আজকের মাঘি সরিষার বাজার দর মণপ্রতি ২৮৫০ থেকে ২৯৫০ টাকা। শুকনা ও পরিষ্কার মাল দেখে কিনতে হবে।', category: 'দরদাম', is_pinned: 1, created_at: new Date().toISOString() },
     { id: 2, title: 'করিম বেপারীর বাকির তাগাদা', content: 'আগামী রবিবারে ৫০,০০০ টাকা কিস্তি জমা দেওয়ার কথা। ফোন দিয়ে মনে করিয়ে দিতে হবে।', category: 'বেপারী স্মরণিকা', is_pinned: 1, created_at: new Date().toISOString() },
@@ -250,6 +251,58 @@ async function resolveOrCreateParty(db, partyId, partyName, partyPhone = '', par
     inMemoryStore.parties.push(newParty);
     return newParty;
   }
+}
+
+// 60-Day Recycle Bin Soft-Delete Helper
+async function putInRecycleBin(db, {
+  module_type,
+  module_label,
+  original_id,
+  title,
+  amount = 0,
+  payload = {}
+}) {
+  const id = `REC-${Date.now()}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+  const now = new Date();
+  const deleted_at = now.toISOString();
+  // 60 days retention
+  const expiresDate = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+  const expires_at = expiresDate.toISOString();
+  const payload_json = JSON.stringify(payload);
+
+  if (db) {
+    try {
+      await db.prepare(`
+        INSERT INTO recycle_bin (id, module_type, module_label, original_id, title, amount, payload_json, deleted_at, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        id,
+        module_type,
+        module_label,
+        String(original_id),
+        title || 'মুছে ফেলা এন্ট্রি',
+        roundMoney(amount || 0),
+        payload_json,
+        deleted_at,
+        expires_at
+      ).run();
+    } catch (err) {
+      console.warn('[RecycleBin] insert failed:', err);
+    }
+  } else {
+    inMemoryStore.recycle_bin.unshift({
+      id,
+      module_type,
+      module_label,
+      original_id: String(original_id),
+      title: title || 'মুছে ফেলা এন্ট্রি',
+      amount: roundMoney(amount || 0),
+      payload_json,
+      deleted_at,
+      expires_at
+    });
+  }
+  return id;
 }
 
 // Automatic D1 Initialization
@@ -427,6 +480,21 @@ async function ensureD1Initialized(db) {
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS recycle_bin (
+        id TEXT PRIMARY KEY,
+        module_type TEXT NOT NULL,
+        module_label TEXT NOT NULL,
+        original_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        amount REAL DEFAULT 0.0,
+        payload_json TEXT NOT NULL,
+        deleted_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_recycle_bin_expires ON recycle_bin(expires_at);
+      CREATE INDEX IF NOT EXISTS idx_recycle_bin_module ON recycle_bin(module_type);
     `);
 
     // Ensure settings tables have default seeds
@@ -486,6 +554,14 @@ async function ensureD1Initialized(db) {
         ('theme_mode', 'obsidian-gold');
       `);
     }
+
+    // Schema Migrations (Idempotent): Add previous_due/remaining_due to sales, notes to party_ledger
+    await db.exec(`ALTER TABLE sales ADD COLUMN previous_due REAL DEFAULT 0.0;`).catch(() => null);
+    await db.exec(`ALTER TABLE sales ADD COLUMN remaining_due REAL DEFAULT 0.0;`).catch(() => null);
+    await db.exec(`ALTER TABLE party_ledger ADD COLUMN notes TEXT;`).catch(() => null);
+
+    // Auto-purge recycle bin entries older than 60 days
+    await db.exec(`DELETE FROM recycle_bin WHERE expires_at < CURRENT_TIMESTAMP;`).catch(() => null);
 
     d1Initialized = true;
   } catch (err) {
@@ -651,6 +727,17 @@ export default {
           if (request.method === 'DELETE' || (request.method === 'POST' && url.pathname.endsWith('/delete'))) {
             const force = url.searchParams.get('force') === 'true';
             if (db) {
+              const comm = await db.prepare('SELECT * FROM commodities WHERE id = ?').bind(id).first();
+              if (comm) {
+                await putInRecycleBin(db, {
+                  module_type: 'crop',
+                  module_label: 'শস্যের জাত',
+                  original_id: comm.id,
+                  title: `${comm.name_bn} (${(comm.current_stock_kg / 40).toFixed(1)} মণ)`,
+                  amount: comm.current_stock_kg * (comm.current_wac_per_kg || 0),
+                  payload: { commodity: comm }
+                });
+              }
               if (force) {
                 await db.batch([
                   db.prepare('DELETE FROM stock_adjustments WHERE commodity_id = ?').bind(id),
@@ -663,7 +750,19 @@ export default {
               await db.prepare('UPDATE commodities SET is_active = 0 WHERE id = ?').bind(id).run();
               return sendJson({ success: true, message: 'শস্য নিষ্ক্রিয় করা হয়েছে' });
             }
-            inMemoryStore.commodities = inMemoryStore.commodities.filter(c => c.id !== id);
+            const cIdx = inMemoryStore.commodities.findIndex(c => c.id === id);
+            if (cIdx !== -1) {
+              const cm = inMemoryStore.commodities[cIdx];
+              putInRecycleBin(null, {
+                module_type: 'crop',
+                module_label: 'শস্যের জাত',
+                original_id: cm.id,
+                title: `${cm.name_bn} (${(cm.current_stock_kg / 40).toFixed(1)} মণ)`,
+                amount: cm.current_stock_kg * (cm.current_wac_per_kg || 0),
+                payload: { commodity: cm }
+              });
+              inMemoryStore.commodities.splice(cIdx, 1);
+            }
             return sendJson({ success: true, message: 'শস্য মুছে ফেলা হয়েছে' });
           }
         }
@@ -730,7 +829,15 @@ export default {
                   is_pinned = COALESCE(?, is_pinned),
                   updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-              `).bind(body.name, body.phone, body.address, body.party_type, body.is_pinned, id).run();
+              `).bind(
+                body.name !== undefined ? body.name : null,
+                body.phone !== undefined ? body.phone : null,
+                body.address !== undefined ? body.address : null,
+                body.party_type !== undefined ? body.party_type : null,
+                body.notes !== undefined ? body.notes : null,
+                body.is_pinned !== undefined ? (body.is_pinned ? 1 : 0) : null,
+                id
+              ).run();
               const updated = await db.prepare('SELECT * FROM parties WHERE id = ?').bind(id).first();
               return sendJson(updated);
             }
@@ -741,6 +848,17 @@ export default {
           if (request.method === 'DELETE' || (request.method === 'POST' && url.pathname.endsWith('/delete'))) {
             const force = url.searchParams.get('force') === 'true';
             if (db) {
+              const pt = await db.prepare('SELECT * FROM parties WHERE id = ?').bind(id).first();
+              if (pt) {
+                await putInRecycleBin(db, {
+                  module_type: 'party',
+                  module_label: 'বাকি খাতা / পার্টি',
+                  original_id: pt.id,
+                  title: `${pt.name} (${pt.phone || 'ফোন নেই'})`,
+                  amount: pt.current_balance || 0,
+                  payload: { party: pt }
+                });
+              }
               if (force) {
                 await db.batch([
                   db.prepare('DELETE FROM party_ledger WHERE party_id = ?').bind(id),
@@ -751,7 +869,19 @@ export default {
               await db.prepare('UPDATE parties SET is_active = 0 WHERE id = ?').bind(id).run();
               return sendJson({ success: true, message: 'পার্টি সফলভাবে মুছে ফেলা হয়েছে' });
             }
-            inMemoryStore.parties = inMemoryStore.parties.filter(p => p.id !== id);
+            const pIdx = inMemoryStore.parties.findIndex(p => p.id === id);
+            if (pIdx !== -1) {
+              const pt = inMemoryStore.parties[pIdx];
+              putInRecycleBin(null, {
+                module_type: 'party',
+                module_label: 'বাকি খাতা / পার্টি',
+                original_id: pt.id,
+                title: `${pt.name} (${pt.phone || 'ফোন নেই'})`,
+                amount: pt.current_balance || 0,
+                payload: { party: pt }
+              });
+              inMemoryStore.parties.splice(pIdx, 1);
+            }
             return sendJson({ success: true, message: 'মুছে ফেলা হয়েছে' });
           }
         }
@@ -832,9 +962,41 @@ export default {
             const { results: ledger } = await db.prepare('SELECT * FROM party_ledger WHERE party_id = ? ORDER BY entry_date ASC, id ASC').bind(partyId).all();
             const { results: sales } = await db.prepare('SELECT s.*, c.name_bn as commodity_name FROM sales s JOIN commodities c ON s.commodity_id = c.id WHERE s.party_id = ? ORDER BY s.id DESC').bind(partyId).all();
             const { results: purchases } = await db.prepare('SELECT p.*, c.name_bn as commodity_name FROM purchases p JOIN commodities c ON p.commodity_id = c.id WHERE p.party_id = ? ORDER BY p.id DESC').bind(partyId).all();
-            return sendJson({ party, ledger, sales, purchases });
+
+            const ledgerList = ledger || [];
+            const payments = ledgerList.filter(e => (e.credit || 0) > 0 || e.transaction_type === 'PAYMENT_RECEIVED');
+            const invoices = ledgerList.filter(e => (e.debit || 0) > 0 && e.transaction_type !== 'OPENING');
+            const totalInflow = payments.reduce((s, p) => s + (p.credit || 0), 0);
+            const totalInvoices = invoices.reduce((s, i) => s + (i.debit || 0), 0);
+            const openingDue = party ? (party.opening_balance || 0) : 0;
+            const netDue = party ? party.current_balance : 0;
+
+            return sendJson({
+              party,
+              ledger: ledgerList,
+              sales: sales || [],
+              purchases: purchases || [],
+              payments,
+              invoices,
+              totalInflow,
+              totalInvoices,
+              openingDue,
+              netDue
+            });
           }
-          return sendJson({ party: inMemoryStore.parties.find(p => p.id === partyId), ledger: [], sales: [], purchases: [] });
+          const p = inMemoryStore.parties.find(x => x.id === partyId);
+          return sendJson({
+            party: p,
+            ledger: [],
+            sales: [],
+            purchases: [],
+            payments: [],
+            invoices: [],
+            totalInflow: 0,
+            totalInvoices: 0,
+            openingDue: p?.opening_balance || 0,
+            netDue: p?.current_balance || 0
+          });
         }
 
         // --- PURCHASES (ক্রয় ও স্টক-ইন) ---
@@ -1025,6 +1187,18 @@ export default {
             const purchaseId = p.id;
             const invNo = p.invoice_no;
 
+            // Snapshot in recycle bin before deleting
+            const pleger = await db.prepare("SELECT * FROM party_ledger WHERE reference_no = ?").bind(invNo).all().catch(() => ({ results: [] }));
+            const pcash = await db.prepare("SELECT * FROM cashbook WHERE reference_no = ?").bind(invNo).all().catch(() => ({ results: [] }));
+            await putInRecycleBin(db, {
+              module_type: 'purchase',
+              module_label: 'শস্য ক্রয়',
+              original_id: p.id,
+              title: `ক্রয় চালান ${p.invoice_no} (${p.net_weight_mon} মণ @ ৳${p.rate_per_mon})`,
+              amount: p.total_landed_cost || p.gross_amount || 0,
+              payload: { purchase: p, ledger: pleger?.results || [], cash: pcash?.results || [] }
+            });
+
             // 1. Fetch commodity and recalculate stock & WAC
             const comm = await db.prepare('SELECT * FROM commodities WHERE id = ?').bind(p.commodity_id).first();
             const newStockKg = Math.max(0, roundWeight(subWeight(comm?.current_stock_kg || 0, p.net_weight_kg)));
@@ -1080,6 +1254,15 @@ export default {
 
           const idx = inMemoryStore.purchases.findIndex(item => item.id === id || item.invoice_no === invoiceNoQuery);
           if (idx !== -1) {
+            const p = inMemoryStore.purchases[idx];
+            putInRecycleBin(null, {
+              module_type: 'purchase',
+              module_label: 'শস্য ক্রয়',
+              original_id: p.id,
+              title: `ক্রয় চালান ${p.invoice_no} (${p.net_weight_mon} মণ @ ৳${p.rate_per_mon})`,
+              amount: p.total_landed_cost || p.gross_amount || 0,
+              payload: { purchase: p }
+            });
             inMemoryStore.purchases.splice(idx, 1);
             return sendJson({ success: true, message: 'ক্রয় চালান মুছে ফেলা হয়েছে' });
           }
@@ -1119,14 +1302,12 @@ export default {
             const discount = roundMoney(body.discount_amount || 0);
             const netInvoiceAmount = roundMoney(Math.max(0, subMoney(addMoney(grossAmount, loading), addMoney(damage, discount))));
 
-            const paidAmount = roundMoney(body.paid_amount || 0);
-            const dueAmount = roundMoney(Math.max(0, subMoney(netInvoiceAmount, paidAmount)));
-
-            let payMethod = 'CASH';
-            if (body.payment_method === 'BANK') payMethod = 'BANK';
-            else if (dueAmount <= 0) payMethod = 'CASH';
-            else if (paidAmount <= 0) payMethod = 'DUE';
-            else payMethod = 'PARTIAL';
+            // Safe parsing of paid_amount: strictly allow 0 without defaulting
+            const paidAmount = roundMoney(
+              body.paid_amount !== undefined && body.paid_amount !== null && body.paid_amount !== ''
+                ? Number(body.paid_amount)
+                : 0
+            );
 
             const dateStr = (body.sale_date || new Date().toISOString().split('T')[0]).replace(/-/g, '');
             const invoiceNo = `SAL-${dateStr}-${Date.now().toString().slice(-4)}`;
@@ -1143,12 +1324,24 @@ export default {
               const party = await resolveOrCreateParty(db, body.party_id, customerName, customerPhone, 'BUYER', isTest);
               const partyId = party.id;
 
+              // Exact 5-Step Formula
+              const todayBill = netInvoiceAmount;
+              const prevDue = roundMoney(party.current_balance || 0);
+              const grandTotal = roundMoney(todayBill + prevDue);
+              const remainingDue = roundMoney(grandTotal - paidAmount);
+
+              let payMethod = 'CASH';
+              if (body.payment_method === 'BANK') payMethod = 'BANK';
+              else if (remainingDue <= 0) payMethod = 'CASH';
+              else if (paidAmount <= 0) payMethod = 'DUE';
+              else payMethod = 'PARTIAL';
+
               const cogs = roundMoney(netKg * commodity.current_wac_per_kg);
               const profit = subMoney(netInvoiceAmount, cogs);
 
               const remainingStockKg = roundWeight(subWeight(commodity.current_stock_kg, netKg));
               const remainingBags = Math.max(0, commodity.current_stock_bags - (body.bags_count || 0));
-              const newPartyBal = addMoney(party.current_balance, subMoney(netInvoiceAmount, paidAmount));
+              const newPartyBal = remainingDue;
 
               const batchStmts = [
                 db.prepare(`
@@ -1158,15 +1351,17 @@ export default {
                     rate_per_mon, gross_amount, loading_charge, damaged_bag_deduction, discount_amount,
                     net_invoice_amount, payment_method, paid_amount, due_amount,
                     vehicle_no, driver_name, driver_phone, destination,
-                    cogs_amount, realized_profit, is_test_draft, notes
-                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    cogs_amount, realized_profit, is_test_draft, notes,
+                    previous_due, remaining_due
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `).bind(
                   invoiceNo, body.sale_date, partyId, body.commodity_id, body.bags_count || 0,
                   grossKg, bagDedKg, netKg, netMon,
                   rateMon, grossAmount, loading, damage, discount,
-                  netInvoiceAmount, payMethod, paidAmount, dueAmount,
+                  netInvoiceAmount, payMethod, paidAmount, remainingDue,
                   body.vehicle_no || '', body.driver_name || '', body.driver_phone || '', body.destination || '',
-                  cogs, profit, isTest, body.notes || ''
+                  cogs, profit, isTest, body.notes || '',
+                  prevDue, remainingDue
                 ),
                 db.prepare(`
                   UPDATE commodities SET current_stock_kg = ?, current_stock_bags = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
@@ -1177,7 +1372,7 @@ export default {
                   VALUES (?, ?, 'SALE', ?, ?, 0, ?, ?, ?)
                 `).bind(
                   body.sale_date, partyId, invoiceNo,
-                  netInvoiceAmount, addMoney(party.current_balance, netInvoiceAmount), isTest,
+                  todayBill, addMoney(prevDue, todayBill), isTest,
                   `বিক্রয়: ${commodity.name_bn} (${netMon.toFixed(2)} মন / ${body.bags_count} বস্তা @ ৳${rateMon}/মন)`
                 )
               ];
@@ -1289,11 +1484,19 @@ export default {
               });
             }
 
-            const totalPaid = roundMoney(body.cash_paid || 0);
-            const totalDue = roundMoney(Math.max(0, subMoney(grandTotalBill, totalPaid)));
+            // Exact 5-Step Formula
+            const prevDue = roundMoney(party.current_balance || 0);
+            const grandTotal = roundMoney(grandTotalBill + prevDue);
+            const totalPaid = roundMoney(
+              body.cash_paid !== undefined && body.cash_paid !== null && body.cash_paid !== ''
+                ? Number(body.cash_paid)
+                : (body.paid_amount !== undefined && body.paid_amount !== null && body.paid_amount !== '' ? Number(body.paid_amount) : 0)
+            );
+            const remainingDue = roundMoney(grandTotal - totalPaid);
+
             let payMethod = 'CASH';
             if (body.payment_method === 'BANK') payMethod = 'BANK';
-            else if (totalDue <= 0) payMethod = 'CASH';
+            else if (remainingDue <= 0) payMethod = 'CASH';
             else if (totalPaid <= 0) payMethod = 'DUE';
             else payMethod = 'PARTIAL';
 
@@ -1302,8 +1505,9 @@ export default {
 
             for (let idx = 0; idx < itemsProcessed.length; idx++) {
               const p = itemsProcessed[idx];
-              const itemPaid = idx === 0 ? Math.min(p.itemTotal, totalPaid) : 0;
-              const itemDue = Math.max(0, subMoney(p.itemTotal, itemPaid));
+              const itemPaid = idx === 0 ? totalPaid : 0;
+              const itemPrevDue = idx === 0 ? prevDue : 0;
+              const itemRemainingDue = idx === 0 ? remainingDue : 0;
 
               batchStmts.push(
                 db.prepare(`
@@ -1313,14 +1517,16 @@ export default {
                     rate_per_mon, gross_amount, loading_charge, damaged_bag_deduction, discount_amount,
                     net_invoice_amount, payment_method, paid_amount, due_amount,
                     vehicle_no, driver_name, driver_phone, destination,
-                    cogs_amount, realized_profit, is_test_draft, notes
-                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, '', '', '', '', ?, ?, ?, ?)
+                    cogs_amount, realized_profit, is_test_draft, notes,
+                    previous_due, remaining_due
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, '', '', '', '', ?, ?, ?, ?, ?, ?)
                 `).bind(
                   p.itemInvoiceNo, body.sale_date, partyId, p.item.commodity_id, p.bagsCount,
                   p.grossKg, p.bagDedKg, p.netKg, p.netMon,
                   p.rateMon, p.itemTotal,
-                  p.itemTotal, payMethod, itemPaid, itemDue,
-                  p.cogs, p.profit, isTest, body.notes || ''
+                  p.itemTotal, payMethod, itemPaid, itemRemainingDue,
+                  p.cogs, p.profit, isTest, body.notes || '',
+                  itemPrevDue, itemRemainingDue
                 ),
                 db.prepare(`
                   UPDATE commodities SET
@@ -1336,8 +1542,7 @@ export default {
               itemSummaries.push(`${p.commodity.name_bn} (${p.bagsCount} বস্তা, ${p.netMon.toFixed(1)} মণ @ ৳${p.rateMon})`);
             }
 
-            const netCustomerChange = subMoney(grandTotalBill, totalPaid);
-            const newPartyBal = addMoney(party.current_balance, netCustomerChange);
+            const newPartyBal = remainingDue;
 
             batchStmts.push(
               db.prepare('UPDATE parties SET current_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(newPartyBal, partyId),
@@ -1346,7 +1551,7 @@ export default {
                 VALUES (?, ?, 'SALE', ?, ?, 0, ?, ?, ?)
               `).bind(
                 body.sale_date, partyId, baseInvoiceNo,
-                grandTotalBill, addMoney(party.current_balance, grandTotalBill), isTest,
+                grandTotalBill, addMoney(prevDue, grandTotalBill), isTest,
                 `পাইকারি বিক্রয় চালান: ${itemSummaries.join(', ')}`
               )
             );
@@ -1434,6 +1639,18 @@ export default {
             const saleId = s.id;
             const invNo = s.invoice_no;
 
+            // Snapshot in recycle bin before deleting
+            const sleger = await db.prepare("SELECT * FROM party_ledger WHERE reference_no = ?").bind(invNo).all().catch(() => ({ results: [] }));
+            const scash = await db.prepare("SELECT * FROM cashbook WHERE reference_no = ?").bind(invNo).all().catch(() => ({ results: [] }));
+            await putInRecycleBin(db, {
+              module_type: 'sale',
+              module_label: 'পাইকারি বিক্রয়',
+              original_id: s.id,
+              title: `বিক্রয় চালান ${s.invoice_no} (${s.net_weight_mon} মণ @ ৳${s.rate_per_mon})`,
+              amount: s.net_invoice_amount || s.gross_amount || 0,
+              payload: { sales: [s], invoice_no: invNo, ledger: sleger?.results || [], cash: scash?.results || [] }
+            });
+
             const batchStmts = [
               db.prepare(`
                 UPDATE commodities SET
@@ -1451,8 +1668,9 @@ export default {
             if (s.party_id) {
               const party = await db.prepare('SELECT * FROM parties WHERE id = ?').bind(s.party_id).first();
               if (party) {
-                const netCustomerChange = subMoney(s.net_invoice_amount, s.paid_amount);
-                const revertedBal = subMoney(party.current_balance, netCustomerChange);
+                const revertedBal = (s.previous_due !== undefined && s.previous_due !== null && s.previous_due > 0)
+                  ? s.previous_due
+                  : subMoney(party.current_balance, subMoney(s.net_invoice_amount, s.paid_amount));
                 batchStmts.push(
                   db.prepare('UPDATE parties SET current_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(revertedBal, s.party_id)
                 );
@@ -1465,6 +1683,15 @@ export default {
 
           const idx = inMemoryStore.sales.findIndex(item => item.id === id || item.invoice_no === invoiceNoQuery);
           if (idx !== -1) {
+            const s = inMemoryStore.sales[idx];
+            putInRecycleBin(null, {
+              module_type: 'sale',
+              module_label: 'পাইকারি বিক্রয়',
+              original_id: s.id,
+              title: `বিক্রয় চালান ${s.invoice_no} (${s.net_weight_mon} মণ @ ৳${s.rate_per_mon})`,
+              amount: s.net_invoice_amount || s.gross_amount || 0,
+              payload: { sales: [s], invoice_no: s.invoice_no }
+            });
             inMemoryStore.sales.splice(idx, 1);
             return sendJson({ success: true, message: 'বিক্রয় চালান মুছে ফেলা হয়েছে' });
           }
@@ -1515,6 +1742,15 @@ export default {
             const a = await db.prepare('SELECT * FROM stock_adjustments WHERE id = ?').bind(id).first();
             if (!a) return sendJson({ success: false, error: 'শুকতি ঘাটতি রেকর্ড পাওয়া যায়নি' }, 404);
 
+            await putInRecycleBin(db, {
+              module_type: 'shrinkage',
+              module_label: 'ঘাটতি সমন্বয়',
+              original_id: a.id,
+              title: `${a.reason || 'রোদে শুকতি ঘাটতি'} (${a.lost_weight_mon} মণ)`,
+              amount: a.cost_value || 0,
+              payload: { adjustment: a }
+            });
+
             await db.batch([
               db.prepare(`
                 UPDATE commodities SET
@@ -1528,7 +1764,18 @@ export default {
             return sendJson({ success: true, message: 'শুকতি ঘাটতি রেকর্ড সফলভাবে মুছে ফেলা হয়েছে এবং স্টক স্বাভাবিক করা হয়েছে' });
           }
           const idx = inMemoryStore.stockAdjustments.findIndex(x => x.id === id);
-          if (idx !== -1) inMemoryStore.stockAdjustments.splice(idx, 1);
+          if (idx !== -1) {
+            const a = inMemoryStore.stockAdjustments[idx];
+            putInRecycleBin(null, {
+              module_type: 'shrinkage',
+              module_label: 'ঘাটতি সমন্বয়',
+              original_id: a.id,
+              title: `${a.reason || 'রোদে শুকতি ঘাটতি'} (${a.lost_weight_mon} মণ)`,
+              amount: a.cost_value || 0,
+              payload: { adjustment: a }
+            });
+            inMemoryStore.stockAdjustments.splice(idx, 1);
+          }
           return sendJson({ success: true, message: 'রেকর্ড মুছে ফেলা হয়েছে' });
         }
 
@@ -1544,6 +1791,55 @@ export default {
         }
 
         const voucherDeleteMatch = url.pathname.match(/^\/api\/(?:ledgers\/voucher|parties\/voucher|ledgers)\/(\d+)$/);
+        if (voucherDeleteMatch && request.method === 'PUT') {
+          const ledgerId = parseInt(voucherDeleteMatch[1], 10);
+          const body = await request.json();
+          if (db) {
+            const entry = await db.prepare('SELECT * FROM party_ledger WHERE id = ?').bind(ledgerId).first();
+            if (!entry) return sendJson({ success: false, error: 'খতিয়ান রেকর্ড পাওয়া যায়নি' }, 404);
+
+            const partyId = entry.party_id;
+            const newDate = body.entry_date || entry.entry_date;
+            const newDesc = body.description !== undefined ? body.description : entry.description;
+            const newDebit = body.debit !== undefined ? roundMoney(Number(body.debit)) : entry.debit;
+            const newCredit = body.credit !== undefined ? roundMoney(Number(body.credit)) : entry.credit;
+            const newNotes = body.notes !== undefined ? body.notes : (entry.notes || '');
+
+            // Update target row
+            await db.prepare(`
+              UPDATE party_ledger SET
+                entry_date = ?,
+                description = ?,
+                debit = ?,
+                credit = ?,
+                notes = ?
+              WHERE id = ?
+            `).bind(newDate, newDesc, newDebit, newCredit, newNotes, ledgerId).run();
+
+            // Recalculate all rows for this party in chronological order
+            const party = await db.prepare('SELECT * FROM parties WHERE id = ?').bind(partyId).first();
+            const { results: allRows } = await db.prepare(
+              'SELECT * FROM party_ledger WHERE party_id = ? ORDER BY entry_date ASC, id ASC'
+            ).bind(partyId).all();
+
+            let running = party ? (party.opening_balance || 0) : 0;
+            const batchRecalc = [];
+            for (const r of (allRows || [])) {
+              running = roundMoney(running + (r.debit || 0) - (r.credit || 0));
+              batchRecalc.push(
+                db.prepare('UPDATE party_ledger SET running_balance = ? WHERE id = ?').bind(running, r.id)
+              );
+            }
+            batchRecalc.push(
+              db.prepare('UPDATE parties SET current_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(running, partyId)
+            );
+            await db.batch(batchRecalc);
+
+            return sendJson({ success: true, message: 'খতিয়ান এন্ট্রি সফলভাবে আপডেট করা হয়েছে', running_balance: running });
+          }
+          return sendJson({ success: true, message: 'আপডেট সম্পন্ন' });
+        }
+
         if (voucherDeleteMatch && (request.method === 'DELETE' || request.method === 'POST')) {
           const ledgerId = parseInt(voucherDeleteMatch[1], 10);
           if (db) {
@@ -1551,6 +1847,15 @@ export default {
             if (!entry) return sendJson({ success: false, error: 'ভাউচার রেকর্ড পাওয়া যায়নি' }, 404);
 
             const party = await db.prepare('SELECT * FROM parties WHERE id = ?').bind(entry.party_id).first();
+            await putInRecycleBin(db, {
+              module_type: 'ledger',
+              module_label: 'বাকি খাতা',
+              original_id: entry.id,
+              title: `${entry.description || 'ভাউচার'} (${party?.name || ''})`,
+              amount: (entry.credit || 0) > 0 ? entry.credit : (entry.debit || 0),
+              payload: { entry, party }
+            });
+
             const batchStmts = [];
 
             if (party) {
@@ -1692,11 +1997,33 @@ export default {
         ) {
           const id = cashbookIdMatch ? parseInt(cashbookIdMatch[1], 10) : parseInt(url.searchParams.get('id') || '0', 10);
           if (db) {
+            const cb = await db.prepare('SELECT * FROM cashbook WHERE id = ?').bind(id).first();
+            if (cb) {
+              await putInRecycleBin(db, {
+                module_type: 'cashbook',
+                module_label: 'ক্যাশ বই',
+                original_id: cb.id,
+                title: `${cb.description || cb.category} (${cb.entry_type === 'INFLOW' ? 'জমা' : 'খরচ'})`,
+                amount: cb.amount || 0,
+                payload: { entry: cb }
+              });
+            }
             await db.prepare('DELETE FROM cashbook WHERE id = ?').bind(id).run();
             return sendJson({ success: true, message: 'ক্যাশ বুক এন্ট্রি মুছে ফেলা হয়েছে' });
           }
           const idx = inMemoryStore.cashbook.findIndex(c => c.id === id);
-          if (idx !== -1) inMemoryStore.cashbook.splice(idx, 1);
+          if (idx !== -1) {
+            const cb = inMemoryStore.cashbook[idx];
+            putInRecycleBin(null, {
+              module_type: 'cashbook',
+              module_label: 'ক্যাশ বই',
+              original_id: cb.id,
+              title: `${cb.description || cb.category} (${cb.entry_type === 'INFLOW' ? 'জমা' : 'খরচ'})`,
+              amount: cb.amount || 0,
+              payload: { entry: cb }
+            });
+            inMemoryStore.cashbook.splice(idx, 1);
+          }
           return sendJson({ success: true });
         }
 
@@ -1746,6 +2073,14 @@ export default {
           if (db) {
             const exp = await db.prepare('SELECT * FROM expenses WHERE id = ?').bind(id).first();
             if (exp) {
+              await putInRecycleBin(db, {
+                module_type: 'expense',
+                module_label: 'পরিচালন খরচ',
+                original_id: exp.id,
+                title: `${exp.paid_to || ''} (${exp.category})`,
+                amount: exp.amount || 0,
+                payload: { expense: exp }
+              });
               await db.batch([
                 db.prepare("DELETE FROM cashbook WHERE category = 'EXPENSE' AND amount = ? AND entry_date = ?").bind(exp.amount, exp.expense_date),
                 db.prepare('DELETE FROM expenses WHERE id = ?').bind(id)
@@ -1754,7 +2089,18 @@ export default {
             return sendJson({ success: true, message: 'খরচ রেকর্ড মুছে ফেলা হয়েছে' });
           }
           const idx = inMemoryStore.expenses.findIndex(e => e.id === id);
-          if (idx !== -1) inMemoryStore.expenses.splice(idx, 1);
+          if (idx !== -1) {
+            const exp = inMemoryStore.expenses[idx];
+            putInRecycleBin(null, {
+              module_type: 'expense',
+              module_label: 'পরিচালন খরচ',
+              original_id: exp.id,
+              title: `${exp.paid_to || ''} (${exp.category})`,
+              amount: exp.amount || 0,
+              payload: { expense: exp }
+            });
+            inMemoryStore.expenses.splice(idx, 1);
+          }
           return sendJson({ success: true });
         }
         if (expenseIdMatch && request.method === 'PUT') {
@@ -1844,12 +2190,303 @@ export default {
           }
           if (request.method === 'DELETE') {
             if (db) {
+              const nt = await db.prepare('SELECT * FROM notes WHERE id = ?').bind(id).first();
+              if (nt) {
+                await putInRecycleBin(db, {
+                  module_type: 'note',
+                  module_label: 'নোটবুক',
+                  original_id: nt.id,
+                  title: nt.title || 'নোট',
+                  amount: 0,
+                  payload: { note: nt }
+                });
+              }
               await db.prepare('DELETE FROM notes WHERE id = ?').bind(id).run();
               return sendJson({ success: true, message: 'নোট মুছে ফেলা হয়েছে' });
             }
-            inMemoryStore.notes = inMemoryStore.notes.filter(n => n.id !== id);
+            const nIdx = inMemoryStore.notes.findIndex(n => n.id === id);
+            if (nIdx !== -1) {
+              const nt = inMemoryStore.notes[nIdx];
+              putInRecycleBin(null, {
+                module_type: 'note',
+                module_label: 'নোটবুক',
+                original_id: nt.id,
+                title: nt.title || 'নোট',
+                amount: 0,
+                payload: { note: nt }
+              });
+              inMemoryStore.notes.splice(nIdx, 1);
+            }
             return sendJson({ success: true });
           }
+        }
+
+        // --- RECYCLE BIN (রিসাইকেল বিন - ৬০ দিনের ডেটা সুরক্ষা ও ১-ক্লিক রিস্টোর) ---
+        if (url.pathname === '/api/recycle-bin/count' && request.method === 'GET') {
+          if (db) {
+            await db.prepare('DELETE FROM recycle_bin WHERE expires_at < CURRENT_TIMESTAMP').run().catch(() => null);
+            const res = await db.prepare('SELECT COUNT(*) as c FROM recycle_bin').first();
+            return sendJson({ count: res?.c || 0 });
+          }
+          const nowIso = new Date().toISOString();
+          inMemoryStore.recycle_bin = inMemoryStore.recycle_bin.filter(x => x.expires_at >= nowIso);
+          return sendJson({ count: inMemoryStore.recycle_bin.length });
+        }
+
+        if (url.pathname === '/api/recycle-bin' && request.method === 'GET') {
+          const moduleFilter = url.searchParams.get('module');
+          if (db) {
+            await db.prepare('DELETE FROM recycle_bin WHERE expires_at < CURRENT_TIMESTAMP').run().catch(() => null);
+            let query = 'SELECT * FROM recycle_bin';
+            const params = [];
+            if (moduleFilter && moduleFilter !== 'ALL') {
+              query += ' WHERE module_type = ?';
+              params.push(moduleFilter);
+            }
+            query += ' ORDER BY deleted_at DESC LIMIT 250';
+            const stmt = params.length > 0 ? db.prepare(query).bind(...params) : db.prepare(query);
+            const { results } = await stmt.all();
+            return sendJson(results || []);
+          }
+          const nowIso = new Date().toISOString();
+          inMemoryStore.recycle_bin = inMemoryStore.recycle_bin.filter(x => x.expires_at >= nowIso);
+          let list = inMemoryStore.recycle_bin;
+          if (moduleFilter && moduleFilter !== 'ALL') {
+            list = list.filter(x => x.module_type === moduleFilter);
+          }
+          return sendJson(list);
+        }
+
+        if (url.pathname === '/api/recycle-bin/empty' && (request.method === 'DELETE' || request.method === 'POST')) {
+          if (db) {
+            await db.prepare('DELETE FROM recycle_bin').run();
+            return sendJson({ success: true, message: 'রিসাইকেল বিন সম্পূর্ণ খালি করা হয়েছে' });
+          }
+          inMemoryStore.recycle_bin = [];
+          return sendJson({ success: true, message: 'রিসাইকেল বিন খালি করা হয়েছে' });
+        }
+
+        if (url.pathname === '/api/recycle-bin/purge' && (request.method === 'DELETE' || request.method === 'POST')) {
+          if (db) {
+            const res = await db.prepare('DELETE FROM recycle_bin WHERE expires_at < CURRENT_TIMESTAMP').run();
+            return sendJson({ success: true, purged: res?.changes || 0 });
+          }
+          const nowIso = new Date().toISOString();
+          const prevLen = inMemoryStore.recycle_bin.length;
+          inMemoryStore.recycle_bin = inMemoryStore.recycle_bin.filter(x => x.expires_at >= nowIso);
+          return sendJson({ success: true, purged: prevLen - inMemoryStore.recycle_bin.length });
+        }
+
+        const recycleIdMatch = url.pathname.match(/^\/api\/recycle-bin\/([^\/]+)$/);
+        if (recycleIdMatch && (request.method === 'DELETE' || request.method === 'POST')) {
+          const recId = recycleIdMatch[1];
+          if (db) {
+            await db.prepare('DELETE FROM recycle_bin WHERE id = ?').bind(recId).run();
+            return sendJson({ success: true, message: 'আইটেমটি স্থায়ীভাবে মুছে ফেলা হয়েছে' });
+          }
+          inMemoryStore.recycle_bin = inMemoryStore.recycle_bin.filter(x => x.id !== recId);
+          return sendJson({ success: true, message: 'আইটেমটি স্থায়ীভাবে মুছে ফেলা হয়েছে' });
+        }
+
+        const restoreMatch = url.pathname.match(/^\/api\/recycle-bin\/restore\/([^\/]+)$/);
+        if (restoreMatch && request.method === 'POST') {
+          const recId = restoreMatch[1];
+          let item = null;
+          if (db) {
+            item = await db.prepare('SELECT * FROM recycle_bin WHERE id = ?').bind(recId).first();
+          } else {
+            item = inMemoryStore.recycle_bin.find(x => x.id === recId);
+          }
+
+          if (!item) {
+            return sendJson({ success: false, error: 'রিসাইকেল বিনে আইটেমটি পাওয়া যায়নি বা মেয়াদোত্তীর্ণ হয়েছে' }, 404);
+          }
+
+          let payload = {};
+          try {
+            payload = JSON.parse(item.payload_json);
+          } catch (e) {
+            payload = {};
+          }
+
+          if (db) {
+            try {
+              if (item.module_type === 'purchase') {
+                const pur = payload.purchase;
+                if (pur) {
+                  await db.prepare(`
+                    INSERT OR REPLACE INTO purchases (
+                      id, invoice_no, purchase_date, party_id, commodity_id, bags_count,
+                      gross_weight_kg, bag_deduction_kg, net_weight_kg, net_weight_mon,
+                      rate_per_mon, gross_amount, labor_cost, transport_cost, bag_cost, other_cost,
+                      total_landed_cost, cost_per_mon, cost_per_kg, payment_method,
+                      paid_amount, due_amount, previous_wac_per_kg, new_wac_per_kg, is_test_draft, notes
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  `).bind(
+                    pur.id, pur.invoice_no, pur.purchase_date, pur.party_id, pur.commodity_id, pur.bags_count || 0,
+                    pur.gross_weight_kg, pur.bag_deduction_kg || 0, pur.net_weight_kg, pur.net_weight_mon,
+                    pur.rate_per_mon, pur.gross_amount, pur.labor_cost || 0, pur.transport_cost || 0, pur.bag_cost || 0, pur.other_cost || 0,
+                    pur.total_landed_cost, pur.cost_per_mon, pur.cost_per_kg, pur.payment_method || 'CASH',
+                    pur.paid_amount || 0, pur.due_amount || 0, pur.previous_wac_per_kg || 0, pur.new_wac_per_kg || 0, pur.is_test_draft || 0, pur.notes || ''
+                  ).run();
+
+                  await db.prepare(`
+                    UPDATE commodities SET
+                      current_stock_kg = current_stock_kg + ?,
+                      current_stock_bags = current_stock_bags + ?,
+                      updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                  `).bind(pur.net_weight_kg, pur.bags_count || 0, pur.commodity_id).run();
+
+                  if (pur.party_id) {
+                    const netSupp = subMoney(pur.paid_amount || 0, pur.gross_amount);
+                    await db.prepare('UPDATE parties SET current_balance = current_balance + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+                      .bind(netSupp, pur.party_id).run();
+                  }
+
+                  if (payload.ledger && payload.ledger.length > 0) {
+                    for (const l of payload.ledger) {
+                      await db.prepare(`
+                        INSERT OR REPLACE INTO party_ledger (id, entry_date, party_id, transaction_type, reference_id, reference_no, debit, credit, running_balance, is_test_draft, description)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                      `).bind(l.id, l.entry_date, l.party_id, l.transaction_type, l.reference_id, l.reference_no, l.debit, l.credit, l.running_balance, l.is_test_draft || 0, l.description).run().catch(() => null);
+                    }
+                  }
+
+                  if (payload.cash && payload.cash.length > 0) {
+                    for (const c of payload.cash) {
+                      await db.prepare(`
+                        INSERT OR REPLACE INTO cashbook (id, entry_date, entry_type, category, amount, payment_mode, reference_id, reference_no, party_id, is_test_draft, description)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                      `).bind(c.id, c.entry_date, c.entry_type, c.category, c.amount, c.payment_mode || 'CASH', c.reference_id, c.reference_no, c.party_id, c.is_test_draft || 0, c.description).run().catch(() => null);
+                    }
+                  }
+                }
+              } else if (item.module_type === 'sale') {
+                const sales = payload.sales || [];
+                for (const s of sales) {
+                  await db.prepare(`
+                    INSERT OR REPLACE INTO sales (
+                      id, invoice_no, sale_date, party_id, commodity_id, bags_count,
+                      gross_weight_kg, bag_deduction_kg, net_weight_kg, net_weight_mon,
+                      rate_per_mon, gross_amount, loading_charge, damaged_bag_deduction, discount_amount,
+                      net_invoice_amount, payment_method, paid_amount, due_amount,
+                      vehicle_no, driver_name, driver_phone, destination,
+                      cogs_amount, realized_profit, is_test_draft, notes,
+                      previous_due, remaining_due
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  `).bind(
+                    s.id, s.invoice_no, s.sale_date, s.party_id, s.commodity_id, s.bags_count || 0,
+                    s.gross_weight_kg, s.bag_deduction_kg || 0, s.net_weight_kg, s.net_weight_mon,
+                    s.rate_per_mon, s.gross_amount, s.loading_charge || 0, s.damaged_bag_deduction || 0, s.discount_amount || 0,
+                    s.net_invoice_amount, s.payment_method || 'CASH', s.paid_amount || 0, s.due_amount || 0,
+                    s.vehicle_no || '', s.driver_name || '', s.driver_phone || '', s.destination || '',
+                    s.cogs_amount || 0, s.realized_profit || 0, s.is_test_draft || 0, s.notes || '',
+                    s.previous_due || 0, s.remaining_due || 0
+                  ).run();
+
+                  await db.prepare(`
+                    UPDATE commodities SET
+                      current_stock_kg = MAX(0, current_stock_kg - ?),
+                      current_stock_bags = MAX(0, current_stock_bags - ?),
+                      updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                  `).bind(s.net_weight_kg, s.bags_count || 0, s.commodity_id).run();
+
+                  if (s.party_id) {
+                    const netCust = subMoney(s.net_invoice_amount, s.paid_amount || 0);
+                    await db.prepare('UPDATE parties SET current_balance = current_balance + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+                      .bind(netCust, s.party_id).run();
+                  }
+                }
+
+                if (payload.ledger && payload.ledger.length > 0) {
+                  for (const l of payload.ledger) {
+                    await db.prepare(`
+                      INSERT OR REPLACE INTO party_ledger (id, entry_date, party_id, transaction_type, reference_id, reference_no, debit, credit, running_balance, is_test_draft, description)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    `).bind(l.id, l.entry_date, l.party_id, l.transaction_type, l.reference_id, l.reference_no, l.debit, l.credit, l.running_balance, l.is_test_draft || 0, l.description).run().catch(() => null);
+                  }
+                }
+
+                if (payload.cash && payload.cash.length > 0) {
+                  for (const c of payload.cash) {
+                    await db.prepare(`
+                      INSERT OR REPLACE INTO cashbook (id, entry_date, entry_type, category, amount, payment_mode, reference_id, reference_no, party_id, is_test_draft, description)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    `).bind(c.id, c.entry_date, c.entry_type, c.category, c.amount, c.payment_mode || 'CASH', c.reference_id, c.reference_no, c.party_id, c.is_test_draft || 0, c.description).run().catch(() => null);
+                  }
+                }
+              } else if (item.module_type === 'party') {
+                const pt = payload.party;
+                if (pt) {
+                  await db.prepare(`
+                    INSERT OR REPLACE INTO parties (id, name, phone, address, party_type, opening_balance, current_balance, notes, is_active, is_pinned, is_test_draft)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  `).bind(pt.id, pt.name, pt.phone || '', pt.address || '', pt.party_type || 'BUYER', pt.opening_balance || 0, pt.current_balance || 0, pt.notes || '', 1, pt.is_pinned || 0, pt.is_test_draft || 0).run();
+                }
+              } else if (item.module_type === 'crop' || item.module_type === 'commodity') {
+                const cm = payload.commodity;
+                if (cm) {
+                  await db.prepare(`
+                    INSERT OR REPLACE INTO commodities (id, name_bn, name_en, default_bag_weight_kg, current_stock_kg, current_stock_bags, current_wac_per_kg, current_wac_per_mon, notes, is_active)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                  `).bind(cm.id, cm.name_bn, cm.name_en || '', cm.default_bag_weight_kg || 80, cm.current_stock_kg || 0, cm.current_stock_bags || 0, cm.current_wac_per_kg || 0, cm.current_wac_per_mon || 0, cm.notes || '').run();
+                }
+              } else if (item.module_type === 'cashbook') {
+                const cb = payload.entry;
+                if (cb) {
+                  await db.prepare(`
+                    INSERT OR REPLACE INTO cashbook (id, entry_date, entry_type, category, amount, payment_mode, reference_id, reference_no, party_id, is_test_draft, description)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  `).bind(cb.id, cb.entry_date, cb.entry_type, cb.category, cb.amount, cb.payment_mode || 'CASH', cb.reference_id, cb.reference_no, cb.party_id, cb.is_test_draft || 0, cb.description).run();
+                }
+              } else if (item.module_type === 'expense') {
+                const exp = payload.expense;
+                if (exp) {
+                  await db.prepare(`
+                    INSERT OR REPLACE INTO expenses (id, expense_date, category, amount, paid_to, payment_mode, is_test_draft, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                  `).bind(exp.id, exp.expense_date, exp.category, exp.amount, exp.paid_to || '', exp.payment_mode || 'CASH', exp.is_test_draft || 0, exp.notes || '').run();
+                }
+              } else if (item.module_type === 'note') {
+                const nt = payload.note;
+                if (nt) {
+                  await db.prepare(`
+                    INSERT OR REPLACE INTO notes (id, title, content, category, is_pinned)
+                    VALUES (?, ?, ?, ?, ?)
+                  `).bind(nt.id, nt.title, nt.content || '', nt.category || 'সাধারণ', nt.is_pinned || 0).run();
+                }
+              } else if (item.module_type === 'ledger') {
+                const l = payload.entry;
+                if (l) {
+                  await db.prepare(`
+                    INSERT OR REPLACE INTO party_ledger (id, entry_date, party_id, transaction_type, reference_id, reference_no, debit, credit, running_balance, is_test_draft, description, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  `).bind(l.id, l.entry_date, l.party_id, l.transaction_type, l.reference_id, l.reference_no, l.debit, l.credit, l.running_balance, l.is_test_draft || 0, l.description, l.notes || '').run();
+
+                  const party = await db.prepare('SELECT * FROM parties WHERE id = ?').bind(l.party_id).first();
+                  const { results: allRows } = await db.prepare('SELECT * FROM party_ledger WHERE party_id = ? ORDER BY entry_date ASC, id ASC').bind(l.party_id).all();
+                  let running = party ? (party.opening_balance || 0) : 0;
+                  for (const r of (allRows || [])) {
+                    running = roundMoney(running + (r.debit || 0) - (r.credit || 0));
+                    await db.prepare('UPDATE party_ledger SET running_balance = ? WHERE id = ?').bind(running, r.id).run();
+                  }
+                  await db.prepare('UPDATE parties SET current_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(running, l.party_id).run();
+                }
+              }
+
+              // Remove restored item from recycle_bin
+              await db.prepare('DELETE FROM recycle_bin WHERE id = ?').bind(recId).run();
+              return sendJson({ success: true, message: 'রেকর্ডটি সফলভাবে পুনরুদ্ধার (Restore) করা হয়েছে' });
+            } catch (restoreErr) {
+              console.error('[RecycleBin Restore Error]:', restoreErr);
+              return sendJson({ success: false, error: `পুনরুদ্ধার ত্রুটি: ${restoreErr.message}` }, 500);
+            }
+          }
+
+          inMemoryStore.recycle_bin = inMemoryStore.recycle_bin.filter(x => x.id !== recId);
+          return sendJson({ success: true, message: 'রেকর্ডটি সফলভাবে পুনরুদ্ধার করা হয়েছে' });
         }
 
         // --- REPORTS & DASHBOARD ---

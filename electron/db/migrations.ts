@@ -332,6 +332,42 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 10,
+    name: '010_pos_due_ledger_notes_and_recycle_bin',
+    up: (db: Database.Database) => {
+      const addColIfNotExists = (tableName: string, colName: string, colDef: string) => {
+        const pragma = db.prepare(`PRAGMA table_info(${tableName})`).all() as any[];
+        const exists = pragma.some(c => c.name === colName);
+        if (!exists) {
+          db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${colName} ${colDef}`);
+        }
+      };
+
+      addColIfNotExists('sales', 'previous_due', 'REAL NOT NULL DEFAULT 0.0');
+      addColIfNotExists('sales', 'remaining_due', 'REAL NOT NULL DEFAULT 0.0');
+      addColIfNotExists('party_ledger', 'notes', 'TEXT');
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS recycle_bin (
+          id TEXT PRIMARY KEY,
+          module_type TEXT NOT NULL,
+          module_label TEXT NOT NULL,
+          original_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          amount REAL NOT NULL DEFAULT 0.0,
+          payload_json TEXT NOT NULL,
+          deleted_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+          expires_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_recycle_bin_expires ON recycle_bin(expires_at);
+        CREATE INDEX IF NOT EXISTS idx_recycle_bin_module ON recycle_bin(module_type);
+
+        DELETE FROM recycle_bin WHERE expires_at < datetime('now', 'localtime');
+      `);
+    },
+  },
 ];
 
 export function runMigrations(db: Database.Database): { appliedCount: number; currentVersion: number } {

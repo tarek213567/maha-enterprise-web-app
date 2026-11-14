@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -10,7 +10,10 @@ import {
   BarChart3,
   Settings,
   NotebookPen,
+  Trash2,
 } from 'lucide-react';
+import { dbService } from '../../services/api';
+import { toBnDigits } from '../../utils/bengaliNumbers';
 
 interface SidebarProps {
   currentTab: string;
@@ -73,9 +76,28 @@ const menuItems = [
     name: 'নোটবুক',
     icon: NotebookPen,
   },
+  {
+    id: 'recycle_bin',
+    name: 'রিসাইকেল বিন',
+    icon: Trash2,
+  },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => {
+  const [recycleCount, setRecycleCount] = useState<number>(0);
+
+  useEffect(() => {
+    const fetchCount = async () => {
+      try {
+        const count = await dbService.recycleBin.getCount();
+        setRecycleCount(count || 0);
+      } catch {}
+    };
+    fetchCount();
+    const interval = setInterval(fetchCount, 6000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <aside className="hidden md:flex w-56 bg-[#08152c] text-slate-200 border-r border-[#0f1d38] flex-col py-3 px-2.5 gap-1 shrink-0 select-none overflow-y-auto">
       {/* Starts directly with the menu items (no extra header block above ড্যাশবোর্ড and no proprietor footer block at the bottom) */}
@@ -102,7 +124,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
               <span className="truncate">{item.name}</span>
             </div>
 
-            {item.shortcut && (
+            {item.id === 'recycle_bin' && recycleCount > 0 ? (
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ml-1 bg-rose-500/25 text-rose-300 border border-rose-500/40">
+                {toBnDigits(recycleCount)}
+              </span>
+            ) : item.shortcut ? (
               <span
                 className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ml-1 ${
                   isActive
@@ -112,7 +138,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
               >
                 {item.shortcut}
               </span>
-            )}
+            ) : null}
           </button>
         );
       })}

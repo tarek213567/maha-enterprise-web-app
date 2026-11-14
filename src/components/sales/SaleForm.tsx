@@ -170,6 +170,9 @@ export const SaleForm: React.FC<SaleFormProps> = ({
       setError('');
 
       const selectedParty = parties.find(p => p.id === Number(selectedPartyId));
+      const previousDue = selectedParty ? Number(selectedParty.current_balance) || 0 : 0;
+      const grandTotal = roundMoney(netInvoiceAmount + previousDue);
+      const remainingDue = roundMoney(grandTotal - actualPaid);
 
       const created = await dbService.sales.create({
         sale_date: saleDate,
@@ -186,7 +189,10 @@ export const SaleForm: React.FC<SaleFormProps> = ({
         damaged_bag_deduction: damageNum,
         discount_amount: discountNum,
         payment_method: paymentMethod,
+        previous_due: previousDue,
         paid_amount: actualPaid,
+        due_amount: dueAmount,
+        remaining_due: remainingDue,
         vehicle_no: vehicleNo.trim(),
         driver_name: driverName.trim(),
         driver_phone: driverPhone.trim(),

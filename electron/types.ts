@@ -49,6 +49,7 @@ export interface Party {
   party_type: PartyType;
   opening_balance: number; // positive = receivable from party, negative = payable to party
   current_balance: number;
+  total_due?: number; // alias for current_balance (receivable due)
   notes?: string;
   is_active: number;
   is_pinned?: number;
@@ -132,9 +133,11 @@ export interface Sale {
   damaged_bag_deduction: number;
   discount_amount: number;
   net_invoice_amount: number;
-  payment_method: PaymentMethod;
+  total_amount?: number; // alias for net_invoice_amount
+  previous_due?: number; // customer due before this invoice
   paid_amount: number;
   due_amount: number;
+  remaining_due?: number; // customer due after this invoice (= grand_total - paid_amount)
   vehicle_no?: string;
   driver_name?: string;
   driver_phone?: string;
@@ -175,7 +178,20 @@ export interface LedgerEntry {
   running_balance: number;
   is_test_draft?: number;
   description: string;
+  notes?: string;
   created_at: string;
+}
+
+export interface RecycleBinItem {
+  id: string;
+  module_type: 'purchase' | 'sale' | 'crop' | 'party' | 'cashbook' | 'expense' | 'shrinkage' | 'note' | 'ledger';
+  module_label: string;
+  original_id: string;
+  title: string;
+  amount: number;
+  payload_json: string;
+  deleted_at: string;
+  expires_at: string;
 }
 
 export interface CashbookEntry {

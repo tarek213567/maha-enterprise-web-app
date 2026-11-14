@@ -25,6 +25,7 @@ import type {
   PartyType,
   PaymentMethod,
   Note,
+  RecycleBinItem,
 } from '../types';
 
 export class AppDatabase {
@@ -157,6 +158,15 @@ export class AppDatabase {
     }
 
     const delTx = this.db.transaction(() => {
+      this.putInRecycleBin({
+        module_type: 'crop',
+        module_label: 'শস্য / ফসল',
+        original_id: String(id),
+        title: commodity.name_bn || commodity.name_en,
+        amount: commodity.current_stock_kg || 0,
+        payload: commodity,
+      });
+
       if (force) {
         this.db.prepare('DELETE FROM stock_adjustments WHERE commodity_id = ?').run(id);
         this.db.prepare('DELETE FROM sales WHERE commodity_id = ?').run(id);
@@ -276,6 +286,18 @@ export class AppDatabase {
   }
 
   public deleteParty(id: number): { success: boolean; message: string } {
+    const party = this.getPartyById(id);
+    if (party) {
+      this.putInRecycleBin({
+        module_type: 'party',
+        module_label: 'পার্টি / কাস্টমার',
+        original_id: String(id),
+        title: `${party.name} (${party.phone || 'ফোন নেই'})`,
+        amount: Math.abs(party.current_balance || 0),
+        payload: party,
+      });
+    }
+
     const salesCount = (this.db.prepare('SELECT COUNT(*) as c FROM sales WHERE party_id = ?').get(id) as any)?.c || 0;
     const purchasesCount = (this.db.prepare('SELECT COUNT(*) as c FROM purchases WHERE party_id = ?').get(id) as any)?.c || 0;
     if (salesCount > 0 || purchasesCount > 0) {
@@ -604,6 +626,15 @@ export class AppDatabase {
         .run(id, p.invoice_no, p.invoice_no);
 
       // 5. Delete purchase record
+      this.putInRecycleBin({
+        module_type: 'purchase',
+        module_label: 'ক্রয় চালান',
+        original_id: String(id),
+        title: `${p.invoice_no} (${p.purchase_date})`,
+        amount: p.total_landed_cost || p.gross_amount,
+        payload: p,
+      });
+
       this.db.prepare('DELETE FROM purchases WHERE id = ?').run(id);
 
       return { success: true };
@@ -707,20 +738,29 @@ export class AppDatabase {
         }
       }
 
+      const party = this.getPartyById(partyId);
+      if (!party) throw new Error('পার্টির তথ্য পাওয়া যায়নি');
+
+      // POS 5-step Formula:
+      const previousDue = roundMoney((data as any).previous_due !== undefined ? (data as any).previous_due : (party.current_balance || 0));
+      const grandTotal = roundMoney(net_invoice_amount + previousDue);
+      const remainingDue = roundMoney(grandTotal - paid_amount);
+      const newPartyBalance = remainingDue;
+
       // 2. Insert Sale Record
       const insertSale = this.db.prepare(`
         INSERT INTO sales (
           invoice_no, sale_date, party_id, commodity_id, bags_count,
           gross_weight_kg, bag_deduction_kg, net_weight_kg, net_weight_mon,
           rate_per_mon, gross_amount, loading_charge, damaged_bag_deduction, discount_amount,
-          net_invoice_amount, payment_method, paid_amount, due_amount,
+          net_invoice_amount, payment_method, previous_due, paid_amount, due_amount, remaining_due,
           vehicle_no, driver_name, driver_phone, destination,
           cogs_amount, realized_profit, is_test_draft, notes
         ) VALUES (
           ?, ?, ?, ?, ?,
           ?, ?, ?, ?,
           ?, ?, ?, ?, ?,
-          ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?,
           ?, ?, ?, ?,
           ?, ?, ?, ?
         )
@@ -730,7 +770,7 @@ export class AppDatabase {
         invoice_no, data.sale_date, partyId, data.commodity_id, data.bags_count,
         grossKg, bagDedKg, net_weight_kg, net_weight_mon,
         rateMon, gross_amount, loading, damage, discount,
-        net_invoice_amount, paymentMethod, paid_amount, due_amount,
+        net_invoice_amount, paymentMethod, previousDue, paid_amount, due_amount, remainingDue,
         data.vehicle_no || '', data.driver_name || '', data.driver_phone || '', data.destination || '',
         cogs_amount, realized_profit, isTest, data.notes || ''
       );
@@ -749,12 +789,6 @@ export class AppDatabase {
       `).run(remainingStockKg, remainingBags, data.commodity_id);
 
       // 4. Update Party Balance and Ledger
-      const party = this.getPartyById(partyId);
-      if (!party) throw new Error('পার্টির তথ্য পাওয়া যায়নি');
-
-      const netCustomerChange = subMoney(net_invoice_amount, paid_amount);
-      const newPartyBalance = addMoney(party.current_balance, netCustomerChange);
-
       this.db.prepare("UPDATE parties SET current_balance = ?, updated_at = datetime('now', 'localtime') WHERE id = ?")
         .run(newPartyBalance, partyId);
 
@@ -873,7 +907,21 @@ export class AppDatabase {
       const baseInvoiceNo = `SAL-${dateStr}-${nextNum}`;
 
       // 3. Process each item: Stock checks & calculations
+      // Precompute grandTotalBill for POS formula
       let grandTotalBill = 0;
+      for (const it of data.items) {
+        const bags = Math.max(1, Number(it.bags_count) || 1);
+        const comm = this.getCommodityById(it.commodity_id);
+        const mon = it.net_weight_mon ? Number(it.net_weight_mon) : (bags * (comm?.default_bag_weight_kg || 80)) / 40;
+        grandTotalBill = addMoney(grandTotalBill, roundMoney(mon * roundMoney(it.rate_per_mon)));
+      }
+
+      const previousDue = roundMoney((data as any).previous_due !== undefined ? (data as any).previous_due : (party.current_balance || 0));
+      const totalPaid = roundMoney(data.cash_paid !== undefined && data.cash_paid !== null ? data.cash_paid : 0);
+      const grandTotal = roundMoney(grandTotalBill + previousDue);
+      const remainingDue = roundMoney(grandTotal - totalPaid);
+      const newPartyBalance = remainingDue;
+
       const createdSaleIds: number[] = [];
       const itemSummaries: string[] = [];
 
@@ -897,7 +945,6 @@ export class AppDatabase {
 
         const rateMon = roundMoney(item.rate_per_mon);
         const itemTotal = roundMoney(netMon * rateMon);
-        grandTotalBill = addMoney(grandTotalBill, itemTotal);
 
         const cogs = roundMoney(netKg * (commodity.current_wac_per_kg || 0));
         const profit = subMoney(itemTotal, cogs);
@@ -911,28 +958,28 @@ export class AppDatabase {
             invoice_no, sale_date, party_id, commodity_id, bags_count,
             gross_weight_kg, bag_deduction_kg, net_weight_kg, net_weight_mon,
             rate_per_mon, gross_amount, loading_charge, damaged_bag_deduction, discount_amount,
-            net_invoice_amount, payment_method, paid_amount, due_amount,
+            net_invoice_amount, payment_method, previous_due, paid_amount, due_amount, remaining_due,
             vehicle_no, driver_name, driver_phone, destination,
             cogs_amount, realized_profit, is_test_draft, notes
           ) VALUES (
             ?, ?, ?, ?, ?,
             ?, ?, ?, ?,
             ?, ?, 0, 0, 0,
-            ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?,
             '', '', '', '',
             ?, ?, ?, ?
           )
         `);
 
         // Attribute paid_amount proportionally or on first item
-        const itemPaid = idx === 0 ? Math.min(itemTotal, data.cash_paid || 0) : 0;
+        const itemPaid = idx === 0 ? Math.min(itemTotal, totalPaid) : 0;
         const itemDue = Math.max(0, subMoney(itemTotal, itemPaid));
 
         const res = insertStmt.run(
           itemInvoiceNo, data.sale_date, partyId, item.commodity_id, bagsCount,
           grossKg, bagDedKg, netKg, netMon,
           rateMon, itemTotal,
-          itemTotal, data.payment_method || 'CASH', itemPaid, itemDue,
+          itemTotal, data.payment_method || 'CASH', previousDue, itemPaid, itemDue, remainingDue,
           cogs, profit, isTest, data.notes || ''
         );
         createdSaleIds.push(Number(res.lastInsertRowid));
@@ -952,10 +999,6 @@ export class AppDatabase {
       }
 
       // 4. Update Party Balance and Master Ledger
-      const totalPaid = roundMoney(data.cash_paid || 0);
-      const netCustomerChange = subMoney(grandTotalBill, totalPaid);
-      const newPartyBalance = addMoney(party.current_balance, netCustomerChange);
-
       this.db.prepare("UPDATE parties SET current_balance = ?, updated_at = datetime('now', 'localtime') WHERE id = ?")
         .run(newPartyBalance, partyId);
 
@@ -967,7 +1010,7 @@ export class AppDatabase {
         partyId,
         baseInvoiceNo,
         grandTotalBill,
-        addMoney(party.current_balance, grandTotalBill),
+        addMoney(previousDue, grandTotalBill),
         isTest,
         `পাইকারি বিক্রয় চালান: ${itemSummaries.join(', ')}`
       );
@@ -1052,6 +1095,15 @@ export class AppDatabase {
         .run(id, s.invoice_no);
 
       // 5. Delete sale record
+      this.putInRecycleBin({
+        module_type: 'sale',
+        module_label: 'বিক্রয় চালান',
+        original_id: String(id),
+        title: `${s.invoice_no} (${s.sale_date})`,
+        amount: s.net_invoice_amount,
+        payload: s,
+      });
+
       this.db.prepare('DELETE FROM sales WHERE id = ?').run(id);
 
       return { success: true, message: 'বিক্রয় চালান সফলভাবে মুছে ফেলা হয়েছে' };
@@ -1154,6 +1206,15 @@ export class AppDatabase {
           updated_at = datetime('now', 'localtime')
         WHERE id = ?
       `).run(a.lost_weight_kg, a.lost_bags, a.commodity_id);
+
+      this.putInRecycleBin({
+        module_type: 'shrinkage',
+        module_label: 'শুকতি ও ঘাটতি',
+        original_id: String(id),
+        title: `${a.adjustment_type} (${a.adjustment_date}) - ${a.lost_weight_kg} কেজি`,
+        amount: a.lost_weight_kg,
+        payload: a,
+      });
 
       this.db.prepare('DELETE FROM stock_adjustments WHERE id = ?').run(id);
       return { success: true, message: 'শুকতি ঘাটতি রেকর্ড মুছে ফেলা হয়েছে এবং স্টক স্বাভাবিক করা হয়েছে' };
@@ -1344,6 +1405,15 @@ export class AppDatabase {
         newBalance = subMoney(party.current_balance, entry.debit);
       }
 
+      this.putInRecycleBin({
+        module_type: 'ledger',
+        module_label: 'লেজার ভাউচার',
+        original_id: String(ledgerId),
+        title: `${entry.transaction_type}: ${entry.description || entry.reference_no || 'ভাউচার'}`,
+        amount: entry.credit || entry.debit,
+        payload: entry,
+      });
+
       this.db.prepare("UPDATE parties SET current_balance = ?, updated_at = datetime('now', 'localtime') WHERE id = ?").run(newBalance, entry.party_id);
       this.db.prepare("DELETE FROM cashbook WHERE party_id = ? AND entry_date = ? AND amount = ?").run(entry.party_id, entry.entry_date, entry.credit || entry.debit);
       this.db.prepare("DELETE FROM party_ledger WHERE id = ?").run(ledgerId);
@@ -1351,6 +1421,46 @@ export class AppDatabase {
 
     tx();
     return { success: true, message: 'লেনদেন সফলভাবে মুছে ফেলা হয়েছে ও ব্যালেন্স সমন্বয় করা হয়েছে।' };
+  }
+
+  public updatePartyLedgerEntry(ledgerId: number, data: { entry_date?: string; description?: string; debit?: number; credit?: number; notes?: string }): { success: boolean; message: string } {
+    const tx = this.db.transaction(() => {
+      const entry = this.db.prepare("SELECT * FROM party_ledger WHERE id = ?").get(ledgerId) as LedgerEntry | undefined;
+      if (!entry) throw new Error('লেনদেন রেকর্ডটি পাওয়া যায়নি');
+
+      const sets: string[] = [];
+      const vals: any[] = [];
+      if (data.entry_date !== undefined) { sets.push('entry_date = ?'); vals.push(data.entry_date); }
+      if (data.description !== undefined) { sets.push('description = ?'); vals.push(data.description); }
+      if (data.debit !== undefined) { sets.push('debit = ?'); vals.push(roundMoney(data.debit)); }
+      if (data.credit !== undefined) { sets.push('credit = ?'); vals.push(roundMoney(data.credit)); }
+      if (data.notes !== undefined) { sets.push('notes = ?'); vals.push(data.notes); }
+
+      if (sets.length > 0) {
+        vals.push(ledgerId);
+        this.db.prepare(`UPDATE party_ledger SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+      }
+
+      // Recalculate running balances for this party
+      const party = this.getPartyById(entry.party_id);
+      if (party) {
+        const rows = this.db.prepare("SELECT * FROM party_ledger WHERE party_id = ? ORDER BY entry_date ASC, id ASC").all(party.id) as LedgerEntry[];
+        let runBal = party.opening_balance || 0;
+        const updateRunBal = this.db.prepare("UPDATE party_ledger SET running_balance = ? WHERE id = ?");
+        for (const r of rows) {
+          runBal = roundMoney(runBal + (r.debit || 0) - (r.credit || 0));
+          updateRunBal.run(runBal, r.id);
+        }
+        this.db.prepare("UPDATE parties SET current_balance = ?, updated_at = datetime('now', 'localtime') WHERE id = ?").run(runBal, party.id);
+      }
+    });
+
+    tx();
+    return { success: true, message: 'লেজার এন্ট্রি সফলভাবে আপডেট করা হয়েছে।' };
+  }
+
+  public deleteLedgerEntry(ledgerId: number): { success: boolean; message: string } {
+    return this.deletePartyPaymentVoucher(ledgerId);
   }
 
   public updatePartyLedgerNote(ledgerId: number, description: string): { success: boolean } {
@@ -1435,6 +1545,17 @@ export class AppDatabase {
   }
 
   public deleteCashbook(id: number): { success: boolean } {
+    const entry = this.db.prepare('SELECT * FROM cashbook WHERE id = ?').get(id) as CashbookEntry | undefined;
+    if (entry) {
+      this.putInRecycleBin({
+        module_type: 'cashbook',
+        module_label: 'ক্যাশ খাতা লেনদেন',
+        original_id: String(id),
+        title: `${entry.entry_type}: ${entry.description || entry.category || 'ক্যাশ বুক'}`,
+        amount: entry.amount,
+        payload: entry,
+      });
+    }
     this.db.prepare('DELETE FROM cashbook WHERE id = ?').run(id);
     return { success: true };
   }
@@ -1510,6 +1631,15 @@ export class AppDatabase {
     const tx = this.db.transaction(() => {
       const e = this.db.prepare('SELECT * FROM expenses WHERE id = ?').get(id) as Expense | undefined;
       if (!e) throw new Error('খরচ রেকর্ড পাওয়া যায়নি');
+
+      this.putInRecycleBin({
+        module_type: 'expense',
+        module_label: 'খরচ',
+        original_id: String(id),
+        title: `${e.category}: ${e.paid_to || 'পরিশোধ'} - ${e.notes || ''}`,
+        amount: e.amount,
+        payload: e,
+      });
 
       this.db.prepare("DELETE FROM cashbook WHERE category = 'EXPENSE' AND amount = ? AND entry_date = ?")
         .run(e.amount, e.expense_date);
@@ -1894,6 +2024,17 @@ export class AppDatabase {
   }
 
   public deleteNote(id: number): { success: boolean; message: string } {
+    const note = this.getNoteById(id);
+    if (note) {
+      this.putInRecycleBin({
+        module_type: 'note',
+        module_label: 'নোটবুক',
+        original_id: String(id),
+        title: note.title || 'নোট',
+        amount: 0,
+        payload: note,
+      });
+    }
     const stmt = this.db.prepare('DELETE FROM notes WHERE id = ?');
     const info = stmt.run(id);
     return {
@@ -2046,6 +2187,147 @@ export class AppDatabase {
     });
 
     return purgeTx();
+  }
+
+  // ==================== 60-DAY RECYCLE BIN ====================
+  public putInRecycleBin(item: {
+    module_type: 'purchase' | 'sale' | 'crop' | 'party' | 'cashbook' | 'expense' | 'shrinkage' | 'note' | 'ledger';
+    module_label: string;
+    original_id: string;
+    title: string;
+    amount?: number;
+    payload: any;
+  }) {
+    const id = `rec_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const expiresAt = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
+    try {
+      this.db.prepare(`
+        INSERT INTO recycle_bin (id, module_type, module_label, original_id, title, amount, payload_json, deleted_at, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'), ?)
+      `).run(
+        id,
+        item.module_type,
+        item.module_label,
+        String(item.original_id),
+        item.title || 'রেকর্ড',
+        roundMoney(item.amount || 0),
+        JSON.stringify(item.payload),
+        expiresAt
+      );
+    } catch (e) {
+      console.error('Failed to put in recycle bin:', e);
+    }
+  }
+
+  public getRecycleBinItems(module?: string): RecycleBinItem[] {
+    this.purgeExpiredRecycleBin();
+    if (module && module !== 'ALL') {
+      return this.db.prepare('SELECT * FROM recycle_bin WHERE module_type = ? ORDER BY deleted_at DESC').all(module) as RecycleBinItem[];
+    }
+    return this.db.prepare('SELECT * FROM recycle_bin ORDER BY deleted_at DESC').all() as RecycleBinItem[];
+  }
+
+  public getRecycleBinCount(): number {
+    this.purgeExpiredRecycleBin();
+    const row = this.db.prepare('SELECT COUNT(*) as count FROM recycle_bin').get() as { count: number };
+    return row?.count || 0;
+  }
+
+  public restoreRecycleBinItem(id: string): { success: boolean; message: string } {
+    const item = this.db.prepare('SELECT * FROM recycle_bin WHERE id = ?').get(id) as RecycleBinItem | undefined;
+    if (!item) throw new Error('রিসাইকেল বিনে আইটেমটি পাওয়া যায়নি');
+
+    const payload = JSON.parse(item.payload_json);
+    const tx = this.db.transaction(() => {
+      switch (item.module_type) {
+        case 'note': {
+          this.db.prepare(`
+            INSERT OR REPLACE INTO notes (id, title, content, category, is_pinned, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
+          `).run(payload.id, payload.title, payload.content, payload.category || 'GENERAL', payload.is_pinned || 0, payload.created_at || new Date().toISOString());
+          break;
+        }
+        case 'party': {
+          this.db.prepare(`
+            INSERT OR REPLACE INTO parties (id, name, phone, address, party_type, opening_balance, current_balance, notes, is_active, is_pinned, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, datetime('now', 'localtime'))
+          `).run(payload.id, payload.name, payload.phone || '', payload.address || '', payload.party_type, payload.opening_balance || 0, payload.current_balance || 0, payload.notes || '', payload.is_pinned || 0, payload.created_at || new Date().toISOString());
+          break;
+        }
+        case 'crop': {
+          this.db.prepare(`
+            INSERT OR REPLACE INTO commodities (id, name_bn, name_en, default_bag_weight_kg, current_stock_kg, current_stock_bags, current_wac_per_kg, current_wac_per_mon, notes, is_active, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime('now', 'localtime'))
+          `).run(payload.id, payload.name_bn, payload.name_en, payload.default_bag_weight_kg || 75, payload.current_stock_kg || 0, payload.current_stock_bags || 0, payload.current_wac_per_kg || 0, payload.current_wac_per_mon || 0, payload.notes || '', payload.created_at || new Date().toISOString());
+          break;
+        }
+        case 'expense': {
+          this.db.prepare(`
+            INSERT OR REPLACE INTO expenses (id, expense_date, category, amount, paid_to, payment_mode, notes, is_test_draft, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(payload.id, payload.expense_date, payload.category, payload.amount, payload.paid_to || '', payload.payment_mode || 'CASH', payload.notes || '', payload.is_test_draft || 0, payload.created_at || new Date().toISOString());
+          break;
+        }
+        case 'cashbook': {
+          this.db.prepare(`
+            INSERT OR REPLACE INTO cashbook (id, entry_date, entry_type, category, amount, payment_mode, reference_id, reference_no, party_id, description, is_test_draft, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(payload.id, payload.entry_date, payload.entry_type, payload.category, payload.amount, payload.payment_mode || 'CASH', payload.reference_id || null, payload.reference_no || null, payload.party_id || null, payload.description || '', payload.is_test_draft || 0, payload.created_at || new Date().toISOString());
+          break;
+        }
+        case 'ledger': {
+          this.db.prepare(`
+            INSERT OR REPLACE INTO party_ledger (id, entry_date, party_id, transaction_type, reference_id, reference_no, debit, credit, running_balance, description, notes, is_test_draft, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(payload.id, payload.entry_date, payload.party_id, payload.transaction_type, payload.reference_id || null, payload.reference_no || null, payload.debit || 0, payload.credit || 0, payload.running_balance || 0, payload.description || '', payload.notes || '', payload.is_test_draft || 0, payload.created_at || new Date().toISOString());
+          break;
+        }
+        case 'shrinkage': {
+          this.db.prepare(`
+            INSERT OR REPLACE INTO stock_adjustments (id, adjustment_date, commodity_id, adjustment_type, lost_weight_kg, lost_bags, reason, notes, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(payload.id, payload.adjustment_date, payload.commodity_id, payload.adjustment_type, payload.lost_weight_kg, payload.lost_bags, payload.reason || '', payload.notes || '', payload.created_at || new Date().toISOString());
+          break;
+        }
+        case 'purchase': {
+          this.db.prepare(`
+            INSERT OR REPLACE INTO purchases (id, invoice_no, purchase_date, party_id, commodity_id, bags_count, gross_weight_kg, bag_deduction_kg, net_weight_kg, net_weight_mon, rate_per_mon, gross_amount, labor_cost, transport_cost, bag_cost, other_cost, total_landed_cost, cost_per_mon, cost_per_kg, payment_method, paid_amount, due_amount, previous_wac_per_kg, new_wac_per_kg, notes, is_test_draft, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(payload.id, payload.invoice_no, payload.purchase_date, payload.party_id, payload.commodity_id, payload.bags_count, payload.gross_weight_kg, payload.bag_deduction_kg, payload.net_weight_kg, payload.net_weight_mon, payload.rate_per_mon, payload.gross_amount, payload.labor_cost || 0, payload.transport_cost || 0, payload.bag_cost || 0, payload.other_cost || 0, payload.total_landed_cost || payload.gross_amount, payload.cost_per_mon || payload.rate_per_mon, payload.cost_per_kg || 0, payload.payment_method || 'CASH', payload.paid_amount || 0, payload.due_amount || 0, payload.previous_wac_per_kg || 0, payload.new_wac_per_kg || 0, payload.notes || '', payload.is_test_draft || 0, payload.created_at || new Date().toISOString());
+          break;
+        }
+        case 'sale': {
+          this.db.prepare(`
+            INSERT OR REPLACE INTO sales (id, invoice_no, sale_date, party_id, commodity_id, bags_count, gross_weight_kg, bag_deduction_kg, net_weight_kg, net_weight_mon, rate_per_mon, gross_amount, loading_charge, damaged_bag_deduction, discount_amount, net_invoice_amount, payment_method, previous_due, paid_amount, due_amount, remaining_due, vehicle_no, driver_name, driver_phone, destination, cogs_amount, realized_profit, is_test_draft, notes, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(payload.id, payload.invoice_no, payload.sale_date, payload.party_id, payload.commodity_id, payload.bags_count, payload.gross_weight_kg, payload.bag_deduction_kg, payload.net_weight_kg, payload.net_weight_mon, payload.rate_per_mon, payload.gross_amount, payload.loading_charge || 0, payload.damaged_bag_deduction || 0, payload.discount_amount || 0, payload.net_invoice_amount, payload.payment_method || 'CASH', payload.previous_due || 0, payload.paid_amount || 0, payload.due_amount || 0, payload.remaining_due || 0, payload.vehicle_no || '', payload.driver_name || '', payload.driver_phone || '', payload.destination || '', payload.cogs_amount || 0, payload.realized_profit || 0, payload.is_test_draft || 0, payload.notes || '', payload.created_at || new Date().toISOString());
+          break;
+        }
+      }
+      this.db.prepare('DELETE FROM recycle_bin WHERE id = ?').run(id);
+    });
+
+    tx();
+    return { success: true, message: `${item.title || 'রেকর্ড'} সফলভাবে রিস্টোর করা হয়েছে!` };
+  }
+
+  public deleteRecycleBinItem(id: string): { success: boolean; message: string } {
+    const res = this.db.prepare('DELETE FROM recycle_bin WHERE id = ?').run(id);
+    return { success: res.changes > 0, message: 'স্থায়ীভাবে মুছে ফেলা হয়েছে' };
+  }
+
+  public emptyRecycleBin(): { success: boolean; message: string } {
+    this.db.prepare('DELETE FROM recycle_bin').run();
+    return { success: true, message: 'রিসাইকেল বিন সম্পূর্ণ খালি করা হয়েছে' };
+  }
+
+  public purgeExpiredRecycleBin(): { success: boolean; purged: number } {
+    try {
+      const res = this.db.prepare("DELETE FROM recycle_bin WHERE expires_at < datetime('now', 'localtime')").run();
+      return { success: true, purged: res.changes };
+    } catch {
+      return { success: false, purged: 0 };
+    }
   }
 
   public close() {

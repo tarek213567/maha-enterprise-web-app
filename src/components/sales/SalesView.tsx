@@ -36,6 +36,14 @@ interface CartItem {
   availableStockBags: number;
 }
 
+export const parseSafeNumber = (val: any): number => {
+  if (val === undefined || val === null || val === '') return 0;
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+  const eng = toEnglishDigits(String(val)).replace(/,/g, '').trim();
+  const parsed = parseFloat(eng);
+  return isNaN(parsed) ? 0 : parsed;
+};
+
 export const SalesView: React.FC<{ initialMode?: string }> = () => {
   const [commodities, setCommodities] = useState<Commodity[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
@@ -226,7 +234,8 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
     }
   }, [todayTotal, selectedCustomerId, cashPaidTouched]);
 
-  const closingDue = Math.max(0, grandTotal - (cashPaid || 0));
+  const numCashPaid = parseSafeNumber(cashPaid);
+  const closingDue = Math.max(0, roundMoney(grandTotal - numCashPaid));
 
   // Quick Preset Handlers
   const handleSetZeroCash = () => {
@@ -244,12 +253,49 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
 
   // Submit Sale Handler
   const handleProcessSale = async (shouldPrint: boolean) => {
-    if (cart.length === 0) {
+    let currentCart = [...cart];
+
+    // Auto-Add Pending Item Guard:
+    // If user filled bags/rate in section 2 without clicking "+ যোগ করুন", auto-add to cart
+    if (activeCommodity && Number(entryBags) > 0 && Number(entryRate) > 0 && Number(entryWeightMon) > 0) {
+      const bagsToAdd = Math.max(1, entryBags || 1);
+      const monToAdd = Math.max(0.01, entryWeightMon || (bagsToAdd * (activeCommodity.default_bag_weight_kg || 80)) / 40);
+      const kgToAdd = monToAdd * 40;
+      const rate = Math.max(0, entryRate || 0);
+
+      const existingIndex = currentCart.findIndex((i) => i.commodityId === activeCommodity.id);
+      if (existingIndex < 0) {
+        if (kgToAdd <= activeCommodity.current_stock_kg) {
+          const itemTotal = roundMoney(monToAdd * rate);
+          const newItem: CartItem = {
+            id: `${activeCommodity.id}_${Date.now()}`,
+            commodityId: activeCommodity.id,
+            name: activeCommodity.name_bn,
+            bags: bagsToAdd,
+            weightMon: Number(monToAdd.toFixed(2)),
+            weightKg: Number(kgToAdd.toFixed(2)),
+            ratePerMon: rate,
+            totalAmount: itemTotal,
+            availableStockKg: activeCommodity.current_stock_kg,
+            availableStockBags: activeCommodity.current_stock_bags,
+          };
+          currentCart.push(newItem);
+          setCart(currentCart);
+        }
+      }
+    }
+
+    if (currentCart.length === 0) {
       showToast('অনুগ্রহ করে কার্টে কমপক্ষে একটি শস্যের জাত যুক্ত করুন।', 'error');
       return;
     }
 
-    if (closingDue > 0 && !selectedCustomerId && (!walkinName || walkinName.trim() === '' || walkinName === 'সাধারণ খুচরা ক্রেতা')) {
+    const curTodayTotal = currentCart.reduce((sum, item) => sum + item.totalAmount, 0);
+    const curGrandTotal = roundMoney(curTodayTotal + previousDue);
+    const curPaidAmount = parseSafeNumber(cashPaid);
+    const curRemainingDue = roundMoney(curGrandTotal - curPaidAmount);
+
+    if (curRemainingDue > 0 && !selectedCustomerId && (!walkinName || walkinName.trim() === '' || walkinName === 'সাধারণ খুচরা ক্রেতা')) {
       showToast('বাকি বিক্রয়ের ক্ষেত্রে অবশ্যই নির্দিষ্ট পাইকারি ক্রেতা নির্বাচন করতে হবে।', 'error');
       return;
     }
@@ -263,7 +309,7 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
         customer_phone: selectedCustomer ? selectedCustomer.phone : (walkinPhone.trim() || ''),
         buyer_name: selectedCustomer ? selectedCustomer.name : (walkinName.trim() || 'সাধারণ খুচরা ক্রেতা'),
         phone: selectedCustomer ? selectedCustomer.phone : (walkinPhone.trim() || ''),
-        items: cart.map((i) => ({
+        items: currentCart.map((i) => ({
           commodity_id: i.commodityId,
           bags_count: i.bags,
           net_weight_mon: i.weightMon,
@@ -272,8 +318,10 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
           rate_per_mon: i.ratePerMon,
           total_amount: i.totalAmount,
         })),
-        cash_paid: cashPaid || 0,
-        payment_method: 'CASH',
+        cash_paid: curPaidAmount,
+        previous_due: previousDue,
+        remaining_due: curRemainingDue,
+        payment_method: curRemainingDue <= 0 ? 'CASH' : (curPaidAmount > 0 ? 'PARTIAL' : 'DUE'),
         notes: notes.trim() || undefined,
       };
 
@@ -837,7 +885,7 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
                     onChange={(e) => {
                       setCashPaidTouched(true);
                       const norm = toEnglishDigits(e.target.value);
-                      const parsed = parseSmartNumber(norm);
+                      const parsed = parseSafeNumber(norm);
                       setCashPaid(norm === '' ? ('' as any) : parsed);
                     }}
                     className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:border-emerald-500 rounded-lg pl-8 pr-3 py-2 text-sm text-slate-900 dark:text-white font-mono font-black outline-none text-right"
@@ -1022,20 +1070,25 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
                     <td className="py-3 px-4 text-right font-black text-slate-900 dark:text-white font-mono">
                       {formatTakaBn(s.net_invoice_amount, true)}
                     </td>
-                    <td className="py-3 px-4 text-right text-slate-500 dark:text-slate-400 font-mono">
-                      {formatTakaBn(0, true)}
+                    <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 font-mono font-medium">
+                      {formatTakaBn(s.previous_due || 0, true)}
                     </td>
                     <td className="py-3 px-4 text-right font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-                      {formatTakaBn(s.paid_amount, true)}
+                      {formatTakaBn(s.paid_amount || 0, true)}
                     </td>
                     <td className="py-3 px-4 text-right font-black font-mono">
-                      <span
-                        className={
-                          s.due_amount > 0 ? 'text-rose-500 dark:text-rose-400 font-bold' : 'text-slate-500 dark:text-slate-400 font-normal'
-                        }
-                      >
-                        {formatTakaBn(s.due_amount, true)}
-                      </span>
+                      {(() => {
+                        const rem = s.remaining_due !== undefined ? s.remaining_due : (s.due_amount || 0);
+                        return (
+                          <span
+                            className={
+                              rem > 0 ? 'text-rose-600 dark:text-rose-400 font-black' : 'text-emerald-600 dark:text-emerald-400 font-bold'
+                            }
+                          >
+                            {formatTakaBn(rem, true)}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="py-3 px-4 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1.5">
