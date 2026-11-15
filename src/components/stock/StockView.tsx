@@ -13,10 +13,12 @@ import {
   X,
   Edit2,
   Trash2,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { Commodity, StockAdjustment } from '../../types';
 import { dbService } from '../../services/api';
 import { StockAdjustmentModal } from './StockAdjustmentModal';
+import { StockExcelImportModal } from '../common/StockExcelImportModal';
 import { formatBanglaCurrency, formatDate, toBnDigits, toBengaliDigits, parseSmartNumber } from '../../utils/bengaliNumbers';
 import { totalKgToMonKg } from '../../utils/weightConverter';
 import { useTheme } from '../../context/ThemeContext';
@@ -29,6 +31,7 @@ export const StockView: React.FC = () => {
   const [adjustments, setAdjustments] = useState<StockAdjustment[]>([]);
   const [isAdjModalOpen, setIsAdjModalOpen] = useState(false);
   const [isNewCommodityOpen, setIsNewCommodityOpen] = useState(false);
+  const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
 
   // Stock Integrity Audit State
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
@@ -215,6 +218,15 @@ export const StockView: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => setIsExcelImportOpen(true)}
+            title="এক্সেল ফাইল থেকে সরাসরি গুদাম স্টক ইমপোর্ট ও আপডেট করুন"
+            className="px-3.5 py-2 text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-amber-300" />
+            <span>📥 স্টক এক্সেল ইমপোর্ট</span>
+          </button>
+
           <button
             onClick={handleRunStockAudit}
             disabled={isAuditing}
@@ -889,6 +901,15 @@ export const StockView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Smart Stock Excel Importer Modal */}
+      <StockExcelImportModal
+        isOpen={isExcelImportOpen}
+        onClose={() => setIsExcelImportOpen(false)}
+        onImportSuccess={() => {
+          loadStockData();
+        }}
+      />
     </div>
   );
 };

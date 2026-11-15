@@ -5,6 +5,7 @@ import {
   Package,
   Boxes,
   Users,
+  HandCoins,
   Wallet,
   Calculator,
   BarChart3,
@@ -54,6 +55,11 @@ const menuItems = [
     icon: Users,
   },
   {
+    id: 'creditors',
+    name: 'পাওনাদার',
+    icon: HandCoins,
+  },
+  {
     id: 'cashbook',
     name: 'দৈনিক ক্যাশ বই',
     shortcut: 'F4',
@@ -99,19 +105,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenCalculator,
 }) => {
   const [recycleCount, setRecycleCount] = useState<number>(0);
+  const [creditorCount, setCreditorCount] = useState<number>(0);
   const [isBackingUp, setIsBackingUp] = useState(false);
   const { isDark, toggleTheme } = useTheme();
   const { lockApp } = useSecurity();
 
   useEffect(() => {
-    const fetchCount = async () => {
+    const fetchCounts = async () => {
       try {
-        const count = await dbService.recycleBin.getCount();
-        setRecycleCount(count || 0);
+        const [rcCount, suppliers] = await Promise.all([
+          dbService.recycleBin.getCount(),
+          dbService.parties.getAll('SUPPLIER').catch(() => []),
+        ]);
+        setRecycleCount(rcCount || 0);
+        const activeSuppliers = (suppliers || []).filter((s) => (s.current_balance || 0) < 0 || (s.opening_balance || 0) < 0);
+        setCreditorCount(activeSuppliers.length || (suppliers || []).length);
       } catch {}
     };
-    fetchCount();
-    const interval = setInterval(fetchCount, 6000);
+    fetchCounts();
+    const interval = setInterval(fetchCounts, 6000);
     return () => clearInterval(interval);
   }, []);
 
@@ -173,6 +185,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {item.id === 'recycle_bin' && recycleCount > 0 ? (
                 <span className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ml-1 bg-rose-500/25 text-rose-300 border border-rose-500/40">
                   {toBnDigits(recycleCount)}
+                </span>
+              ) : item.id === 'creditors' && creditorCount > 0 ? (
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ml-1 bg-amber-500/25 text-amber-300 border border-amber-500/40">
+                  {toBnDigits(creditorCount)}
                 </span>
               ) : item.shortcut ? (
                 <span

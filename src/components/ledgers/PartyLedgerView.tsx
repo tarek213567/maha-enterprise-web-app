@@ -27,11 +27,13 @@ import {
 import { Party, LedgerEntry } from '../../types';
 import { dbService } from '../../services/api';
 import { toBnDigits, formatBanglaCurrency, formatDate, parseSmartNumber, toBengaliDigits, toEnglishDigits, formatTaka, formatTakaBn } from '../../utils/bengaliNumbers';
+import { CustomerExcelImportModal } from '../common/CustomerExcelImportModal';
 
 export const PartyLedgerView: React.FC = () => {
   const [dues, setDues] = useState<Party[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
 
   // 1. Collect Due Payment Modal (টাকা জমা নিন)
   const [payCustomer, setPayCustomer] = useState<Party | null>(null);
@@ -542,6 +544,15 @@ export const PartyLedgerView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsExcelImportOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-400 hover:to-emerald-500 text-white text-xs font-black rounded-xl shadow-md transition-all cursor-pointer active:scale-95"
+            title="গ্রাহকের এক্সেল ফাইল ইমপোর্ট করুন"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>📥 স্মার্ট এক্সেল ইমপোর্ট</span>
+          </button>
           <button
             type="button"
             onClick={() => dbService.system.print()}
@@ -1805,6 +1816,15 @@ export const PartyLedgerView: React.FC = () => {
         </div>,
         document.body
       )}
+
+      {/* Smart Customer Excel Importer Modal */}
+      <CustomerExcelImportModal
+        isOpen={isExcelImportOpen}
+        onClose={() => setIsExcelImportOpen(false)}
+        onImportSuccess={() => {
+          fetchParties();
+        }}
+      />
     </div>
   );
 };

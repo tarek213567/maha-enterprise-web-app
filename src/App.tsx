@@ -14,6 +14,7 @@ import { PurchasesView } from './components/purchases/PurchasesView';
 import { SalesView } from './components/sales/SalesView';
 import { StockView } from './components/stock/StockView';
 import { PartyLedgerView } from './components/ledgers/PartyLedgerView';
+import { CreditorLedgerView } from './components/creditors/CreditorLedgerView';
 import { DailyCashbookView } from './components/cashbook/DailyCashbookView';
 import { ExpenseView } from './components/expenses/ExpenseView';
 import { PnLView } from './components/reports/PnLView';
@@ -214,6 +215,8 @@ const AppContent: React.FC = () => {
               {currentTab === 'stock' && <StockView />}
 
               {currentTab === 'ledgers' && <PartyLedgerView />}
+
+              {currentTab === 'creditors' && <CreditorLedgerView />}
 
               {currentTab === 'cashbook' && <DailyCashbookView />}
 

@@ -5,6 +5,7 @@ import {
   Package,
   Boxes,
   Users,
+  HandCoins,
   Wallet,
   Calculator,
   BarChart3,
@@ -33,6 +34,7 @@ const menuItems = [
   { id: 'sales', name: 'পাইকারি বিক্রয় ও চালান', shortcut: 'F3', icon: Package },
   { id: 'stock', name: 'গুদাম স্টক ও ওজন', icon: Boxes },
   { id: 'ledgers', name: 'বাকি খাতা', icon: Users },
+  { id: 'creditors', name: 'পাওনাদার', icon: HandCoins },
   { id: 'cashbook', name: 'দৈনিক ক্যাশ বই', shortcut: 'F4', icon: Wallet },
   { id: 'expenses', name: 'পরিচালন খরচ', icon: Calculator },
   { id: 'reports', name: 'রিপোর্ট', icon: BarChart3 },
@@ -51,19 +53,25 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
   onOpenCalculator,
 }) => {
   const [recycleCount, setRecycleCount] = useState<number>(0);
+  const [creditorCount, setCreditorCount] = useState<number>(0);
   const [isBackingUp, setIsBackingUp] = useState(false);
   const { isDark, toggleTheme } = useTheme();
   const { lockApp } = useSecurity();
 
   useEffect(() => {
     if (!isOpen) return;
-    const fetchCount = async () => {
+    const fetchCounts = async () => {
       try {
-        const count = await dbService.recycleBin.getCount();
-        setRecycleCount(count || 0);
+        const [rcCount, suppliers] = await Promise.all([
+          dbService.recycleBin.getCount(),
+          dbService.parties.getAll('SUPPLIER').catch(() => []),
+        ]);
+        setRecycleCount(rcCount || 0);
+        const activeSuppliers = (suppliers || []).filter((s) => (s.current_balance || 0) < 0 || (s.opening_balance || 0) < 0);
+        setCreditorCount(activeSuppliers.length || (suppliers || []).length);
       } catch {}
     };
-    fetchCount();
+    fetchCounts();
   }, [isOpen]);
 
   const handleBackup = async () => {
@@ -168,6 +176,10 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
                 {item.id === 'recycle_bin' && recycleCount > 0 ? (
                   <span className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ml-1 bg-rose-500/25 text-rose-300 border border-rose-500/40">
                     {toBnDigits(recycleCount)}
+                  </span>
+                ) : item.id === 'creditors' && creditorCount > 0 ? (
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ml-1 bg-amber-500/25 text-amber-300 border border-amber-500/40">
+                    {toBnDigits(creditorCount)}
                   </span>
                 ) : item.shortcut ? (
                   <span

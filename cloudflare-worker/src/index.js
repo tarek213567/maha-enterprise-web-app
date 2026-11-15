@@ -788,20 +788,26 @@ export default {
         // --- PARTIES ---
         if (url.pathname === '/api/parties' || url.pathname === '/api/dues') {
           if (request.method === 'GET') {
-            const type = url.searchParams.get('type');
+            const rawType = (url.searchParams.get('type') || '').toUpperCase();
             if (db) {
               let sql = 'SELECT * FROM parties WHERE is_active = 1';
               const params = [];
-              if (type && type !== 'BOTH') {
-                sql += ' AND (party_type = ? OR party_type = ?)';
-                params.push(type, 'BOTH');
+              if (rawType === 'BUYER' || rawType === 'CUSTOMER') {
+                sql += ' AND (party_type = "BUYER" OR party_type = "CUSTOMER" OR party_type = "BOTH")';
+              } else if (rawType === 'SUPPLIER' || rawType === 'CREDITOR') {
+                sql += ' AND (party_type = "SUPPLIER" OR party_type = "CREDITOR" OR party_type = "BOTH")';
+              } else if (rawType && rawType !== 'BOTH') {
+                sql += ' AND (party_type = ? OR party_type = "BOTH")';
+                params.push(rawType);
               }
               sql += ' ORDER BY is_pinned DESC, updated_at DESC';
               const { results } = await db.prepare(sql).bind(...params).all();
               return sendJson(results);
             }
             let list = inMemoryStore.parties.filter(p => p.is_active === 1);
-            if (type && type !== 'BOTH') list = list.filter(p => p.party_type === type || p.party_type === 'BOTH');
+            if (rawType === 'BUYER' || rawType === 'CUSTOMER') list = list.filter(p => p.party_type === 'BUYER' || p.party_type === 'CUSTOMER' || p.party_type === 'BOTH');
+            else if (rawType === 'SUPPLIER' || rawType === 'CREDITOR') list = list.filter(p => p.party_type === 'SUPPLIER' || p.party_type === 'CREDITOR' || p.party_type === 'BOTH');
+            else if (rawType && rawType !== 'BOTH') list = list.filter(p => p.party_type === rawType || p.party_type === 'BOTH');
             return sendJson(list);
           }
           if (request.method === 'POST') {
@@ -918,30 +924,63 @@ export default {
             const party = await db.prepare('SELECT * FROM parties WHERE id = ?').bind(partyId).first();
             if (!party) return sendJson({ success: false, error: 'পার্টি পাওয়া যায়নি' }, 404);
 
+            const isSupplier = party.party_type === 'SUPPLIER' || party.party_type === 'CREDITOR';
+
             if (action === 'payment') {
-              const newBal = subMoney(party.current_balance, amt);
-              await db.batch([
-                db.prepare('UPDATE parties SET current_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(newBal, partyId),
-                db.prepare(`
-                  INSERT INTO party_ledger (entry_date, party_id, transaction_type, debit, credit, running_balance, is_test_draft, description)
-                  VALUES (?, ?, 'PAYMENT_RECEIVED', 0, ?, ?, ?, ?)
-                `).bind(entryDate, partyId, amt, newBal, isTest, body.description || 'বকেয়া নগদ আদায়'),
-                db.prepare(`
-                  INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, party_id, is_test_draft, description)
-                  VALUES (?, 'INFLOW', 'DUE_COLLECTION', ?, ?, ?, ?, ?)
-                `).bind(entryDate, amt, body.payment_mode || 'CASH', partyId, isTest, `বকেয়া আদায়: ${party.name} (${body.description || ''})`)
-              ]);
-              return sendJson({ success: true, newBalance: newBal }, 201);
+              if (isSupplier) {
+                // Paying to supplier: reduces our debt (makes balance less negative or more positive)
+                const newBal = addMoney(party.current_balance, amt);
+                await db.batch([
+                  db.prepare('UPDATE parties SET current_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(newBal, partyId),
+                  db.prepare(`
+                    INSERT INTO party_ledger (entry_date, party_id, transaction_type, debit, credit, running_balance, is_test_draft, description)
+                    VALUES (?, ?, 'PAYMENT_GIVEN', ?, 0, ?, ?, ?)
+                  `).bind(entryDate, partyId, amt, newBal, isTest, body.description || 'পাওনাদার নগদ পরিশোধ'),
+                  db.prepare(`
+                    INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, party_id, is_test_draft, description)
+                    VALUES (?, 'OUTFLOW', 'SUPPLIER_PAYMENT', ?, ?, ?, ?, ?)
+                  `).bind(entryDate, amt, body.payment_mode || 'CASH', partyId, isTest, `পাওনাদার পরিশোধ: ${party.name} (${body.description || ''})`)
+                ]);
+                return sendJson({ success: true, newBalance: newBal }, 201);
+              } else {
+                const newBal = subMoney(party.current_balance, amt);
+                await db.batch([
+                  db.prepare('UPDATE parties SET current_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(newBal, partyId),
+                  db.prepare(`
+                    INSERT INTO party_ledger (entry_date, party_id, transaction_type, debit, credit, running_balance, is_test_draft, description)
+                    VALUES (?, ?, 'PAYMENT_RECEIVED', 0, ?, ?, ?, ?)
+                  `).bind(entryDate, partyId, amt, newBal, isTest, body.description || 'বকেয়া নগদ আদায়'),
+                  db.prepare(`
+                    INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, party_id, is_test_draft, description)
+                    VALUES (?, 'INFLOW', 'DUE_COLLECTION', ?, ?, ?, ?, ?)
+                  `).bind(entryDate, amt, body.payment_mode || 'CASH', partyId, isTest, `বকেয়া আদায়: ${party.name} (${body.description || ''})`)
+                ]);
+                return sendJson({ success: true, newBalance: newBal }, 201);
+              }
             } else {
-              const newBal = addMoney(party.current_balance, amt);
-              await db.batch([
-                db.prepare('UPDATE parties SET current_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(newBal, partyId),
-                db.prepare(`
-                  INSERT INTO party_ledger (entry_date, party_id, transaction_type, debit, credit, running_balance, is_test_draft, description)
-                  VALUES (?, ?, 'OPENING_BALANCE', ?, 0, ?, ?, ?)
-                `).bind(entryDate, partyId, amt, newBal, isTest, body.description || 'বকেয়া সমন্বয়')
-              ]);
-              return sendJson({ success: true, newBalance: newBal }, 201);
+              // action === 'due'
+              if (isSupplier) {
+                // Adding payable to supplier increases debt (makes balance more negative)
+                const newBal = subMoney(party.current_balance, amt);
+                await db.batch([
+                  db.prepare('UPDATE parties SET current_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(newBal, partyId),
+                  db.prepare(`
+                    INSERT INTO party_ledger (entry_date, party_id, transaction_type, debit, credit, running_balance, is_test_draft, description)
+                    VALUES (?, ?, 'ADJUSTMENT', 0, ?, ?, ?, ?)
+                  `).bind(entryDate, partyId, amt, newBal, isTest, body.description || 'পাওনা বৃদ্ধি')
+                ]);
+                return sendJson({ success: true, newBal }, 201);
+              } else {
+                const newBal = addMoney(party.current_balance, amt);
+                await db.batch([
+                  db.prepare('UPDATE parties SET current_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(newBal, partyId),
+                  db.prepare(`
+                    INSERT INTO party_ledger (entry_date, party_id, transaction_type, debit, credit, running_balance, is_test_draft, description)
+                    VALUES (?, ?, 'OPENING_BALANCE', ?, 0, ?, ?, ?)
+                  `).bind(entryDate, partyId, amt, newBal, isTest, body.description || 'বকেয়া সমন্বয়')
+                ]);
+                return sendJson({ success: true, newBalance: newBal }, 201);
+              }
             }
           }
           return sendJson({ success: true, newBalance: 0 }, 201);
