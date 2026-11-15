@@ -1,5 +1,8 @@
 import * as XLSX from 'xlsx';
-import { parseSmartNumber, toEnDigits } from './bengaliNumbers';
+import { parseSmartNumber, toEnDigits, toBnDigits, parseNum } from './bengaliNumbers';
+
+// Re-export number utility helpers
+export { toBnDigits, toEnDigits, parseSmartNumber, parseNum };
 
 export interface ParsedPartyRow {
   id: string;
@@ -269,7 +272,16 @@ function detectAndParseDualColumnLedger(
     }
   }
 
-  const extractedAddress = addressLines.length > 0 ? addressLines.join(', ') : 'চাচকৈড় বাজার, গুরুদাসপুর';
+  // Refine Address from banner rows or fallback to filename location hints (e.g. পাবনা, নাটোর)
+  let extractedAddress = addressLines.length > 0 ? addressLines.join(', ') : '';
+  if (!extractedAddress || extractedAddress === 'চাচকৈড় বাজার, গুরুদাসপুর') {
+    const locMatch = (extractedName + ' ' + (fileName || '')).match(/(পাবনা|নাটোর|গুরুদাসপুর|ঈশ্বরদী|ঢাকা|বগুড়া|বগুড়া|কুষ্টিয়া|কুষ্টিয়া|রাজশাহী|সিরাজগঞ্জ|চাটমোহর|বাঘাবাড়ী|বাঘাবাড়ী|সাঁথিয়া|সাঁথিয়া|সিংড়া|সিংড়া|বড়াইগ্রাম|বড়াইগ্রাম|আটঘরিয়া|আটঘরিয়া|ফরিদপুর|যশোর)/);
+    if (locMatch) {
+      extractedAddress = locMatch[1];
+    } else {
+      extractedAddress = 'চাচকৈড় বাজার, গুরুদাসপুর';
+    }
+  }
 
   // 2. PARSE TRANSACTION ROWS (Starting below the header rows)
   const ledgerEntries: Array<{

@@ -62,6 +62,11 @@ export function parseSmartNumber(input: string | number | undefined | null): num
 }
 
 /**
+ * Alias for parseSmartNumber
+ */
+export const parseNum = parseSmartNumber;
+
+/**
  * Bangladeshi / South Asian Lakh-Crore comma grouping (#,##,##,###.##)
  * e.g., 700000 -> "7,00,000.00"
  */
