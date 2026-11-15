@@ -23,11 +23,13 @@ import {
   Pin,
   PinOff,
   MoreVertical,
+  Lock,
 } from 'lucide-react';
 import { Party, LedgerEntry } from '../../types';
 import { dbService } from '../../services/api';
 import { toBnDigits, formatBanglaCurrency, formatDate, parseSmartNumber, toBengaliDigits, toEnglishDigits, formatTaka, formatTakaBn } from '../../utils/bengaliNumbers';
 import { CustomerExcelImportModal } from '../common/CustomerExcelImportModal';
+import { ENABLE_EXCEL_IMPORT, EXCEL_IMPORT_LOCKED_MESSAGE } from '../../config/featureFlags';
 
 export const PartyLedgerView: React.FC = () => {
   const [dues, setDues] = useState<Party[]>([]);
@@ -546,12 +548,26 @@ export const PartyLedgerView: React.FC = () => {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setIsExcelImportOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-black rounded-xl shadow-md border border-emerald-400/30 transition-all cursor-pointer active:scale-95"
-            title="ল্যাপটপের পুরনো এক্সেল ফাইল ও খতিয়ান ইমপোর্ট করুন"
+            onClick={() => {
+              if (!ENABLE_EXCEL_IMPORT) {
+                alert(EXCEL_IMPORT_LOCKED_MESSAGE);
+                return;
+              }
+              setIsExcelImportOpen(true);
+            }}
+            className={
+              ENABLE_EXCEL_IMPORT
+                ? "flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-black rounded-xl shadow-md border border-emerald-400/30 transition-all cursor-pointer active:scale-95"
+                : "flex items-center gap-1.5 px-3.5 py-2 bg-slate-800/70 text-slate-400 opacity-60 cursor-not-allowed border border-slate-600/60 text-xs font-bold rounded-xl shadow-sm transition-all"
+            }
+            title={ENABLE_EXCEL_IMPORT ? "ল্যাপটপের পুরনো এক্সেল ফাইল ও খতিয়ান ইমপোর্ট করুন" : EXCEL_IMPORT_LOCKED_MESSAGE}
           >
-            <FileSpreadsheet className="w-4 h-4 text-amber-300" />
-            <span>📥 পুরনো এক্সেল ইমপোর্ট (Excel)</span>
+            {ENABLE_EXCEL_IMPORT ? (
+              <FileSpreadsheet className="w-4 h-4 text-amber-300" />
+            ) : (
+              <Lock className="w-3.5 h-3.5 text-slate-400" />
+            )}
+            <span>{ENABLE_EXCEL_IMPORT ? '📥 পুরনো এক্সেল ইমপোর্ট (Excel)' : '🔒 এক্সেল ইমপোর্ট (লক করা)'}</span>
           </button>
           <button
             type="button"

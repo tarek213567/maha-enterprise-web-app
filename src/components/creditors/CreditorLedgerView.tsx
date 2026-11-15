@@ -28,6 +28,7 @@ import {
   Coins,
   CreditCard,
   Building,
+  Lock,
 } from 'lucide-react';
 import { Party, LedgerEntry } from '../../types';
 import { dbService } from '../../services/api';
@@ -42,6 +43,7 @@ import {
   formatTakaBn,
 } from '../../utils/bengaliNumbers';
 import { CreditorExcelImportModal } from '../common/CreditorExcelImportModal';
+import { ENABLE_EXCEL_IMPORT, EXCEL_IMPORT_LOCKED_MESSAGE } from '../../config/featureFlags';
 
 export const CreditorLedgerView: React.FC = () => {
   const [creditors, setCreditors] = useState<Party[]>([]);
@@ -445,12 +447,26 @@ export const CreditorLedgerView: React.FC = () => {
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setIsExcelImportOpen(true)}
-              className="px-3.5 py-2 text-xs font-bold text-teal-950 bg-gradient-to-r from-teal-400 to-emerald-400 hover:from-teal-300 hover:to-emerald-300 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-              title="পূর্বের মহাজন এক্সেল ফাইল ইমপোর্ট করুন"
+              onClick={() => {
+                if (!ENABLE_EXCEL_IMPORT) {
+                  alert(EXCEL_IMPORT_LOCKED_MESSAGE);
+                  return;
+                }
+                setIsExcelImportOpen(true);
+              }}
+              className={
+                ENABLE_EXCEL_IMPORT
+                  ? "px-3.5 py-2 text-xs font-bold text-teal-950 bg-gradient-to-r from-teal-400 to-emerald-400 hover:from-teal-300 hover:to-emerald-300 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  : "px-3.5 py-2 text-xs font-bold bg-slate-800/70 text-slate-400 opacity-60 cursor-not-allowed border border-slate-600/60 rounded-xl shadow-sm transition-all flex items-center gap-1.5"
+              }
+              title={ENABLE_EXCEL_IMPORT ? "পূর্বের মহাজন এক্সেল ফাইল ইমপোর্ট করুন" : EXCEL_IMPORT_LOCKED_MESSAGE}
             >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>📥 স্মার্ট এক্সেল ইমপোর্ট</span>
+              {ENABLE_EXCEL_IMPORT ? (
+                <FileSpreadsheet className="w-4 h-4" />
+              ) : (
+                <Lock className="w-3.5 h-3.5 text-slate-400" />
+              )}
+              <span>{ENABLE_EXCEL_IMPORT ? '📥 স্মার্ট এক্সেল ইমপোর্ট' : '🔒 এক্সেল ইমপোর্ট (লক করা)'}</span>
             </button>
 
             <button

@@ -14,11 +14,13 @@ import {
   Edit2,
   Trash2,
   FileSpreadsheet,
+  Lock,
 } from 'lucide-react';
 import { Commodity, StockAdjustment } from '../../types';
 import { dbService } from '../../services/api';
 import { StockAdjustmentModal } from './StockAdjustmentModal';
 import { StockExcelImportModal } from '../common/StockExcelImportModal';
+import { ENABLE_EXCEL_IMPORT, EXCEL_IMPORT_LOCKED_MESSAGE } from '../../config/featureFlags';
 import { formatBanglaCurrency, formatDate, toBnDigits, toBengaliDigits, parseSmartNumber } from '../../utils/bengaliNumbers';
 import { totalKgToMonKg } from '../../utils/weightConverter';
 import { useTheme } from '../../context/ThemeContext';
@@ -219,12 +221,27 @@ export const StockView: React.FC = () => {
 
         <div className="flex flex-wrap items-center gap-2.5">
           <button
-            onClick={() => setIsExcelImportOpen(true)}
-            title="এক্সেল ফাইল থেকে সরাসরি গুদাম স্টক ইমপোর্ট ও আপডেট করুন"
-            className="px-3.5 py-2 text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+            type="button"
+            onClick={() => {
+              if (!ENABLE_EXCEL_IMPORT) {
+                alert(EXCEL_IMPORT_LOCKED_MESSAGE);
+                return;
+              }
+              setIsExcelImportOpen(true);
+            }}
+            title={ENABLE_EXCEL_IMPORT ? "এক্সেল ফাইল থেকে সরাসরি গুদাম স্টক ইমপোর্ট ও আপডেট করুন" : EXCEL_IMPORT_LOCKED_MESSAGE}
+            className={
+              ENABLE_EXCEL_IMPORT
+                ? "px-3.5 py-2 text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                : "px-3.5 py-2 text-xs font-bold bg-slate-800/70 text-slate-400 opacity-60 cursor-not-allowed border border-slate-600/60 rounded-xl shadow-sm transition-all flex items-center gap-1.5"
+            }
           >
-            <FileSpreadsheet className="w-4 h-4 text-amber-300" />
-            <span>📥 স্টক এক্সেল ইমপোর্ট</span>
+            {ENABLE_EXCEL_IMPORT ? (
+              <FileSpreadsheet className="w-4 h-4 text-amber-300" />
+            ) : (
+              <Lock className="w-3.5 h-3.5 text-slate-400" />
+            )}
+            <span>{ENABLE_EXCEL_IMPORT ? '📥 স্টক এক্সেল ইমপোর্ট' : '🔒 স্টক ইমপোর্ট (লক করা)'}</span>
           </button>
 
           <button
