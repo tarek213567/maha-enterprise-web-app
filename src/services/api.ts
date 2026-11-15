@@ -249,6 +249,13 @@ export const dbService = {
       if (window.api?.parties?.updateLedgerNote) return window.api.parties.updateLedgerNote(id, desc);
       return { success: true };
     },
+    importLegacyExcel: async (payload: { parties: any[] }): Promise<{ success: boolean; importedCount: number; totalEntriesCount: number; message: string }> => {
+      if (window.api?.parties?.importLegacyExcel) return window.api.parties.importLegacyExcel(payload);
+      return await apiFetch<{ success: boolean; importedCount: number; totalEntriesCount: number; message: string }>(
+        '/api/parties/import-legacy-excel',
+        { method: 'POST', body: JSON.stringify(payload) }
+      );
+    },
   },
 
   purchases: {

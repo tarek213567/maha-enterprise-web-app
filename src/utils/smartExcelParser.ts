@@ -6,9 +6,13 @@ export interface ParsedPartyRow {
   name: string;
   phone: string;
   address: string;
+  partyType: 'BUYER' | 'SUPPLIER';
   openingDue: number;
   currentDue: number;
+  totalJoma: number;
+  totalKhoroch: number;
   notes: string;
+  fileName?: string;
   sheetName?: string;
   sourceType: 'DUAL_COLUMN_LEDGER' | 'TABLE_ROW';
   ledgerEntries?: Array<{
@@ -16,6 +20,9 @@ export interface ParsedPartyRow {
     description: string;
     debit: number;
     credit: number;
+    weight?: string | number;
+    rate?: string | number;
+    reference?: string;
   }>;
   selected: boolean;
 }
@@ -89,6 +96,7 @@ export async function parsePartiesFromExcel(
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
   const results: ParsedPartyRow[] = [];
+  const cleanFileName = file.name.replace(/\.[^/.]+$/, '').trim();
 
   for (const sheetName of workbook.SheetNames) {
     const ws = workbook.Sheets[sheetName];
@@ -99,14 +107,14 @@ export async function parsePartiesFromExcel(
     if (!rows || rows.length === 0) continue;
 
     // A. CHECK FOR DUAL-COLUMN LEDGER (জমা ও খরচ পাশাপাশি কলাম)
-    const dualLedger = detectAndParseDualColumnLedger(rows, sheetName, targetType);
+    const dualLedger = detectAndParseDualColumnLedger(rows, sheetName, cleanFileName, targetType);
     if (dualLedger) {
       results.push(dualLedger);
       continue;
     }
 
     // B. CHECK FOR STANDARD TABLE ROWS
-    const tableRows = detectAndParseStandardPartyTable(rows, sheetName, targetType);
+    const tableRows = detectAndParseStandardPartyTable(rows, sheetName, cleanFileName, targetType);
     if (tableRows.length > 0) {
       results.push(...tableRows);
     }
@@ -115,134 +123,258 @@ export async function parsePartiesFromExcel(
   return results;
 }
 
-// Helper: Parse Dual-Column Ledger
+// Helper: Parse Dual-Column Ledger (Left: জমা, Right: খরচ)
 function detectAndParseDualColumnLedger(
   rows: any[][],
   sheetName: string,
+  fileName: string,
   targetType: 'BUYER' | 'SUPPLIER'
 ): ParsedPartyRow | null {
-  // Check if first 8 rows have dual-column hints (e.g. জমা in col A-C and খরচ in col D-H)
   let headerRowIndex = -1;
-  let jomaCol = -1;
-  let khorochCol = -1;
+  let jomaDateCol = -1;
+  let jomaMethodCol = -1;
+  let jomaAmountCol = -1;
+  let khorochDateCol = -1;
+  let khorochMethodCol = -1;
+  let khorochWeightCol = -1;
+  let khorochRateCol = -1;
+  let khorochAmountCol = -1;
 
-  for (let r = 0; r < Math.min(rows.length, 10); r++) {
+  // Search first 15 rows for the dual-column table header
+  for (let r = 0; r < Math.min(rows.length, 15); r++) {
     const row = rows[r];
+    let jomaFound = false;
+    let khorochFound = false;
+    let dateCount = 0;
+
     for (let c = 0; c < row.length; c++) {
       const val = cellToStr(row[c]);
-      if (/জমা|ক্রেডিট|আদায়|ইনফ্লো|Credit|Deposit/i.test(val) && jomaCol === -1) {
-        jomaCol = c;
+      if (/জমা|ক্রেডিট|আদায়|ইনফ্লো|Credit|Deposit/i.test(val)) {
+        jomaFound = true;
       }
-      if (/খরচ|ডেবিট|বাকি|ক্রয়|বিক্রি|আউটফ্লো|Debit|Expense/i.test(val) && khorochCol === -1) {
-        khorochCol = c;
+      if (/খরচ|ডেবিট|বাকি|ক্রয়|বিক্রি|আউটফ্লো|Debit|Expense/i.test(val)) {
+        khorochFound = true;
+      }
+      if (/তারিখ|Date/i.test(val)) {
+        dateCount++;
       }
     }
-    if (jomaCol !== -1 && khorochCol !== -1) {
+
+    // A header row is confirmed if:
+    // 1) Both 'জমা' and 'খরচ' appear, OR
+    // 2) Two 'তারিখ' columns appear across the row (Left date & Right date), OR
+    // 3) Left has 'তারিখ'/'মাধ্যম' and Right has 'ওজন'/'দর'/'টাকা'
+    if (
+      (jomaFound && khorochFound) ||
+      dateCount >= 2 ||
+      (jomaFound && row.some((c: any) => /ওজন|দর|চালান/i.test(cellToStr(c))))
+    ) {
       headerRowIndex = r;
       break;
     }
   }
 
-  // If no clear dual-column header found, return null
   if (headerRowIndex === -1) return null;
 
-  // Extract Party Name, Address, Phone from top header rows (rows 0 to headerRowIndex)
+  // Map individual column positions inside or immediately below the header row
+  const headerRow = rows[headerRowIndex];
+  const subHeaderRow = headerRowIndex + 1 < rows.length ? rows[headerRowIndex + 1] : [];
+
+  for (let c = 0; c < Math.max(headerRow.length, subHeaderRow.length); c++) {
+    const val = (cellToStr(headerRow[c]) + ' ' + cellToStr(subHeaderRow[c])).trim();
+    if (/তারিখ|Date/i.test(val)) {
+      if (c < 3 && jomaDateCol === -1) jomaDateCol = c;
+      else if (c >= 3 && khorochDateCol === -1) khorochDateCol = c;
+    }
+    if (/মাধ্যম|বিবরণ|মারফত|চেক|Particulars|Method/i.test(val)) {
+      if (c < 3 && jomaMethodCol === -1) jomaMethodCol = c;
+      else if (c >= 3 && khorochMethodCol === -1) khorochMethodCol = c;
+    }
+    if (/টাকা|পরিমাণ|Amount|Tk/i.test(val)) {
+      if (c < 4 && jomaAmountCol === -1) jomaAmountCol = c;
+      else if (c >= 4 && khorochAmountCol === -1) khorochAmountCol = c;
+    }
+    if (/ওজন|বস্তা|কেজি|Weight|Qty/i.test(val) && khorochWeightCol === -1) {
+      khorochWeightCol = c;
+    }
+    if (/দর|রেট|মূল্য|Rate|Price/i.test(val) && khorochRateCol === -1) {
+      khorochRateCol = c;
+    }
+    if (/গাড়ী|ট্রাক|চালান|MDT|BOT|Vehicle|Challan/i.test(val) && khorochMethodCol === -1) {
+      khorochMethodCol = c;
+    }
+  }
+
+  // Fallback defaults if specific columns were not labeled with text
+  if (jomaDateCol === -1) jomaDateCol = 0;
+  if (jomaMethodCol === -1) jomaMethodCol = 1;
+  if (jomaAmountCol === -1) jomaAmountCol = 2;
+  if (khorochDateCol === -1) khorochDateCol = 3;
+  if (khorochMethodCol === -1) khorochMethodCol = 4;
+  if (khorochWeightCol === -1) khorochWeightCol = 5;
+  if (khorochRateCol === -1) khorochRateCol = 6;
+  if (khorochAmountCol === -1) khorochAmountCol = 7;
+
+  // 1. EXTRACT PARTY NAME & ADDRESS FROM TOP BANNER (Rows 0 to headerRowIndex - 1)
   let extractedName = '';
   let extractedPhone = '';
-  let extractedAddress = '';
+  const addressLines: string[] = [];
 
-  for (let r = 0; r <= headerRowIndex; r++) {
-    const rowStr = rows[r].map(cellToStr).join(' ');
-    // Phone
+  for (let r = 0; r < headerRowIndex; r++) {
+    const row = rows[r];
+    const rowCells = row.map(cellToStr).filter((s) => s.length > 0);
+    if (rowCells.length === 0) continue;
+
+    const rowFullText = rowCells.join(' ');
+
+    // Check for phone number
     if (!extractedPhone) {
-      const ph = cleanPhoneNumber(rowStr);
+      const ph = cleanPhoneNumber(rowFullText);
       if (ph) extractedPhone = ph;
     }
-    // Name hints
+
+    // Ignore generic title words
+    const isGenericHeader = /^(?:জমা|খরচ|লেজার|খতিয়ান|হিসাব|বাকি|নগদ|তারিখ|টাকা|মহা\s*হিসাব)+$/i.test(rowFullText);
+    if (isGenericHeader) continue;
+
+    // First meaningful line is the party/organization name
     if (!extractedName) {
-      const nameMatch = rowStr.match(/(?:নাম|গ্রাহক|পার্টি|মহাজন|মেসার্স|শ্রী|মোঃ)\s*[:：\-]?\s*([^\s,;]+(?:\s+[^\s,;]+){1,4})/i);
-      if (nameMatch) {
-        extractedName = nameMatch[1].replace(/[|,:;\-]/g, '').trim();
+      const cleaned = rowFullText
+        .replace(/^(?:নাম|গ্রাহক|পার্টি|মহাজন|ক্রেতা|সাপ্লায়ার|M\/S|MS)\s*[:：\-]?\s*/i, '')
+        .replace(/[|,:;\-]/g, ' ')
+        .trim();
+      if (cleaned.length >= 2) {
+        extractedName = cleaned;
       }
-    }
-    // Address hints
-    if (!extractedAddress) {
-      const addrMatch = rowStr.match(/(?:ঠিকানা|গ্রাম|স্থান|মোকাম)\s*[:：\-]?\s*([^\n\r,;]+)/i);
-      if (addrMatch) {
-        extractedAddress = addrMatch[1].trim();
-      }
-    }
-  }
-
-  // Fallback to sheet name if no party name found in banner
-  if (!extractedName || extractedName.length < 2) {
-    // Sanitize sheet name
-    const cleanedSheet = sheetName.replace(/[0-9\._\-\(\)]/g, ' ').trim();
-    if (cleanedSheet.length >= 2 && !/Sheet|Page|Table|স্টক|বাকি/i.test(cleanedSheet)) {
-      extractedName = cleanedSheet;
     } else {
-      extractedName = sheetName.trim();
+      // Subsequent lines form the address
+      const addrClean = rowFullText
+        .replace(/^(?:ঠিকানা|গ্রাম|থানা|উপজেলা|জেলা|মোকাম|স্থান)\s*[:：\-]?\s*/i, '')
+        .trim();
+      if (addrClean.length >= 2 && !addressLines.includes(addrClean)) {
+        addressLines.push(addrClean);
+      }
     }
   }
 
-  // Parse ledger entries line by line
-  const ledgerEntries: Array<{ date: string; description: string; debit: number; credit: number }> = [];
+  // Fallback party name resolution
+  if (!extractedName || extractedName.length < 2) {
+    const cleanSheet = sheetName.replace(/[0-9\._\-\(\)]/g, ' ').trim();
+    if (cleanSheet.length >= 2 && !/^(?:Sheet|Page|Table|স্টক|বাকি|লেজার)/i.test(cleanSheet)) {
+      extractedName = cleanSheet;
+    } else if (fileName && !/^(?:Book|Sheet|Excel|Untitled|New)/i.test(fileName)) {
+      extractedName = fileName;
+    } else {
+      extractedName = targetType === 'BUYER' ? 'খরিদ্দার (বাকি খাতা)' : 'মহাজন / পাওনাদার';
+    }
+  }
+
+  const extractedAddress = addressLines.length > 0 ? addressLines.join(', ') : 'চাচকৈড় বাজার, গুরুদাসপুর';
+
+  // 2. PARSE TRANSACTION ROWS (Starting below the header rows)
+  const ledgerEntries: Array<{
+    date: string;
+    description: string;
+    debit: number;
+    credit: number;
+    weight?: string | number;
+    rate?: string | number;
+    reference?: string;
+  }> = [];
+
   let totalJoma = 0;
   let totalKhoroch = 0;
+  let extractedRemainingDue = 0;
 
-  for (let r = headerRowIndex + 1; r < rows.length; r++) {
+  const startRow = subHeaderRow.some((c: any) => /তারিখ|টাকা|ওজন|দর/i.test(cellToStr(c)))
+    ? headerRowIndex + 2
+    : headerRowIndex + 1;
+
+  for (let r = startRow; r < rows.length; r++) {
     const row = rows[r];
-    const leftText = cellToStr(row[jomaCol]);
-    const rightText = cellToStr(row[khorochCol]);
+    if (!row || row.length === 0) continue;
 
-    // Skip summary / total rows
-    const fullRowStr = row.map(cellToStr).join(' ');
-    if (/সর্বমোট|মোট|মোট জমা|মোট খরচ|জের|অবঃ/i.test(fullRowStr)) {
+    const rowFullStr = row.map(cellToStr).join(' ');
+
+    // Check for footer summary / total rows
+    if (/(?:সর্বমোট|মোট|মোট\s*জমা|মোট\s*খরচ|জের|অবঃ|অবশিষ্ট|Total|Balance)/i.test(rowFullStr)) {
+      if (/(?:অবঃ|অবশিষ্ট|Balance)/i.test(rowFullStr)) {
+        for (const cell of row) {
+          const num = parseSmartNumber(cell);
+          if (num > 0 && num !== totalJoma && num !== totalKhoroch) {
+            extractedRemainingDue = num;
+            break;
+          }
+        }
+      }
       continue;
     }
 
-    // Left side: Joma (Deposit/Payment)
-    const jomaAmount = parseSmartNumber(row[jomaCol + 1] || row[jomaCol + 2] || row[jomaCol]);
-    const jomaDate = normalizeDate(row[Math.max(0, jomaCol - 1)] || row[jomaCol]);
-    const jomaDesc = cellToStr(row[jomaCol] || 'নগদ জমা / আদায়');
+    // LEFT: Joma (Deposit/Payment)
+    const jomaAmt = parseSmartNumber(row[jomaAmountCol] || (jomaAmountCol > 0 ? row[jomaAmountCol - 1] : 0));
+    const jomaDate = normalizeDate(row[jomaDateCol]);
+    const jomaMethod = cellToStr(row[jomaMethodCol]);
 
-    if (jomaAmount > 0) {
-      totalJoma += jomaAmount;
+    if (jomaAmt > 0) {
+      totalJoma += jomaAmt;
+      const desc = jomaMethod ? `জমা (${jomaMethod})` : 'নগদ জমা / আদায়';
       ledgerEntries.push({
         date: jomaDate,
-        description: jomaDesc,
-        debit: targetType === 'SUPPLIER' ? jomaAmount : 0, // When paying supplier, debit
-        credit: targetType === 'BUYER' ? jomaAmount : 0,   // When customer pays, credit
+        description: desc,
+        debit: targetType === 'SUPPLIER' ? jomaAmt : 0, // Outflow to supplier
+        credit: targetType === 'BUYER' ? jomaAmt : 0,   // Inflow from customer
+        reference: jomaMethod,
       });
     }
 
-    // Right side: Khoroch (Debit/Due/Invoice)
-    const khorochAmount = parseSmartNumber(row[khorochCol + 1] || row[khorochCol + 2] || row[khorochCol + 3] || row[khorochCol]);
-    const khorochDate = normalizeDate(row[Math.max(0, khorochCol - 1)] || row[khorochCol]);
-    const khorochDesc = cellToStr(row[khorochCol] || 'শস্য বাকি / চালান');
+    // RIGHT: Khoroch (Debit/Goods Purchase/Invoice)
+    const khorochAmt = parseSmartNumber(row[khorochAmountCol] || (khorochAmountCol > 0 ? row[khorochAmountCol - 1] : 0));
+    const khorochDate = normalizeDate(row[khorochDateCol]);
+    const khorochRef = cellToStr(row[khorochMethodCol]);
+    const khorochWeight = cellToStr(row[khorochWeightCol]);
+    const khorochRate = cellToStr(row[khorochRateCol]);
 
-    if (khorochAmount > 0) {
-      totalKhoroch += khorochAmount;
+    if (khorochAmt > 0) {
+      totalKhoroch += khorochAmt;
+
+      const descParts: string[] = [];
+      if (khorochRef) descParts.push(khorochRef);
+      if (khorochWeight && parseSmartNumber(khorochWeight) > 0) {
+        descParts.push(`ওজন: ${toBnDigits(khorochWeight)} কেজি`);
+      }
+      if (khorochRate && parseSmartNumber(khorochRate) > 0) {
+        descParts.push(`দর: ৳${toBnDigits(khorochRate)}`);
+      }
+      const desc = descParts.length > 0 ? descParts.join(' | ') : 'শস্য বাকি / চালান';
+
       ledgerEntries.push({
         date: khorochDate,
-        description: khorochDesc,
-        debit: targetType === 'BUYER' ? khorochAmount : 0,   // When customer buys, debit
-        credit: targetType === 'SUPPLIER' ? khorochAmount : 0 // When shop buys from supplier, credit
+        description: desc,
+        debit: targetType === 'BUYER' ? khorochAmt : 0,   // Goods to customer increases debt
+        credit: targetType === 'SUPPLIER' ? khorochAmt : 0, // Goods from supplier increases payable
+        weight: khorochWeight,
+        rate: khorochRate,
+        reference: khorochRef,
       });
     }
   }
 
-  // Calculate Net Due
-  const calculatedDue = targetType === 'BUYER' ? Math.max(0, totalKhoroch - totalJoma) : Math.max(0, totalKhoroch - totalJoma);
+  // Calculate net balance
+  const calculatedNet = Math.max(0, totalKhoroch - totalJoma);
+  const finalDue = extractedRemainingDue > 0 ? extractedRemainingDue : calculatedNet;
 
   return {
-    id: `DUAL-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-    name: extractedName || (targetType === 'BUYER' ? 'খরিদ্দার' : 'মহাজন/সাপ্লায়ার'),
+    id: `DUAL-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    name: extractedName,
     phone: extractedPhone,
-    address: extractedAddress || 'চাচকৈড় বাজার',
-    openingDue: calculatedDue,
-    currentDue: calculatedDue,
+    address: extractedAddress,
+    partyType: targetType,
+    openingDue: finalDue,
+    currentDue: finalDue,
+    totalJoma,
+    totalKhoroch,
     notes: `এক্সেল শিট (${sheetName}) হতে সংগৃহীত দ্বৈত-কলাম লেজার`,
+    fileName,
     sheetName,
     sourceType: 'DUAL_COLUMN_LEDGER',
     ledgerEntries,
@@ -254,6 +386,7 @@ function detectAndParseDualColumnLedger(
 function detectAndParseStandardPartyTable(
   rows: any[][],
   sheetName: string,
+  fileName: string,
   targetType: 'BUYER' | 'SUPPLIER'
 ): ParsedPartyRow[] {
   let headerRowIdx = -1;
@@ -291,7 +424,6 @@ function detectAndParseStandardPartyTable(
 
   // If no header found, search fallback heuristics
   if (headerRowIdx === -1 || nameCol === -1) {
-    // Try checking if Col 0 or Col 1 has names and another col has numbers
     for (let r = 0; r < Math.min(rows.length, 6); r++) {
       const row = rows[r];
       if (row.length >= 2 && cellToStr(row[0]) && parseSmartNumber(row[row.length - 1]) > 0) {
@@ -318,16 +450,21 @@ function detectAndParseStandardPartyTable(
     // Due Amount
     const rawDue = dueCol !== -1 ? parseSmartNumber(row[dueCol]) : 0;
     const rawOpen = openCol !== -1 ? parseSmartNumber(row[openCol]) : rawDue;
-    const notesVal = notesCol !== -1 ? cellToStr(row[notesCol]) : '';
+
+    if (!nameVal || (rawDue === 0 && !phoneVal)) continue;
 
     items.push({
-      id: `ROW-${Date.now()}-${r}-${Math.random().toString(36).substring(2, 5)}`,
+      id: `ROW-${Date.now()}-${r}-${Math.random().toString(36).substring(2, 6)}`,
       name: nameVal,
       phone: phoneVal,
-      address: addrVal || 'চাচকৈড় বাজার',
-      openingDue: rawOpen || rawDue,
-      currentDue: rawDue || rawOpen,
-      notes: notesVal || `এক্সেল ফাইল থেকে ইমপোর্ট (${sheetName})`,
+      address: addrVal || 'চাচকৈড় বাজার, গুরুদাসপুর',
+      partyType: targetType,
+      openingDue: rawOpen,
+      currentDue: rawDue,
+      totalJoma: 0,
+      totalKhoroch: rawDue,
+      notes: notesCol !== -1 ? cellToStr(row[notesCol]) : `এক্সেল শিট (${sheetName}) হতে ইমপোর্ট`,
+      fileName,
       sheetName,
       sourceType: 'TABLE_ROW',
       selected: true,

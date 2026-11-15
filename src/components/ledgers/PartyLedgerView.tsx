@@ -547,11 +547,11 @@ export const PartyLedgerView: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsExcelImportOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-400 hover:to-emerald-500 text-white text-xs font-black rounded-xl shadow-md transition-all cursor-pointer active:scale-95"
-            title="গ্রাহকের এক্সেল ফাইল ইমপোর্ট করুন"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-black rounded-xl shadow-md border border-emerald-400/30 transition-all cursor-pointer active:scale-95"
+            title="ল্যাপটপের পুরনো এক্সেল ফাইল ও খতিয়ান ইমপোর্ট করুন"
           >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>📥 স্মার্ট এক্সেল ইমপোর্ট</span>
+            <FileSpreadsheet className="w-4 h-4 text-amber-300" />
+            <span>📥 পুরনো এক্সেল ইমপোর্ট (Excel)</span>
           </button>
           <button
             type="button"

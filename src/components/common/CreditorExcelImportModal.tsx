@@ -112,49 +112,22 @@ export const CreditorExcelImportModal: React.FC<CreditorExcelImportModalProps> =
     }
 
     setSubmitting(true);
-    setImportProgress(`০ / ${toBnDigits(selectedRows.length)} জন প্রস্তুত হচ্ছে...`);
+    setImportProgress(`ডাটাবেজে ${toBnDigits(selectedRows.length)} জন পাওনাদারের লেজার ইমপোর্ট সম্পন্ন হচ্ছে...`);
 
     try {
-      let count = 0;
-      for (const row of selectedRows) {
-        count++;
-        setImportProgress(`${toBnDigits(count)} / ${toBnDigits(selectedRows.length)}: ${row.name}`);
+      const payloadParties = selectedRows.map((row) => ({
+        name: row.name.trim(),
+        phone: row.phone.trim(),
+        address: row.address.trim() || 'চাচকৈড় বাজার, গুরুদাসপুর',
+        party_type: 'SUPPLIER' as const,
+        opening_balance: -Math.abs(row.currentDue || 0),
+        current_balance: -Math.abs(row.currentDue || 0),
+        notes: row.notes || 'মহাজন এক্সেল থেকে স্মার্ট ইমপোর্ট',
+        ledgerEntries: row.ledgerEntries || [],
+      }));
 
-        // For suppliers/creditors, payable balance is negative (shop owes them)
-        const payableAmount = row.currentDue || 0;
-        const balanceVal = -Math.abs(payableAmount);
-
-        // 1. Create party as SUPPLIER
-        const partyData = {
-          name: row.name.trim(),
-          phone: row.phone.trim(),
-          address: row.address.trim() || 'চাচকৈড় বাজার',
-          party_type: 'SUPPLIER' as const,
-          opening_balance: balanceVal,
-          current_balance: balanceVal,
-          notes: row.notes || 'মহাজন এক্সেল থেকে স্মার্ট ইমপোর্ট',
-        };
-
-        const created = await dbService.parties.create(partyData);
-
-        // 2. If dual-column ledger rows were parsed, insert them into party_ledger
-        if (row.ledgerEntries && row.ledgerEntries.length > 0 && created?.id) {
-          for (const entry of row.ledgerEntries) {
-            try {
-              await dbService.ledgers.recordVoucher({
-                entry_date: entry.date,
-                party_id: created.id,
-                type: entry.debit > 0 ? 'PAYMENT_GIVEN' : 'OPENING',
-                amount: entry.debit > 0 ? entry.debit : entry.credit,
-                payment_mode: 'CASH',
-                description: entry.description || 'পূর্বের খতিয়ান হতে ইমপোর্ট',
-              });
-            } catch (e) {
-              console.warn('[CreditorLedgerEntryImport]', e);
-            }
-          }
-        }
-      }
+      const res = await dbService.parties.importLegacyExcel({ parties: payloadParties });
+      alert(res.message || 'সকল নির্বাচিত পাওনাদার ও লেজার সফলভাবে ইমপোর্ট করা হয়েছে!');
 
       onImportSuccess();
       onClose();

@@ -183,6 +183,11 @@ export function startLocalServer(db: AppDatabase, port: number = 3030): http.Ser
             return sendJson(res, 201, data);
           }
         }
+        if (pathname === '/api/parties/import-legacy-excel' && req.method === 'POST') {
+          const body = await parseJsonBody(req);
+          const data = db.importLegacyExcel(body.parties || []);
+          return sendJson(res, 201, data);
+        }
         if (pathname === '/api/parties/adjust-due' && req.method === 'POST') {
           const body = await parseJsonBody(req);
           const data = db.recordPartyDueAdjustment(body);

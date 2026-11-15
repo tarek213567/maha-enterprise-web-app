@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar } from 'lucide-react';
 import { getGregorianDateInBengali, getBanglaBongabdoDate } from '../../utils/banglaDate';
+import heroBannerImg from '../../assets/hero-wheat-banner.jpg';
 
 export const HeroWheatBanner: React.FC = () => {
   const [dates, setDates] = useState(() => ({
@@ -22,7 +23,15 @@ export const HeroWheatBanner: React.FC = () => {
   }, []);
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-teal-900/60 shadow-2xl bg-gradient-to-r from-[#071929] via-[#0b273d] to-[#083038] text-white p-4 sm:p-6 md:p-8 min-h-[145px] sm:min-h-[175px] md:min-h-[200px] flex flex-col justify-center select-none transition-all duration-300">
+    <div className="relative overflow-hidden rounded-2xl border border-teal-900/60 shadow-2xl bg-[#071929] text-white p-4 sm:p-6 md:p-8 min-h-[145px] sm:min-h-[175px] md:min-h-[200px] flex flex-col justify-center select-none transition-all duration-300">
+      {/* High-Resolution Royal Wheat Backdrop Image Layer */}
+      <div
+        className="absolute inset-0 pointer-events-none bg-cover bg-center opacity-40 mix-blend-screen scale-100 transition-transform duration-700"
+        style={{ backgroundImage: `url(${heroBannerImg})` }}
+      />
+      {/* Dark Royal Gradient Overlay to ensure crisp 3D text and live badge contrast */}
+      <div className="absolute inset-0 pointer-events-none bg-gradient-to-r from-[#071929]/90 via-[#0b273d]/75 to-[#083038]/90" />
+
       {/* Background Decorative Constellations & Sparkles */}
       <div className="absolute inset-0 pointer-events-none opacity-40 overflow-hidden">
         {/* Subtle radial center spotlight glow */}

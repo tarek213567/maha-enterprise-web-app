@@ -310,6 +310,97 @@ export class AppDatabase {
     }
   }
 
+  public importLegacyExcel(partiesToImport: any[]): { success: boolean; importedCount: number; totalEntriesCount: number; message: string } {
+    const importTx = this.db.transaction(() => {
+      let importedCount = 0;
+      let totalEntriesCount = 0;
+
+      for (const p of partiesToImport) {
+        if (!p.name || !p.name.trim()) continue;
+        const cleanName = p.name.trim();
+        const cleanPhone = (p.phone || '').trim();
+        const cleanAddr = (p.address || '').trim() || 'চাচকৈড় বাজার, গুরুদাসপুর';
+        const pType = (p.party_type === 'SUPPLIER' || p.party_type === 'CREDITOR' || p.partyType === 'SUPPLIER') ? 'SUPPLIER' : 'BUYER';
+        const isSupplier = pType === 'SUPPLIER';
+        const notes = p.notes || 'পুরনো এক্সেল হতে ইমপোর্ট';
+        const openBal = Number(p.opening_balance || p.openingDue || 0);
+        const curBal = Number(p.current_balance || p.currentDue || openBal);
+
+        let party = this.db.prepare('SELECT * FROM parties WHERE TRIM(LOWER(name)) = TRIM(LOWER(?))').get(cleanName) as Party | undefined;
+        let partyId: number;
+
+        if (!party) {
+          const balToSet = isSupplier ? -Math.abs(curBal) : curBal;
+          const ins = this.db.prepare(`
+            INSERT INTO parties (name, phone, address, party_type, opening_balance, current_balance, notes, is_active, is_pinned)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0)
+          `).run(cleanName, cleanPhone, cleanAddr, pType, balToSet, balToSet, notes);
+          partyId = Number(ins.lastInsertRowid);
+          importedCount++;
+        } else {
+          partyId = party.id;
+          if ((!party.phone || party.phone === '০১৭০০-০০০০০০' || party.phone === '') && cleanPhone) {
+            this.db.prepare("UPDATE parties SET phone = ?, updated_at = datetime('now', 'localtime') WHERE id = ?").run(cleanPhone, partyId);
+          }
+          importedCount++;
+        }
+
+        const entries = Array.isArray(p.ledgerEntries) ? p.ledgerEntries : [];
+        if (entries.length > 0) {
+          const insertStmt = this.db.prepare(`
+            INSERT INTO party_ledger (entry_date, party_id, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description, notes)
+            VALUES (?, ?, ?, 'EXC-IMP', ?, ?, 0, 0, ?, ?)
+          `);
+
+          for (const entry of entries) {
+            const eDate = entry.date || new Date().toISOString().split('T')[0];
+            const debitAmt = roundMoney(entry.debit || 0);
+            const creditAmt = roundMoney(entry.credit || 0);
+            if (debitAmt === 0 && creditAmt === 0) continue;
+
+            let txType = 'ADJUSTMENT';
+            if (isSupplier) {
+              txType = debitAmt > 0 ? 'PAYMENT_GIVEN' : 'PURCHASE';
+            } else {
+              txType = debitAmt > 0 ? 'SALE' : 'PAYMENT_RECEIVED';
+            }
+
+            insertStmt.run(eDate, partyId, txType, debitAmt, creditAmt, entry.description || 'এক্সেল খতিয়ান হতে ইমপোর্ট', entry.reference || '');
+            totalEntriesCount++;
+          }
+
+          const allRows = this.db.prepare('SELECT * FROM party_ledger WHERE party_id = ? ORDER BY entry_date ASC, id ASC').all(partyId) as any[];
+          let running = 0;
+          const updateRow = this.db.prepare('UPDATE party_ledger SET running_balance = ? WHERE id = ?');
+          for (const r of allRows) {
+            running = roundMoney(running + (r.debit || 0) - (r.credit || 0));
+            updateRow.run(running, r.id);
+          }
+          this.db.prepare("UPDATE parties SET current_balance = ?, updated_at = datetime('now', 'localtime') WHERE id = ?").run(running, partyId);
+        } else if (curBal !== 0 && party) {
+          const existingLedger = this.db.prepare('SELECT id FROM party_ledger WHERE party_id = ? LIMIT 1').get(partyId);
+          if (!existingLedger) {
+            const balVal = isSupplier ? -Math.abs(curBal) : curBal;
+            this.db.prepare(`
+              INSERT INTO party_ledger (entry_date, party_id, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
+              VALUES (date('now', 'localtime'), ?, 'OPENING', 'OPN-001', ?, ?, ?, 0, 'প্রারম্ভিক জের (এক্সেল ইমপোর্ট)')
+            `).run(partyId, balVal > 0 ? balVal : 0, balVal < 0 ? Math.abs(balVal) : 0, balVal);
+            totalEntriesCount++;
+          }
+        }
+      }
+
+      return {
+        success: true,
+        importedCount,
+        totalEntriesCount,
+        message: `${importedCount} জন পার্টির মোট ${totalEntriesCount} টি লেজার এন্ট্রি সফলভাবে ইমপোর্ট সম্পন্ন হয়েছে!`
+      };
+    });
+
+    return importTx();
+  }
+
   public recordPartyDueAdjustment(data: {
     party_id: number;
     amount: number;
