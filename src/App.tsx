@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { SecurityProvider } from './context/SecurityContext';
 import { PinLockOverlay } from './components/security/PinLockOverlay';
-import { WindowTitleBar } from './components/layout/WindowTitleBar';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopHeader } from './components/layout/TopHeader';
 import { BottomStatusBar } from './components/layout/BottomStatusBar';
@@ -173,10 +172,7 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="h-screen w-screen bg-[var(--app-bg)] text-[var(--text-primary)] flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950 transition-colors duration-200 overflow-hidden select-none">
-      {/* 1. Windows Native Draggable Title Bar */}
-      <WindowTitleBar onQuickBackup={handleQuickBackup} />
-
-      {/* 2. Main Application Workspace: Sidebar (Left) + Viewport (Right) */}
+      {/* Main Application Workspace: Sidebar (Left) + Viewport (Right) - Flush with Top Edge */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Vertical Navigation Sidebar */}
         <Sidebar

@@ -144,9 +144,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <aside className="hidden md:flex w-56 bg-[#08152c] text-slate-200 border-r border-[#0f1d38] flex-col py-3 px-2.5 gap-1 shrink-0 select-none overflow-y-auto">
+    <aside className="hidden md:flex w-56 bg-[#08152c] text-slate-200 border-r border-[#0f1d38] flex-col py-2.5 px-2 gap-1 shrink-0 select-none overflow-y-auto h-full scrollbar-thin">
       {/* Starts directly with the menu items */}
-      <div className="flex-1 flex flex-col gap-1">
+      <div className="flex-1 flex flex-col gap-0.5 min-h-0 overflow-y-auto">
         {menuItems.map((item) => {
           const isActive = currentTab === item.id;
           const Icon = item.icon;
@@ -161,15 +161,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onTabChange(item.id);
                 }
               }}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-[13px] font-medium transition-all text-left cursor-pointer ${
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all text-left cursor-pointer ${
                 item.id === 'calculator'
                   ? 'text-amber-300 hover:text-white hover:bg-amber-500/15 border border-amber-500/25 bg-amber-950/20'
                   : isActive
-                  ? 'border border-emerald-400/80 bg-emerald-950/60 text-white font-bold shadow-sm'
+                  ? 'border border-emerald-400/80 bg-emerald-950/60 text-white font-bold shadow-xs'
                   : 'text-slate-300 hover:text-white hover:bg-white/5 border border-transparent'
               }`}
             >
-              <div className="flex items-center gap-2.5 truncate">
+              <div className="flex items-center gap-2 truncate">
                 <Icon
                   className={`w-4 h-4 shrink-0 ${
                     item.id === 'calculator'
@@ -209,17 +209,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Dedicated Divider directly below ক্যালকুলেটর */}
-      <div className="my-2 border-t border-[#0f1d38]" />
+      <div className="my-1.5 border-t border-[#0f1d38] shrink-0" />
 
       {/* Dedicated Quick Action Controls Panel (Screenshot 2) */}
-      <div className="flex flex-col gap-1.5 pt-1">
+      <div className="flex flex-col gap-1 pt-0.5 shrink-0">
         {/* Row 1: 🌙 ডার্ক / ☀️ লাইট & 🔒 লক (2 Columns) */}
         <div className="grid grid-cols-2 gap-1.5">
           {/* 1. 🌙 ডার্ক / ☀️ লাইট */}
           <button
             type="button"
             onClick={toggleTheme}
-            className="flex items-center justify-center gap-1.5 py-2 px-1.5 rounded-xl text-xs font-bold border border-slate-700/80 bg-slate-800/80 hover:bg-slate-700 text-slate-200 active:scale-95 transition-all cursor-pointer shadow-2xs"
+            className="flex items-center justify-center gap-1.5 py-1.5 px-1.5 rounded-lg text-xs font-bold border border-slate-700/80 bg-slate-800/80 hover:bg-slate-700 text-slate-200 active:scale-95 transition-all cursor-pointer shadow-2xs"
             title={isDark ? 'লাইট মোড চালু করুন' : 'ডার্ক মোড চালু করুন'}
           >
             <span>{isDark ? '☀️' : '🌙'}</span>
@@ -230,7 +230,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             type="button"
             onClick={lockApp}
-            className="flex items-center justify-center gap-1.5 py-2 px-1.5 rounded-xl text-xs font-bold border border-rose-500/40 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 active:scale-95 transition-all cursor-pointer shadow-2xs"
+            className="flex items-center justify-center gap-1.5 py-1.5 px-1.5 rounded-lg text-xs font-bold border border-rose-500/40 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 active:scale-95 transition-all cursor-pointer shadow-2xs"
             title="সফটওয়্যার স্ক্রিন লক করুন"
           >
             <span>🔒</span>
@@ -243,7 +243,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           type="button"
           onClick={handleBackup}
           disabled={isBackingUp}
-          className="w-full flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-bold border border-amber-500/50 bg-amber-950/40 hover:bg-amber-900/60 text-amber-300 active:scale-95 transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+          className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-bold border border-amber-500/50 bg-amber-950/40 hover:bg-amber-900/60 text-amber-300 active:scale-95 transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
           title="ডাটাবেজ ও রয়্যাল এক্সেল (.xlsx) ব্যাকআপ ডাউনলোড করুন"
         >
           <span>💾</span>
