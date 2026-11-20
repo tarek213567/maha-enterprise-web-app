@@ -28,6 +28,11 @@ import {
   RotateCw,
   Settings2,
   Trash2,
+  Smartphone,
+  Send,
+  Key,
+  Clock,
+  MessageSquare,
 } from 'lucide-react';
 import { dbService } from '../../services/api';
 import { useTheme } from '../../context/ThemeContext';
@@ -172,6 +177,136 @@ export const SettingsBackupView: React.FC = () => {
       alert('ত্রুটি: ' + (err.message || 'মুছে ফেলতে ব্যর্থ হয়েছে'));
     } finally {
       setIsPurgingDrafts(false);
+    }
+  };
+
+  // =========================================================================
+  // SMS Gateway Settings, Test & Logs State
+  // =========================================================================
+  const [smsEnabled, setSmsEnabled] = useState<boolean>(true);
+  const [smsProvider, setSmsProvider] = useState<string>('bulksmsbd');
+  const [smsApiKey, setSmsApiKey] = useState<string>('');
+  const [smsSenderId, setSmsSenderId] = useState<string>('');
+  const [smsCustomUrl, setSmsCustomUrl] = useState<string>('');
+  const [smsFormatMode, setSmsFormatMode] = useState<string>('banglish_1sms');
+  const [smsSendOnDueCollect, setSmsSendOnDueCollect] = useState<boolean>(true);
+  const [hasApiKey, setHasApiKey] = useState<boolean>(false);
+  const [showApiKey, setShowApiKey] = useState<boolean>(false);
+  const [isSavingSms, setIsSavingSms] = useState<boolean>(false);
+  const [smsSaveMessage, setSmsSaveMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  const [testPhone, setTestPhone] = useState<string>('');
+  const [isSendingTestSms, setIsSendingTestSms] = useState<boolean>(false);
+  const [testSmsResult, setTestSmsResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [smsLogs, setSmsLogs] = useState<any[]>([]);
+  const [isLoadingLogs, setIsLoadingLogs] = useState<boolean>(false);
+  const [resendingLogId, setResendingLogId] = useState<number | null>(null);
+
+  const fetchSmsData = async () => {
+    try {
+      setIsLoadingLogs(true);
+      const [settingsRes, logsRes] = await Promise.all([
+        dbService.sms.getSettings().catch(() => null),
+        dbService.sms.getLogs(30).catch(() => null),
+      ]);
+
+      if (settingsRes && settingsRes.success && settingsRes.settings) {
+        const s = settingsRes.settings;
+        setSmsEnabled(s.sms_enabled === 'true');
+        setSmsProvider(s.sms_provider || 'bulksmsbd');
+        setSmsSenderId(s.sms_sender_id || '');
+        setSmsCustomUrl(s.sms_custom_url || '');
+        setSmsFormatMode(s.sms_format_mode || 'banglish_1sms');
+        setSmsSendOnDueCollect(s.sms_send_on_due_collect !== 'false');
+        setHasApiKey(s.has_api_key);
+        if (s.masked_api_key) {
+          setSmsApiKey(s.masked_api_key);
+        }
+      }
+
+      if (logsRes && logsRes.success && logsRes.logs) {
+        setSmsLogs(logsRes.logs);
+      }
+    } catch (err) {
+      console.warn('[Fetch SMS Data Error]:', err);
+    } finally {
+      setIsLoadingLogs(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSmsData();
+  }, []);
+
+  const handleSaveSmsSettings = async () => {
+    try {
+      setIsSavingSms(true);
+      setSmsSaveMessage(null);
+      const res = await dbService.sms.saveSettings({
+        sms_enabled: smsEnabled ? 'true' : 'false',
+        sms_provider: smsProvider,
+        sms_api_key: smsApiKey,
+        sms_sender_id: smsSenderId.trim(),
+        sms_custom_url: smsCustomUrl.trim(),
+        sms_format_mode: smsFormatMode,
+        sms_send_on_due_collect: smsSendOnDueCollect ? 'true' : 'false',
+      });
+      if (res && res.success) {
+        setSmsSaveMessage({ text: 'SMS গেটওয়ে সেটিংস সফলভাবে সংরক্ষিত হয়েছে! ✅', type: 'success' });
+        await fetchSmsData();
+        setTimeout(() => setSmsSaveMessage(null), 5000);
+      } else {
+        setSmsSaveMessage({ text: 'সংরক্ষণ ব্যর্থ হয়েছে', type: 'error' });
+      }
+    } catch (err: any) {
+      setSmsSaveMessage({ text: `ত্রুটি: ${err.message}`, type: 'error' });
+    } finally {
+      setIsSavingSms(false);
+    }
+  };
+
+  const handleSendTestSms = async () => {
+    if (!testPhone.trim()) {
+      setTestSmsResult({ success: false, message: 'অনুগ্রহ করে টেস্ট মোবাইল নম্বর লিখুন (যেমন: 017XXXXXXXX)' });
+      return;
+    }
+    try {
+      setIsSendingTestSms(true);
+      setTestSmsResult(null);
+      const res = await dbService.sms.sendTest(testPhone.trim());
+      if (res.success) {
+        setTestSmsResult({
+          success: true,
+          message: `টেস্ট SMS সফলভাবে পাঠানো হয়েছে! (${res.phone}) • গেটওয়ে রেসপন্স: ${res.gatewayResponse || 'OK'}`,
+        });
+        await fetchSmsData();
+      } else {
+        setTestSmsResult({
+          success: false,
+          message: `SMS পাঠাতে ব্যর্থ: ${res.error || res.gatewayResponse || 'অজানা ত্রুটি'}`,
+        });
+      }
+    } catch (err: any) {
+      setTestSmsResult({ success: false, message: `ত্রুটি: ${err.message}` });
+    } finally {
+      setIsSendingTestSms(false);
+    }
+  };
+
+  const handleResendSms = async (logId: number) => {
+    try {
+      setResendingLogId(logId);
+      const res = await dbService.sms.resend(logId);
+      if (res.success) {
+        alert('SMS সফলভাবে পুনরায় পাঠানো হয়েছে!');
+        await fetchSmsData();
+      } else {
+        alert(`পুনরায় পাঠাতে ব্যর্থ: ${res.error || res.gatewayResponse || 'অজানা সমস্যা'}`);
+      }
+    } catch (err: any) {
+      alert(`ত্রুটি: ${err.message}`);
+    } finally {
+      setResendingLogId(null);
     }
   };
 
@@ -1196,6 +1331,369 @@ export const SettingsBackupView: React.FC = () => {
 
         <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs">
           ℹ️ <strong>অডিট সতর্কতা:</strong> এই বোতামে চাপ দিলে শুধুমাত্র <code>is_test_draft = 1</code> চিহ্নিত পরীক্ষামূলক ক্রয়, বিক্রয়, ক্যাশ ও খতিয়ান লেনদেনগুলো মুছে ফেলে মূল মজুত এবং পার্টির পূর্বের সঠিক ব্যালেন্স স্বয়ংক্রিয়ভাবে পুনঃগণনা করে রিস্টোর করা হবে। নিয়মিত ব্যবসার কোনো হিসাব ক্ষতিগ্রস্ত হবে না।
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* ব্লক ৭: অটোমেটিক ক্রেতা SMS গেটওয়ে (Bangladeshi Bulk SMS API)                  */}
+      {/* ========================================================================= */}
+      <div className="bg-[var(--surface)] rounded-2xl border-2 border-amber-500/40 shadow-xl p-5 space-y-5">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-[var(--border-color)]">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-amber-500/10 text-amber-500 dark:text-amber-400 rounded-xl border border-amber-500/30">
+              <Smartphone className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                  📲 অটোমেটিক ক্রেতা SMS গেটওয়ে (Bangladeshi Bulk SMS API)
+                </h2>
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                    smsEnabled
+                      ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                      : 'bg-slate-500/20 text-slate-500 border border-slate-500/30'
+                  }`}
+                >
+                  {smsEnabled ? 'সক্রিয় (Active)' : 'বন্ধ (Disabled)'}
+                </span>
+              </div>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                পাইকারি বিক্রয় ও বকেয়া আদায়ের পর ক্রেতার মোবাইলে স্বয়ংক্রিয় ১-SMS চালান ও রসিদ নোটিফিকেশন
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Master Toggles */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-[var(--border-color)]">
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={smsEnabled}
+              onChange={(e) => setSmsEnabled(e.target.checked)}
+              className="w-4 h-4 rounded text-amber-500 focus:ring-amber-400 cursor-pointer"
+            />
+            <div>
+              <div className="text-xs font-bold text-slate-900 dark:text-white">
+                বিক্রয়ের পর অটো SMS চালু রাখুন
+              </div>
+              <div className="text-[10px] text-[var(--text-muted)]">
+                চালান সম্পন্ন হলে বৈধ মোবাইল নম্বরে সাথে সাথে SMS নোটিফিকেশন পাঠানো হবে
+              </div>
+            </div>
+          </label>
+
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={smsSendOnDueCollect}
+              onChange={(e) => setSmsSendOnDueCollect(e.target.checked)}
+              className="w-4 h-4 rounded text-amber-500 focus:ring-amber-400 cursor-pointer"
+            />
+            <div>
+              <div className="text-xs font-bold text-slate-900 dark:text-white">
+                বকেয়া আদায়ের পর রসিদ SMS পাঠান
+              </div>
+              <div className="text-[10px] text-[var(--text-muted)]">
+                বাকি খাতা থেকে টাকা জমা নিলে জমা ও অবশিষ্ট বকেয়া ব্যালেন্সের রসিদ SMS যাবে
+              </div>
+            </div>
+          </label>
+        </div>
+
+        {/* Gateway Configuration Inputs */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          {/* Provider Select */}
+          <div>
+            <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">
+              SMS গেটওয়ে প্রোভাইডার:
+            </label>
+            <select
+              value={smsProvider}
+              onChange={(e) => setSmsProvider(e.target.value)}
+              className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white outline-none focus:border-amber-500 font-semibold cursor-pointer"
+            >
+              <option value="bulksmsbd">BulkSMSBD (bulksmsbd.net)</option>
+              <option value="alphasms">Alpha SMS (sms.net.bd)</option>
+              <option value="greenweb">GreenWeb BD (api.greenweb.com.bd)</option>
+              <option value="mimsms">MimSMS (mimsms.com)</option>
+              <option value="custom">কাস্টম গেটওয়ে API URL</option>
+            </select>
+          </div>
+
+          {/* API Key */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-slate-700 dark:text-slate-300 font-bold">
+                API Key / Secret Token:
+              </label>
+              {hasApiKey && (
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                  ✓ সেভকৃত চাবি আছে
+                </span>
+              )}
+            </div>
+            <div className="relative">
+              <input
+                type={showApiKey ? 'text' : 'password'}
+                placeholder={hasApiKey ? 'সংরক্ষিত কী বিদ্যমান (পরিবর্তনে নতুন দিন)' : 'আপনার SMS API Key পেস্ট করুন'}
+                value={smsApiKey}
+                onChange={(e) => setSmsApiKey(e.target.value)}
+                className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 pr-9 text-slate-900 dark:text-white outline-none focus:border-amber-500 font-mono text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => setShowApiKey(!showApiKey)}
+                className="absolute right-2 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                title={showApiKey ? 'হাইড করুন' : 'দেখান'}
+              >
+                <Key className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Sender ID */}
+          <div>
+            <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">
+              Sender ID / মাস্কিং নাম:
+            </label>
+            <input
+              type="text"
+              placeholder="যেমন: 88096176... বা MAHA ENT"
+              value={smsSenderId}
+              onChange={(e) => setSmsSenderId(e.target.value)}
+              className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white outline-none focus:border-amber-500 font-mono text-xs"
+            />
+            <div className="text-[10px] text-[var(--text-muted)] mt-1">
+              প্রোভাইডার কর্তৃক অনুমোদিত নন-মাস্কিং বা আলফানিউমেরিক আইডি
+            </div>
+          </div>
+        </div>
+
+        {/* Custom URL Template input (if provider === 'custom') */}
+        {smsProvider === 'custom' && (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2 text-xs">
+            <label className="block font-bold text-amber-700 dark:text-amber-300">
+              কাস্টম SMS API URL টেমপ্লেট:
+            </label>
+            <input
+              type="text"
+              placeholder="https://example-sms.com/api/send?key={api_key}&sender={sender_id}&to={to}&msg={message}"
+              value={smsCustomUrl}
+              onChange={(e) => setSmsCustomUrl(e.target.value)}
+              className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white outline-none focus:border-amber-500 font-mono text-xs"
+            />
+            <div className="text-[11px] text-[var(--text-muted)]">
+              প্লেসহোল্ডারসমূহ: <code>&#123;api_key&#125;</code>, <code>&#123;sender_id&#125;</code>, <code>&#123;to&#125;</code>, <code>&#123;message&#125;</code> স্বয়ংক্রিয়ভাবে রিপ্লেস হবে।
+            </div>
+          </div>
+        )}
+
+        {/* SMS Format Mode Selector */}
+        <div className="p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-[var(--border-color)] space-y-2 text-xs">
+          <label className="block text-slate-700 dark:text-slate-300 font-bold">
+            মেসেজ ফরম্যাট মোড (খরচ ও ভাষা নিয়ন্ত্রণ):
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label
+              className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-2.5 ${
+                smsFormatMode === 'banglish_1sms'
+                  ? 'bg-amber-500/15 border-amber-500 text-amber-900 dark:text-amber-200'
+                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+              }`}
+            >
+              <input
+                type="radio"
+                name="smsFormatMode"
+                value="banglish_1sms"
+                checked={smsFormatMode === 'banglish_1sms'}
+                onChange={() => setSmsFormatMode('banglish_1sms')}
+                className="mt-0.5 text-amber-500 cursor-pointer"
+              />
+              <div>
+                <div className="font-bold flex items-center gap-1.5">
+                  <span>১ SMS সাশ্রয়ী Banglish (১৬০ অক্ষর — ডিফল্ট)</span>
+                  <span className="px-1.5 py-0.2 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded text-[9px] font-bold">সর্বনিম্ন খরচ</span>
+                </div>
+                <div className="text-[10.5px] opacity-80 mt-1 font-mono">
+                  Maha Enterprise: Inv #123 | Sorisha 50m (25b) | Bill: 140000 Tk | Paid: 100000 Tk | Total Due: 40000 Tk. Dhonnobad!
+                </div>
+              </div>
+            </label>
+
+            <label
+              className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-2.5 ${
+                smsFormatMode === 'bengali_unicode'
+                  ? 'bg-amber-500/15 border-amber-500 text-amber-900 dark:text-amber-200'
+                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+              }`}
+            >
+              <input
+                type="radio"
+                name="smsFormatMode"
+                value="bengali_unicode"
+                checked={smsFormatMode === 'bengali_unicode'}
+                onChange={() => setSmsFormatMode('bengali_unicode')}
+                className="mt-0.5 text-amber-500 cursor-pointer"
+              />
+              <div>
+                <div className="font-bold">বাংলা ইউনিকোড (৭০ অক্ষর/SMS)</div>
+                <div className="text-[10.5px] opacity-80 mt-1">
+                  মাহা এন্টারপ্রাইজ: চালান #123, সরিষা (৫০.০ মণ), মোট বিল ৳১৪০,০০০, জমা ৳১০০,০০০, বর্তমান মোট বকেয়া ৳৪০,০০০। ধন্যবাদ।
+                </div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        {/* Save SMS Settings Button */}
+        <div className="flex items-center gap-3 pt-1">
+          <button
+            type="button"
+            onClick={handleSaveSmsSettings}
+            disabled={isSavingSms}
+            className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 shadow-md transition-all cursor-pointer"
+          >
+            <Save className="w-4 h-4" />
+            <span>{isSavingSms ? 'সংরক্ষণ হচ্ছে...' : '💾 SMS সেটিংস সংরক্ষণ করুন'}</span>
+          </button>
+
+          {smsSaveMessage && (
+            <div
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
+                smsSaveMessage.type === 'success'
+                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                  : 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+              }`}
+            >
+              {smsSaveMessage.text}
+            </div>
+          )}
+        </div>
+
+        {/* Test SMS Box (হাতে-কলমে গেটওয়ে পরীক্ষা) */}
+        <div className="p-4 bg-sky-500/10 border border-sky-500/30 rounded-xl space-y-3">
+          <div className="flex items-center gap-2 text-sky-800 dark:text-sky-300 font-bold text-xs">
+            <Send className="w-4 h-4" />
+            <span>📤 টেস্ট SMS ভেরিফিকেশন (গেটওয়ে পরীক্ষা):</span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2.5">
+            <input
+              type="text"
+              placeholder="পরীক্ষামূলক মোবাইল নম্বর (যেমন: 01712345678)"
+              value={testPhone}
+              onChange={(e) => setTestPhone(e.target.value)}
+              className="flex-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white outline-none focus:border-sky-500 font-mono text-xs"
+            />
+            <button
+              type="button"
+              onClick={handleSendTestSms}
+              disabled={isSendingTestSms}
+              className="px-5 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md cursor-pointer whitespace-nowrap"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>{isSendingTestSms ? 'পাঠানো হচ্ছে...' : '📤 টেস্ট SMS পাঠান'}</span>
+            </button>
+          </div>
+
+          {testSmsResult && (
+            <div
+              className={`p-2.5 rounded-lg text-xs font-mono break-all ${
+                testSmsResult.success
+                  ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                  : 'bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-300'
+              }`}
+            >
+              {testSmsResult.message}
+            </div>
+          )}
+        </div>
+
+        {/* SMS ডেলিভারি ইতিহাস (Recent Delivery Logs) */}
+        <div className="space-y-3 pt-2">
+          <div className="flex items-center justify-between pb-1 border-b border-[var(--border-color)]">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
+              <Clock className="w-4 h-4 text-amber-500" />
+              <span>সাম্প্রতিক SMS ডেলিভারি ইতিহাস (সর্বশেষ ৩০টি)</span>
+            </div>
+            <button
+              type="button"
+              onClick={fetchSmsData}
+              disabled={isLoadingLogs}
+              className="text-xs text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 font-bold cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingLogs ? 'animate-spin' : ''}`} />
+              <span>রিফ্রেশ</span>
+            </button>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-[var(--border-color)]">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-100 dark:bg-slate-900/80 text-slate-600 dark:text-slate-400 border-b border-[var(--border-color)] font-bold">
+                <tr>
+                  <th className="p-2.5">সময়</th>
+                  <th className="p-2.5">চালান / পার্টি</th>
+                  <th className="p-2.5">মোবাইল নম্বর</th>
+                  <th className="p-2.5 text-center">স্ট্যাটাস</th>
+                  <th className="p-2.5">মেসেজ</th>
+                  <th className="p-2.5 text-right">অ্যাকশন</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border-color)] bg-white dark:bg-slate-950/40">
+                {smsLogs.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-4 text-center text-slate-400 font-semibold">
+                      কোনো SMS লগ রেকর্ড পাওয়া যায়নি।
+                    </td>
+                  </tr>
+                ) : (
+                  smsLogs.map((log) => (
+                    <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+                      <td className="p-2.5 font-mono text-[11px] text-[var(--text-muted)] whitespace-nowrap">
+                        {log.created_at || '—'}
+                      </td>
+                      <td className="p-2.5 font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap">
+                        <div>{log.party_name || '—'}</div>
+                        <div className="text-[10px] text-[var(--text-muted)] font-mono">{log.invoice_no}</div>
+                      </td>
+                      <td className="p-2.5 font-mono text-[11px] text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                        {log.phone}
+                      </td>
+                      <td className="p-2.5 text-center whitespace-nowrap">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-mono ${
+                            log.status === 'SENT'
+                              ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                              : log.status === 'FAILED'
+                              ? 'bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400'
+                              : 'bg-slate-500/15 border border-slate-500/30 text-slate-500'
+                          }`}
+                        >
+                          {log.status}
+                        </span>
+                      </td>
+                      <td className="p-2.5 font-mono text-[11px] text-slate-700 dark:text-slate-300 max-w-[280px] truncate" title={log.message}>
+                        {log.message}
+                      </td>
+                      <td className="p-2.5 text-right whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => handleResendSms(log.id)}
+                          disabled={resendingLogId === log.id}
+                          className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer disabled:opacity-50"
+                        >
+                          {resendingLogId === log.id ? 'পাঠানো হচ্ছে...' : 'পুনরায় পাঠান'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 

@@ -15,6 +15,7 @@ import {
   User,
   Eye,
   AlertTriangle,
+  Smartphone,
 } from 'lucide-react';
 import { Commodity, Party, Sale } from '../../types';
 import { dbService } from '../../services/api';
@@ -81,6 +82,7 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
   const [notes, setNotes] = useState('');
   const [saleDate, setSaleDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [submitting, setSubmitting] = useState(false);
+  const [sendSms, setSendSms] = useState<boolean>(true);
 
   // Invoice Print Preview
   const [selectedInvoice, setSelectedInvoice] = useState<Sale | null>(null);
@@ -237,6 +239,64 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
   const numCashPaid = parseSafeNumber(cashPaid);
   const closingDue = Math.max(0, roundMoney(grandTotal - numCashPaid));
 
+  // Helper to validate BD mobile numbers & reject dummy numbers (e.g. 01700000000)
+  const isValidBdPhone = (raw?: string) => {
+    if (!raw) return false;
+    const cleaned = toEnglishDigits(String(raw)).replace(/[^0-9]/g, '');
+    let norm = '';
+    if (/^8801[3-9]\d{8}$/.test(cleaned)) norm = cleaned;
+    else if (/^01[3-9]\d{8}$/.test(cleaned)) norm = '88' + cleaned;
+    if (!norm) return false;
+    if (/^8801[0-9]0{6,8}$/.test(norm) || /^8801[0-9](\d)\1{7}$/.test(norm)) return false;
+    return true;
+  };
+
+  const activeBuyerPhone = selectedCustomer ? (selectedCustomer.phone || '') : (walkinPhone || '');
+  const hasValidPhone = isValidBdPhone(activeBuyerPhone);
+
+  useEffect(() => {
+    if (hasValidPhone) {
+      setSendSms(true);
+    } else {
+      setSendSms(false);
+    }
+  }, [hasValidPhone, selectedCustomerId]);
+
+  const CROP_MAP: Record<string, string> = {
+    'সরিষা': 'Sorisha',
+    'মাঘি সরিষা': 'Sorisha',
+    'টোরি সরিষা': 'Sorisha',
+    'ভুট্টা': 'Bhutta',
+    'পাট': 'Pat',
+    'তোষা পাট': 'Toshas Pat',
+    'গম': 'Gom',
+    'ধান': 'Dhan',
+    'আমন ধান': 'Aman Dhan',
+    'বোরো ধান': 'Boro Dhan',
+    'খেসারী': 'Khesari',
+    'খেসারী কলাই': 'Khesari',
+    'মসুর': 'Mosur',
+    'মসুর ডাল': 'Mosur',
+  };
+
+  const toCropShort = (name?: string) => {
+    if (!name) return 'Shossho';
+    for (const [k, v] of Object.entries(CROP_MAP)) {
+      if (name.includes(k)) return v;
+    }
+    return name.slice(0, 10);
+  };
+
+  const previewBags = cart.reduce((s, i) => s + (i.bags || 0), 0);
+  const previewMon = cart.reduce((s, i) => s + (i.weightMon || 0), 0).toFixed(1);
+  const mainCrop = cart.length === 1
+    ? toCropShort(cart[0]?.name)
+    : (cart.length > 1 ? `${toCropShort(cart[0]?.name)} +${cart.length - 1}` : (activeCommodity ? toCropShort(activeCommodity.name_bn) : 'Shossho'));
+
+  const smsPreviewText = `Maha Enterprise: Inv #SAL-AUTO | ${mainCrop} ${previewMon}m (${previewBags}b) | Bill: ${Math.round(todayTotal)} Tk | Paid: ${Math.round(numCashPaid)} Tk | Total Due: ${Math.round(closingDue)} Tk. Dhonnobad!`;
+  const smsLength = smsPreviewText.length;
+  const smsCount = smsLength <= 160 ? 1 : Math.ceil(smsLength / 153);
+
   // Quick Preset Handlers
   const handleSetZeroCash = () => {
     setCashPaidTouched(true);
@@ -309,6 +369,7 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
         customer_phone: selectedCustomer ? selectedCustomer.phone : (walkinPhone.trim() || ''),
         buyer_name: selectedCustomer ? selectedCustomer.name : (walkinName.trim() || 'সাধারণ খুচরা ক্রেতা'),
         phone: selectedCustomer ? selectedCustomer.phone : (walkinPhone.trim() || ''),
+        send_sms: hasValidPhone ? sendSms : false,
         items: currentCart.map((i) => ({
           commodity_id: i.commodityId,
           bags_count: i.bags,
@@ -337,7 +398,8 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
       setCashPaidTouched(false);
       setNotes('');
 
-      showToast(`বিক্রয় সফল হয়েছে! চালান নং: ${res.invoice_no}`, 'success');
+      const smsBadge = (res as any).sms_queued ? ' 📲 ক্রেতার ফোনে SMS পাঠানো হচ্ছে' : '';
+      showToast(`বিক্রয় সফল হয়েছে! চালান নং: ${res.invoice_no}${smsBadge}`, 'success');
       if (shouldPrint && res.sales && res.sales.length > 0) {
         setSelectedInvoice(res.sales[0]);
       }
@@ -950,6 +1012,51 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
                 placeholder="চালানের বিশেষ কোনো নোট..."
                 className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 outline-none focus:border-amber-500"
               />
+            </div>
+
+            {/* SMS Notification Toggle & Live Preview Card */}
+            <div className="p-3 bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={sendSms && hasValidPhone}
+                    disabled={!hasValidPhone}
+                    onChange={(e) => setSendSms(e.target.checked)}
+                    className="w-4 h-4 rounded text-amber-500 focus:ring-amber-400 dark:bg-slate-800 border-slate-300 dark:border-slate-700 disabled:opacity-40 cursor-pointer"
+                  />
+                  <span className={`text-xs font-bold flex items-center gap-1.5 ${hasValidPhone ? 'text-slate-800 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'}`}>
+                    <span>📲 ক্রেতাকে অটো SMS পাঠান</span>
+                  </span>
+                </label>
+
+                {hasValidPhone ? (
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
+                    {activeBuyerPhone}
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500 border border-slate-300 dark:border-slate-700">
+                    বৈধ মোবাইল নম্বর নেই
+                  </span>
+                )}
+              </div>
+
+              {hasValidPhone && sendSms && (
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800/80 space-y-1.5">
+                  <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 font-semibold">
+                    <span className="flex items-center gap-1">
+                      <Smartphone className="w-3 h-3 text-amber-500" />
+                      লাইভ SMS প্রিভিউ:
+                    </span>
+                    <span className="font-mono text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                      {toBnDigits(smsLength)}/১৬০ অক্ষর • {toBnDigits(smsCount)}টি SMS
+                    </span>
+                  </div>
+                  <div className="p-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[10.5px] font-mono text-slate-700 dark:text-slate-300 leading-relaxed select-all">
+                    {smsPreviewText}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Action Buttons: 💾 বিক্রয় সম্পন্ন করুন and 🖨️ বিক্রয় ও চালান প্রিন্ট */}

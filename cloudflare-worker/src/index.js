@@ -1,4 +1,14 @@
 import { sendExcelBackupToTelegram, generateRoyalExcelBuffer } from './royalExcelBackup.js';
+import {
+  normalizeBdPhone,
+  buildSaleSmsText,
+  buildDueCollectSmsText,
+  sendBulkSms,
+  getSmsConfig,
+  saveSmsConfig,
+  getSmsLogs,
+  resendSms,
+} from './smsService.js';
 
 /**
  * মাহা এন্টারপ্রাইজ (Maha Enterprise v1.5.0 PRO)
@@ -1583,7 +1593,49 @@ export default {
                 JOIN commodities c ON s.commodity_id = c.id
                 WHERE s.invoice_no = ?
               `).bind(invoiceNo).first();
-              return sendJson(created, 201);
+
+              // Auto-SMS Dispatch via ctx.waitUntil (Non-blocking)
+              let smsQueued = false;
+              const sendSmsParam = body.send_sms !== undefined ? Boolean(body.send_sms) : true;
+              if (sendSmsParam && created && created.party_phone) {
+                const normPhone = normalizeBdPhone(created.party_phone);
+                if (normPhone) {
+                  smsQueued = true;
+                  const smsPromise = (async () => {
+                    try {
+                      const smsConfig = await getSmsConfig(db, env);
+                      if (smsConfig.sms_enabled === 'true') {
+                        const smsText = buildSaleSmsText(smsConfig.sms_format_mode, {
+                          invoiceNo: created.invoice_no,
+                          commodityName: created.commodity_name,
+                          bagsCount: created.bags_count,
+                          netWeightMon: created.net_weight_mon,
+                          netWeightKg: created.net_weight_kg,
+                          netAmount: created.net_invoice_amount,
+                          paidAmount: created.paid_amount,
+                          currentDue: created.remaining_due !== undefined ? created.remaining_due : created.due_amount,
+                        });
+                        await sendBulkSms(db, env, {
+                          phone: normPhone,
+                          message: smsText,
+                          invoiceNo: created.invoice_no,
+                          partyName: created.party_name,
+                        });
+                      }
+                    } catch (smsErr) {
+                      console.warn('[Auto-SMS Single Sale Error]:', smsErr);
+                    }
+                  })();
+
+                  if (ctx && typeof ctx.waitUntil === 'function') {
+                    ctx.waitUntil(smsPromise);
+                  } else {
+                    smsPromise.catch(() => {});
+                  }
+                }
+              }
+
+              return sendJson({ ...created, sms_queued: smsQueued }, 201);
             }
 
             const customerName = (body.customer_name || body.buyer_name || body.party_name || '').trim();
@@ -1773,7 +1825,54 @@ export default {
               ORDER BY s.id ASC
             `).bind(`${baseInvoiceNo}%`).all();
 
-            return sendJson({ success: true, invoice_no: baseInvoiceNo, sales: createdSales || [] }, 201);
+            // Auto-SMS Dispatch for Wholesale POS Batch Sale
+            let smsQueued = false;
+            const sendSmsReq = body.send_sms !== undefined ? Boolean(body.send_sms) : true;
+            const targetPhone = custPhone || party.phone || '';
+            const validPhone = normalizeBdPhone(targetPhone);
+
+            if (sendSmsReq && validPhone) {
+              const smsCfg = await getSmsConfig(db, env);
+              if (smsCfg.sms_enabled === 'true') {
+                smsQueued = true;
+                const totalBags = itemsProcessed.reduce((acc, p) => acc + (p.bagsCount || 0), 0);
+                const totalMon = itemsProcessed.reduce((acc, p) => acc + (p.netMon || 0), 0);
+                const mainCropName = itemsProcessed.length === 1
+                  ? itemsProcessed[0].commodity.name_bn
+                  : `${itemsProcessed[0].commodity.name_bn} +${itemsProcessed.length - 1}`;
+
+                const smsPromise = (async () => {
+                  try {
+                    const smsText = buildSaleSmsText(smsCfg.sms_format_mode, {
+                      invoiceNo: baseInvoiceNo,
+                      commodityName: mainCropName,
+                      bagsCount: totalBags,
+                      netWeightMon: totalMon,
+                      netAmount: grandTotalBill,
+                      paidAmount: totalPaid,
+                      currentDue: newPartyBal,
+                    });
+
+                    await sendBulkSms(db, env, {
+                      phone: validPhone,
+                      message: smsText,
+                      invoiceNo: baseInvoiceNo,
+                      partyName: party.name,
+                    });
+                  } catch (smsErr) {
+                    console.warn('[Auto-SMS Batch Sale Error]:', smsErr);
+                  }
+                })();
+
+                if (ctx && typeof ctx.waitUntil === 'function') {
+                  ctx.waitUntil(smsPromise);
+                } else {
+                  smsPromise.catch(() => {});
+                }
+              }
+            }
+
+            return sendJson({ success: true, invoice_no: baseInvoiceNo, sales: createdSales || [], sms_queued: smsQueued }, 201);
           }
 
           const mockSales = body.items.map((item, idx) => ({
@@ -2088,6 +2187,7 @@ export default {
             let credit = 0;
             let newBal = party.current_balance;
 
+            let smsQueued = false;
             if (body.type === 'PAYMENT_RECEIVED') {
               credit = amt;
               newBal = subMoney(party.current_balance, amt);
@@ -2102,6 +2202,37 @@ export default {
                   VALUES (?, 'INFLOW', 'DUE_COLLECTION', ?, ?, ?, ?, ?)
                 `).bind(entryDate, amt, body.payment_mode || 'CASH', partyId, isTest, `বকেয়া আদায়: ${party.name} (${body.description || ''})`)
               ]);
+
+              const validPhone = normalizeBdPhone(party.phone);
+              if (validPhone) {
+                const cfg = await getSmsConfig(db, env);
+                if (cfg.sms_enabled === 'true' && cfg.sms_send_on_due_collect !== 'false') {
+                  smsQueued = true;
+                  const smsPromise = (async () => {
+                    try {
+                      const smsText = buildDueCollectSmsText(cfg.sms_format_mode, {
+                        partyName: party.name,
+                        paidAmount: amt,
+                        remainingDue: newBal,
+                      });
+                      await sendBulkSms(db, env, {
+                        phone: validPhone,
+                        message: smsText,
+                        invoiceNo: `COLLECT-${Date.now().toString().slice(-4)}`,
+                        partyName: party.name,
+                      });
+                    } catch (smsErr) {
+                      console.warn('[Auto-SMS Due Collection Error]:', smsErr);
+                    }
+                  })();
+
+                  if (ctx && typeof ctx.waitUntil === 'function') {
+                    ctx.waitUntil(smsPromise);
+                  } else {
+                    smsPromise.catch(() => {});
+                  }
+                }
+              }
             } else {
               debit = amt;
               newBal = addMoney(party.current_balance, amt);
@@ -2118,7 +2249,7 @@ export default {
               ]);
             }
 
-            return sendJson({ success: true, newBalance: newBal }, 201);
+            return sendJson({ success: true, newBalance: newBal, sms_queued: smsQueued }, 201);
           }
           return sendJson({ success: true, newBalance: 0 }, 201);
         }
@@ -3140,6 +3271,90 @@ export default {
           inMemoryStore.parties = inMemoryStore.parties.filter(p => !p.is_test_draft);
 
           return sendJson({ success: true, message: 'সকল টেস্ট ড্রাফট ডাটা সফলভাবে মুছে ফেলা হয়েছে।' });
+        }
+
+        // =========================================================================
+        // SMS GATEWAY SETTINGS & LOGS API
+        // =========================================================================
+        if (url.pathname === '/api/settings/sms' && request.method === 'GET') {
+          const cfg = await getSmsConfig(db, env);
+          const hasKey = Boolean(cfg.sms_api_key && cfg.sms_api_key.trim().length > 0);
+          const maskedKey = hasKey
+            ? (cfg.sms_api_key.length > 8
+                ? `${cfg.sms_api_key.slice(0, 3)}••••••••${cfg.sms_api_key.slice(-3)}`
+                : '••••••••')
+            : '';
+
+          return sendJson({
+            success: true,
+            settings: {
+              sms_enabled: cfg.sms_enabled || 'true',
+              sms_provider: cfg.sms_provider || 'bulksmsbd',
+              sms_sender_id: cfg.sms_sender_id || '',
+              sms_custom_url: cfg.sms_custom_url || '',
+              sms_format_mode: cfg.sms_format_mode || 'banglish_1sms',
+              sms_send_on_due_collect: cfg.sms_send_on_due_collect || 'true',
+              has_api_key: hasKey,
+              masked_api_key: maskedKey,
+            },
+          });
+        }
+
+        if (url.pathname === '/api/settings/sms' && request.method === 'POST') {
+          const body = await request.json().catch(() => ({}));
+          // If masked key is passed back, don't overwrite with asterisks
+          if (body.sms_api_key && (body.sms_api_key.includes('••••') || body.sms_api_key.includes('****'))) {
+            delete body.sms_api_key;
+          }
+          await saveSmsConfig(db, body);
+          return sendJson({ success: true, message: 'SMS সেটিংস সফলভাবে সংরক্ষিত হয়েছে' });
+        }
+
+        if (url.pathname === '/api/settings/sms/test' && request.method === 'POST') {
+          const body = await request.json().catch(() => ({}));
+          const testPhone = body.test_phone || body.phone;
+          const normalized = normalizeBdPhone(testPhone);
+          if (!normalized) {
+            return sendJson({
+              success: false,
+              error: 'সঠিক ১১-সংখ্যার বাংলাদেশি মোবাইল নম্বর লিখুন (যেমন: 017XXXXXXXX বা 88017XXXXXXXX)',
+            }, 400);
+          }
+
+          const cfg = await getSmsConfig(db, env);
+          const timeStr = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Dhaka' });
+          const testMsg = `Maha Enterprise: Test SMS Gateway Verification OK! Somoy: ${timeStr}. Dhonnobad!`;
+
+          const result = await sendBulkSms(db, env, {
+            phone: normalized,
+            message: testMsg,
+            invoiceNo: 'TEST-SMS',
+            partyName: 'Test Receiver',
+          });
+
+          return sendJson({
+            success: result.success,
+            status: result.status,
+            phone: result.phone,
+            gatewayResponse: result.gatewayResponse,
+            error: result.error,
+          });
+        }
+
+        if (url.pathname === '/api/settings/sms/logs' && request.method === 'GET') {
+          const limit = parseInt(url.searchParams.get('limit') || '30', 10);
+          const logs = await getSmsLogs(db, limit);
+          return sendJson({ success: true, logs: logs || [] });
+        }
+
+        if (url.pathname === '/api/settings/sms/resend' && request.method === 'POST') {
+          const body = await request.json().catch(() => ({}));
+          const logId = parseInt(body.log_id || body.id || '0', 10);
+          if (!logId) {
+            return sendJson({ success: false, error: 'লগ আইডি প্রদান করুন' }, 400);
+          }
+          const result = await resendSms(db, env, logId);
+          return sendJson(result);
         }
 
         return sendJson({ success: false, error: 'Endpoint not found' }, 404);

@@ -298,3 +298,28 @@ INSERT OR IGNORE INTO app_settings (key, value) VALUES
 INSERT OR IGNORE INTO settings (key, value) VALUES
 ('telegram_bot_token', '9038319945:AAFFZJoJvHaHdrhOuVP3QeEKKRjyFDx72Bk'),
 ('telegram_chat_id', '1904683489');
+
+-- 12. Bangladeshi Bulk SMS Gateway Logs & Configuration
+CREATE TABLE IF NOT EXISTS sms_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  invoice_no TEXT,
+  party_name TEXT,
+  phone TEXT NOT NULL,
+  message TEXT NOT NULL,
+  provider TEXT,
+  status TEXT NOT NULL, -- 'SENT' | 'FAILED' | 'SKIPPED'
+  gateway_response TEXT,
+  created_at TEXT DEFAULT (datetime('now', '+6 hours'))
+);
+CREATE INDEX IF NOT EXISTS idx_sms_logs_phone ON sms_logs(phone);
+CREATE INDEX IF NOT EXISTS idx_sms_logs_status ON sms_logs(status);
+CREATE INDEX IF NOT EXISTS idx_sms_logs_created_at ON sms_logs(created_at DESC);
+
+INSERT OR IGNORE INTO settings (key, value) VALUES
+('sms_enabled', 'true'),
+('sms_provider', 'bulksmsbd'),
+('sms_api_key', ''),
+('sms_sender_id', ''),
+('sms_custom_url', ''),
+('sms_format_mode', 'banglish_1sms'),
+('sms_send_on_due_collect', 'true');

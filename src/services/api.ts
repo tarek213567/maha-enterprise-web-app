@@ -294,13 +294,13 @@ export const dbService = {
       if (window.api) return window.api.sales.getById(id);
       return undefined;
     },
-    create: async (data: any): Promise<Sale> => {
+    create: async (data: any): Promise<Sale & { sms_queued?: boolean }> => {
       if (window.api) return window.api.sales.create(data);
-      return await apiFetch<Sale>('/api/sales', { method: 'POST', body: JSON.stringify(data) });
+      return await apiFetch<Sale & { sms_queued?: boolean }>('/api/sales', { method: 'POST', body: JSON.stringify(data) });
     },
-    createBatch: async (data: any): Promise<{ success: boolean; invoice_no: string; sales: Sale[] }> => {
+    createBatch: async (data: any): Promise<{ success: boolean; invoice_no: string; sales: Sale[]; sms_queued?: boolean }> => {
       if (window.api?.sales?.createBatch) return window.api.sales.createBatch(data);
-      return await apiFetch<{ success: boolean; invoice_no: string; sales: Sale[] }>('/api/sales/batch', { method: 'POST', body: JSON.stringify(data) });
+      return await apiFetch<{ success: boolean; invoice_no: string; sales: Sale[]; sms_queued?: boolean }>('/api/sales/batch', { method: 'POST', body: JSON.stringify(data) });
     },
     delete: async (id: number): Promise<{ success: boolean; message?: string }> => {
       if (window.api?.sales?.delete) return window.api.sales.delete(id);
@@ -865,6 +865,45 @@ export const dbService = {
     onTokenUpdated: (callback: () => void) => {
       if (window.api?.drive) return window.api.drive.onTokenUpdated(callback);
       return () => {};
+    },
+  },
+
+  sms: {
+    getSettings: async (): Promise<{
+      success: boolean;
+      settings: {
+        sms_enabled: string;
+        sms_provider: string;
+        sms_sender_id: string;
+        sms_custom_url: string;
+        sms_format_mode: string;
+        sms_send_on_due_collect: string;
+        has_api_key: boolean;
+        masked_api_key: string;
+      };
+    }> => {
+      return await apiFetch('/api/settings/sms');
+    },
+    saveSettings: async (data: any): Promise<{ success: boolean; message?: string }> => {
+      return await apiFetch('/api/settings/sms', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+    sendTest: async (test_phone: string): Promise<{ success: boolean; status: string; phone: string; gatewayResponse: string; error?: string }> => {
+      return await apiFetch('/api/settings/sms/test', {
+        method: 'POST',
+        body: JSON.stringify({ test_phone }),
+      });
+    },
+    getLogs: async (limit = 30): Promise<{ success: boolean; logs: any[] }> => {
+      return await apiFetch(`/api/settings/sms/logs?limit=${limit}`);
+    },
+    resend: async (log_id: number): Promise<{ success: boolean; status?: string; gatewayResponse?: string; error?: string }> => {
+      return await apiFetch('/api/settings/sms/resend', {
+        method: 'POST',
+        body: JSON.stringify({ log_id }),
+      });
     },
   },
 };
