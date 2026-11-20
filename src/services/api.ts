@@ -374,6 +374,14 @@ export const dbService = {
       if (window.api) return window.api.cashbook.addEntry(data);
       return await apiFetch<CashbookEntry>('/api/cashbook', { method: 'POST', body: JSON.stringify(data) });
     },
+    update: async (id: number, data: any): Promise<CashbookEntry> => {
+      if (window.api?.cashbook?.update) return window.api.cashbook.update(id, data);
+      return await apiFetch<CashbookEntry>(`/api/cashbook/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+    },
+    updateDailySummary: async (data: { date: string; opening_balance: number; notes?: string }): Promise<any> => {
+      if (window.api?.cashbook?.updateDailySummary) return window.api.cashbook.updateDailySummary(data);
+      return await apiFetch<any>('/api/cashbook/daily-summary', { method: 'PUT', body: JSON.stringify(data) });
+    },
     delete: async (id: number): Promise<{ success: boolean; message?: string }> => {
       if (window.api?.cashbook?.delete) return window.api.cashbook.delete(id);
       return await apiFetch<{ success: boolean; message?: string }>(`/api/cashbook/${id}`, { method: 'DELETE' });

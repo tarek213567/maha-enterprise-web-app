@@ -47,6 +47,8 @@ export const api = {
   cashbook: {
     getDaily: (date: string) => ipcRenderer.invoke('cashbook:getDaily', date),
     addEntry: (data: any) => ipcRenderer.invoke('cashbook:addEntry', data),
+    update: (id: number, data: any) => ipcRenderer.invoke('cashbook:update', id, data),
+    updateDailySummary: (data: any) => ipcRenderer.invoke('cashbook:updateDailySummary', data),
     delete: (id: number) => ipcRenderer.invoke('cashbook:delete', id),
   },
   expenses: {

@@ -1567,15 +1567,41 @@ export class AppDatabase {
     total_outflow: number;
     closing_balance: number;
   } {
-    const priorIn = (this.db.prepare(`
-      SELECT COALESCE(SUM(amount), 0) as s FROM cashbook WHERE entry_date < ? AND entry_type = 'INFLOW' AND payment_mode = 'CASH'
-    `).get(date) as { s: number }).s;
+    let opening_balance: number;
+    try {
+      this.db.prepare(`
+        CREATE TABLE IF NOT EXISTS cashbook_overrides (
+          entry_date TEXT PRIMARY KEY,
+          opening_balance REAL NOT NULL,
+          notes TEXT,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+      `).run();
+      const override = this.db.prepare('SELECT opening_balance FROM cashbook_overrides WHERE entry_date = ?').get(date) as { opening_balance: number } | undefined;
+      if (override && override.opening_balance !== null && override.opening_balance !== undefined) {
+        opening_balance = roundMoney(override.opening_balance);
+      } else {
+        const priorIn = (this.db.prepare(`
+          SELECT COALESCE(SUM(amount), 0) as s FROM cashbook WHERE entry_date < ? AND entry_type = 'INFLOW' AND payment_mode = 'CASH'
+        `).get(date) as { s: number }).s;
 
-    const priorOut = (this.db.prepare(`
-      SELECT COALESCE(SUM(amount), 0) as s FROM cashbook WHERE entry_date < ? AND entry_type = 'OUTFLOW' AND payment_mode = 'CASH'
-    `).get(date) as { s: number }).s;
+        const priorOut = (this.db.prepare(`
+          SELECT COALESCE(SUM(amount), 0) as s FROM cashbook WHERE entry_date < ? AND entry_type = 'OUTFLOW' AND payment_mode = 'CASH'
+        `).get(date) as { s: number }).s;
 
-    const opening_balance = roundMoney(priorIn - priorOut);
+        opening_balance = roundMoney(priorIn - priorOut);
+      }
+    } catch {
+      const priorIn = (this.db.prepare(`
+        SELECT COALESCE(SUM(amount), 0) as s FROM cashbook WHERE entry_date < ? AND entry_type = 'INFLOW' AND payment_mode = 'CASH'
+      `).get(date) as { s: number }).s;
+
+      const priorOut = (this.db.prepare(`
+        SELECT COALESCE(SUM(amount), 0) as s FROM cashbook WHERE entry_date < ? AND entry_type = 'OUTFLOW' AND payment_mode = 'CASH'
+      `).get(date) as { s: number }).s;
+
+      opening_balance = roundMoney(priorIn - priorOut);
+    }
 
     const stmt = this.db.prepare(`
       SELECT c.*, p.name as party_name
@@ -1606,6 +1632,26 @@ export class AppDatabase {
     };
   }
 
+  public updateDailyCashbookSummary(date: string, opening_balance: number, notes?: string): { success: boolean } {
+    this.db.prepare(`
+      CREATE TABLE IF NOT EXISTS cashbook_overrides (
+        entry_date TEXT PRIMARY KEY,
+        opening_balance REAL NOT NULL,
+        notes TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `).run();
+    this.db.prepare(`
+      INSERT INTO cashbook_overrides (entry_date, opening_balance, notes, updated_at)
+      VALUES (?, ?, ?, datetime('now', 'localtime'))
+      ON CONFLICT(entry_date) DO UPDATE SET
+        opening_balance = excluded.opening_balance,
+        notes = excluded.notes,
+        updated_at = datetime('now', 'localtime')
+    `).run(date, roundMoney(opening_balance), notes || '');
+    return { success: true };
+  }
+
   public addCashbookEntry(data: {
     entry_date: string;
     entry_type: 'INFLOW' | 'OUTFLOW';
@@ -1632,7 +1678,44 @@ export class AppDatabase {
       isTest,
       data.description
     );
-    return this.db.prepare('SELECT * FROM cashbook WHERE id = ?').get(Number(res.lastInsertRowid)) as CashbookEntry;
+    return this.db.prepare('SELECT c.*, p.name as party_name FROM cashbook c LEFT JOIN parties p ON c.party_id = p.id WHERE c.id = ?').get(Number(res.lastInsertRowid)) as CashbookEntry;
+  }
+
+  public updateCashbookEntry(id: number, data: Partial<CashbookEntry>): CashbookEntry {
+    const existing = this.db.prepare('SELECT * FROM cashbook WHERE id = ?').get(id) as CashbookEntry | undefined;
+    if (!existing) {
+      throw new Error('ক্যাশ বুক এন্ট্রি পাওয়া যায়নি');
+    }
+
+    const newDate = data.entry_date || existing.entry_date;
+    const newType = data.entry_type || existing.entry_type;
+    const newCategory = data.category || existing.category;
+    const newAmount = data.amount !== undefined ? roundMoney(data.amount) : existing.amount;
+    const newPaymentMode = data.payment_mode || existing.payment_mode;
+    const newDesc = data.description !== undefined ? data.description : existing.description;
+    const newPartyId = data.party_id !== undefined ? (data.party_id || null) : existing.party_id;
+
+    // Adjust party balance if linked
+    if (existing.party_id && existing.party_id === newPartyId) {
+      const delta = subMoney(newAmount, existing.amount);
+      if (delta !== 0) {
+        if (existing.category === 'DUE_COLLECTION' || existing.entry_type === 'INFLOW') {
+          this.db.prepare('UPDATE parties SET current_balance = current_balance - ?, updated_at = datetime(\'now\', \'localtime\') WHERE id = ?')
+            .run(delta, existing.party_id);
+        } else if (existing.category === 'SUPPLIER_PAYMENT' || existing.entry_type === 'OUTFLOW') {
+          this.db.prepare('UPDATE parties SET current_balance = current_balance + ?, updated_at = datetime(\'now\', \'localtime\') WHERE id = ?')
+            .run(delta, existing.party_id);
+        }
+      }
+    }
+
+    this.db.prepare(`
+      UPDATE cashbook
+      SET entry_date = ?, entry_type = ?, category = ?, amount = ?, payment_mode = ?, party_id = ?, description = ?
+      WHERE id = ?
+    `).run(newDate, newType, newCategory, newAmount, newPaymentMode, newPartyId, newDesc, id);
+
+    return this.db.prepare('SELECT c.*, p.name as party_name FROM cashbook c LEFT JOIN parties p ON c.party_id = p.id WHERE c.id = ?').get(id) as CashbookEntry;
   }
 
   public deleteCashbook(id: number): { success: boolean } {
@@ -1644,8 +1727,15 @@ export class AppDatabase {
         original_id: String(id),
         title: `${entry.entry_type}: ${entry.description || entry.category || 'ক্যাশ বুক'}`,
         amount: entry.amount,
-        payload: entry,
+        payload: { entry },
       });
+      if (entry.party_id) {
+        if (entry.category === 'DUE_COLLECTION' || entry.entry_type === 'INFLOW') {
+          this.db.prepare('UPDATE parties SET current_balance = current_balance + ?, updated_at = datetime(\'now\', \'localtime\') WHERE id = ?').run(entry.amount, entry.party_id);
+        } else if (entry.category === 'SUPPLIER_PAYMENT' || entry.entry_type === 'OUTFLOW') {
+          this.db.prepare('UPDATE parties SET current_balance = current_balance - ?, updated_at = datetime(\'now\', \'localtime\') WHERE id = ?').run(entry.amount, entry.party_id);
+        }
+      }
     }
     this.db.prepare('DELETE FROM cashbook WHERE id = ?').run(id);
     return { success: true };

@@ -171,6 +171,14 @@ CREATE TABLE IF NOT EXISTS cashbook (
 CREATE INDEX IF NOT EXISTS idx_cashbook_date ON cashbook(entry_date);
 CREATE INDEX IF NOT EXISTS idx_cashbook_category ON cashbook(category);
 
+-- Cashbook Daily Overrides (প্রারম্ভিক ক্যাশ জের সমন্বয় ও তারিখভিত্তিক ওভাররাইড)
+CREATE TABLE IF NOT EXISTS cashbook_overrides (
+  entry_date TEXT PRIMARY KEY,
+  opening_balance REAL NOT NULL,
+  notes TEXT,
+  updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+);
+
 -- Operating Expenses (দৈনিক সাধারণ গুদাম ও আড়ত পরিচালন খরচ)
 CREATE TABLE IF NOT EXISTS expenses (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

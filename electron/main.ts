@@ -287,6 +287,8 @@ function initApp() {
   // Cashbook
   ipcMain.handle('cashbook:getDaily', (_, date) => db!.getDailyCashbook(date));
   ipcMain.handle('cashbook:addEntry', (_, data) => db!.addCashbookEntry(data));
+  ipcMain.handle('cashbook:update', (_, id, data) => db!.updateCashbookEntry(id, data));
+  ipcMain.handle('cashbook:updateDailySummary', (_, data) => db!.updateDailyCashbookSummary(data.date, data.opening_balance, data.notes));
   ipcMain.handle('cashbook:delete', (_, id) => db!.deleteCashbook(id));
 
   // Expenses

@@ -2129,13 +2129,34 @@ export default {
           if (request.method === 'GET') {
             if (db) {
               const { results: entries } = await db.prepare('SELECT c.*, p.name as party_name FROM cashbook c LEFT JOIN parties p ON c.party_id = p.id WHERE c.entry_date = ? ORDER BY c.id ASC').bind(date).all();
-              const prior = await db.prepare(`
-                SELECT
-                  COALESCE(SUM(CASE WHEN entry_type = 'INFLOW' THEN amount ELSE 0 END), 0) as inf,
-                  COALESCE(SUM(CASE WHEN entry_type = 'OUTFLOW' THEN amount ELSE 0 END), 0) as outf
-                FROM cashbook WHERE entry_date < ?
-              `).bind(date).first();
-              const opening = subMoney(prior.inf, prior.outf);
+
+              // Check for date-specific opening override first
+              let opening = null;
+              try {
+                const override = await db.prepare('SELECT opening_balance FROM cashbook_overrides WHERE entry_date = ?').bind(date).first();
+                if (override && override.opening_balance !== null && override.opening_balance !== undefined) {
+                  opening = Number(override.opening_balance);
+                }
+              } catch (e) {}
+
+              if (opening === null) {
+                try {
+                  const settingVal = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(`cashbook_opening_${date}`).first();
+                  if (settingVal && settingVal.value !== null && settingVal.value !== undefined) {
+                    opening = Number(settingVal.value);
+                  }
+                } catch (e) {}
+              }
+
+              if (opening === null) {
+                const prior = await db.prepare(`
+                  SELECT
+                    COALESCE(SUM(CASE WHEN entry_type = 'INFLOW' THEN amount ELSE 0 END), 0) as inf,
+                    COALESCE(SUM(CASE WHEN entry_type = 'OUTFLOW' THEN amount ELSE 0 END), 0) as outf
+                  FROM cashbook WHERE entry_date < ?
+                `).bind(date).first();
+                opening = subMoney(prior.inf, prior.outf);
+              }
 
               let inflow = 0;
               let outflow = 0;
@@ -2175,7 +2196,121 @@ export default {
           }
         }
 
+        // Daily Summary Override: PUT /api/cashbook/daily-summary
+        if (url.pathname === '/api/cashbook/daily-summary' && (request.method === 'PUT' || request.method === 'POST')) {
+          const body = await request.json();
+          const targetDate = body.date || body.entry_date;
+          const openingBalance = roundMoney(body.opening_balance || 0);
+          const notes = body.notes || 'সংশোধিত প্রারম্ভিক ক্যাশ জের';
+
+          if (!targetDate) {
+            return sendJson({ success: false, error: 'তারিখ নির্দিষ্ট করা হয়নি' }, 400);
+          }
+
+          if (db) {
+            await db.prepare(`
+              CREATE TABLE IF NOT EXISTS cashbook_overrides (
+                entry_date TEXT PRIMARY KEY,
+                opening_balance REAL NOT NULL,
+                notes TEXT,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+              )
+            `).run().catch(() => null);
+
+            await db.prepare(`
+              INSERT INTO cashbook_overrides (entry_date, opening_balance, notes, updated_at)
+              VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+              ON CONFLICT(entry_date) DO UPDATE SET
+                opening_balance = excluded.opening_balance,
+                notes = excluded.notes,
+                updated_at = CURRENT_TIMESTAMP
+            `).bind(targetDate, openingBalance, notes).run();
+
+            await db.prepare(`
+              INSERT INTO settings (key, value)
+              VALUES (?, ?)
+              ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            `).bind(`cashbook_opening_${targetDate}`, String(openingBalance)).run().catch(() => null);
+
+            return sendJson({ success: true, date: targetDate, opening_balance: openingBalance });
+          }
+
+          return sendJson({ success: true, date: targetDate, opening_balance: openingBalance });
+        }
+
         const cashbookIdMatch = url.pathname.match(/^\/api\/cashbook\/(\d+)$/);
+
+        // Edit Cashbook Row: PUT /api/cashbook/:id
+        if (cashbookIdMatch && (request.method === 'PUT' || request.method === 'PATCH')) {
+          const id = parseInt(cashbookIdMatch[1], 10);
+          const body = await request.json();
+          if (db) {
+            const existing = await db.prepare('SELECT * FROM cashbook WHERE id = ?').bind(id).first();
+            if (!existing) {
+              return sendJson({ success: false, error: 'ক্যাশ বুক এন্ট্রি পাওয়া যায়নি' }, 404);
+            }
+
+            const newDate = body.entry_date || body.date || existing.entry_date;
+            const newType = body.entry_type || body.type || existing.entry_type;
+            const newCategory = body.category || existing.category;
+            const newAmount = body.amount !== undefined ? roundMoney(body.amount) : existing.amount;
+            const newPaymentMode = body.payment_mode || body.payment_method || existing.payment_mode;
+            const newDesc = body.description !== undefined ? body.description : existing.description;
+            const newPartyId = body.party_id !== undefined ? (body.party_id || null) : existing.party_id;
+
+            // Handle party balance adjustment if linked to a party
+            if (existing.party_id || newPartyId) {
+              if (existing.party_id && newPartyId && existing.party_id === newPartyId) {
+                const delta = subMoney(newAmount, existing.amount);
+                if (delta !== 0) {
+                  if (existing.category === 'DUE_COLLECTION' || existing.entry_type === 'INFLOW') {
+                    await db.prepare('UPDATE parties SET current_balance = current_balance - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+                      .bind(delta, existing.party_id).run();
+                  } else if (existing.category === 'SUPPLIER_PAYMENT' || existing.entry_type === 'OUTFLOW') {
+                    await db.prepare('UPDATE parties SET current_balance = current_balance + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+                      .bind(delta, existing.party_id).run();
+                  }
+                }
+              } else {
+                if (existing.party_id) {
+                  if (existing.category === 'DUE_COLLECTION' || existing.entry_type === 'INFLOW') {
+                    await db.prepare('UPDATE parties SET current_balance = current_balance + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+                      .bind(existing.amount, existing.party_id).run();
+                  } else if (existing.category === 'SUPPLIER_PAYMENT' || existing.entry_type === 'OUTFLOW') {
+                    await db.prepare('UPDATE parties SET current_balance = current_balance - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+                      .bind(existing.amount, existing.party_id).run();
+                  }
+                }
+                if (newPartyId) {
+                  if (newCategory === 'DUE_COLLECTION' || newType === 'INFLOW') {
+                    await db.prepare('UPDATE parties SET current_balance = current_balance - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+                      .bind(newAmount, newPartyId).run();
+                  } else if (newCategory === 'SUPPLIER_PAYMENT' || newType === 'OUTFLOW') {
+                    await db.prepare('UPDATE parties SET current_balance = current_balance + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+                      .bind(newAmount, newPartyId).run();
+                  }
+                }
+              }
+            }
+
+            await db.prepare(`
+              UPDATE cashbook
+              SET entry_date = ?, entry_type = ?, category = ?, amount = ?, payment_mode = ?, party_id = ?, description = ?
+              WHERE id = ?
+            `).bind(newDate, newType, newCategory, newAmount, newPaymentMode, newPartyId, newDesc, id).run();
+
+            const updated = await db.prepare('SELECT c.*, p.name as party_name FROM cashbook c LEFT JOIN parties p ON c.party_id = p.id WHERE c.id = ?').bind(id).first();
+            return sendJson(updated);
+          }
+          const idx = inMemoryStore.cashbook.findIndex(c => c.id === id);
+          if (idx !== -1) {
+            inMemoryStore.cashbook[idx] = { ...inMemoryStore.cashbook[idx], ...body };
+            return sendJson(inMemoryStore.cashbook[idx]);
+          }
+          return sendJson({ success: false, error: 'Not found' }, 404);
+        }
+
+        // Delete Cashbook: DELETE /api/cashbook/:id
         if (
           (cashbookIdMatch && (request.method === 'DELETE' || request.method === 'POST')) ||
           (url.pathname === '/api/cashbook' && request.method === 'DELETE')
@@ -2192,6 +2327,14 @@ export default {
                 amount: cb.amount || 0,
                 payload: { entry: cb }
               });
+
+              if (cb.party_id) {
+                if (cb.category === 'DUE_COLLECTION' || cb.entry_type === 'INFLOW') {
+                  await db.prepare('UPDATE parties SET current_balance = current_balance + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(cb.amount, cb.party_id).run();
+                } else if (cb.category === 'SUPPLIER_PAYMENT' || cb.entry_type === 'OUTFLOW') {
+                  await db.prepare('UPDATE parties SET current_balance = current_balance - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(cb.amount, cb.party_id).run();
+                }
+              }
             }
             await db.prepare('DELETE FROM cashbook WHERE id = ?').bind(id).run();
             return sendJson({ success: true, message: 'ক্যাশ বুক এন্ট্রি মুছে ফেলা হয়েছে' });
