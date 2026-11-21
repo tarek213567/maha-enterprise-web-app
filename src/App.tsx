@@ -20,6 +20,9 @@ import { PnLView } from './components/reports/PnLView';
 import { SettingsBackupView } from './components/settings/SettingsBackupView';
 import { NotebookView } from './components/notebook/NotebookView';
 import { RecycleBinView } from './components/recycle-bin/RecycleBinView';
+import { AiDynamicOverrideInjector } from './components/ai/AiDynamicOverrideInjector';
+import { AiFloatingOrb } from './components/ai/AiFloatingOrb';
+import { AiManezarModal } from './components/ai/AiManezarModal';
 import { dbService } from './services/api';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { CheckCircle2, AlertCircle, MoreVertical } from 'lucide-react';
@@ -28,7 +31,15 @@ const AppContent: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Listen to open-ai-manezar events from buttons across the app
+  useEffect(() => {
+    const handleOpenAi = () => setIsAiModalOpen(true);
+    window.addEventListener('open-ai-manezar', handleOpenAi);
+    return () => window.removeEventListener('open-ai-manezar', handleOpenAi);
+  }, []);
 
   // Load initial zoom factor & listen to changes
   useEffect(() => {
@@ -289,6 +300,19 @@ const AppContent: React.FC = () => {
 
       {/* 4. Fullscreen Security PIN Code Startup Lock Overlay */}
       <PinLockOverlay />
+
+      {/* 5. Dynamic Overrides Injector (CSS & UI configs backed by 60-day snapshots) */}
+      <AiDynamicOverrideInjector />
+
+      {/* 6. Cosmic Gemini Floating Sparkle Orb (46px x 46px) */}
+      <AiFloatingOrb onClick={() => setIsAiModalOpen(true)} />
+
+      {/* 7. Ai Manezar (Gemini 3 Flash) Cosmic-Dark Workspace Modal */}
+      <AiManezarModal
+        isOpen={isAiModalOpen}
+        onClose={() => setIsAiModalOpen(false)}
+        onNavigate={setCurrentTab}
+      />
     </div>
   );
 };

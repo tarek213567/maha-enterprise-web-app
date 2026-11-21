@@ -906,5 +906,96 @@ export const dbService = {
       });
     },
   },
+
+  ai: {
+    getApiKeyStatus: async (): Promise<{ success: boolean; hasKey: boolean; maskedKey: string }> => {
+      return await apiFetch('/api/settings/ai-key');
+    },
+    saveApiKey: async (apiKey: string): Promise<{ success: boolean; message: string }> => {
+      return await apiFetch('/api/settings/ai-key', {
+        method: 'POST',
+        body: JSON.stringify({ apiKey }),
+      });
+    },
+    testConnection: async (): Promise<{ success: boolean; message?: string; model?: string; reply?: string; error?: string }> => {
+      return await apiFetch('/api/ai/test', { method: 'POST' });
+    },
+    testTelegramAudit: async (): Promise<{ success: boolean; message?: string; report?: string; error?: string }> => {
+      return await apiFetch('/api/ai/telegram-audit-now', { method: 'POST' });
+    },
+    getSessions: async (): Promise<{ success: boolean; sessions: any[] }> => {
+      return await apiFetch('/api/ai/sessions');
+    },
+    createSession: async (title?: string): Promise<{ success: boolean; session: any }> => {
+      return await apiFetch('/api/ai/sessions', {
+        method: 'POST',
+        body: JSON.stringify({ title }),
+      });
+    },
+    updateSession: async (id: string, data: { title?: string; isPinned?: number }): Promise<{ success: boolean }> => {
+      return await apiFetch(`/api/ai/sessions/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    },
+    deleteSession: async (id: string): Promise<{ success: boolean }> => {
+      return await apiFetch(`/api/ai/sessions/${id}`, { method: 'DELETE' });
+    },
+    getMessages: async (sessionId: string): Promise<{ success: boolean; messages: any[] }> => {
+      return await apiFetch(`/api/ai/sessions/${sessionId}/messages`);
+    },
+    getMorningBriefing: async (): Promise<{ success: boolean; briefing: any }> => {
+      return await apiFetch('/api/ai/morning-briefing');
+    },
+    sendMessage: async (payload: {
+      sessionId?: string;
+      message?: string;
+      imageBase64?: string | null;
+      mimeType?: string;
+      audioBase64?: string | null;
+      audioMimeType?: string;
+    }): Promise<{
+      success: boolean;
+      sessionId: string;
+      messageId: string;
+      userMessageId?: string;
+      transcribedText?: string;
+      reply: string;
+      suggestedTitle?: string;
+      memoryToSave?: string;
+      navigateTo?: string;
+      action?: any;
+      error?: string;
+    }> => {
+      return await apiFetch('/api/ai/chat', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    },
+    executeAction: async (action: any, messageId?: string): Promise<{ success: boolean; message?: string; error?: string; invoiceNo?: string; lotNo?: string }> => {
+      return await apiFetch('/api/ai/execute-action', {
+        method: 'POST',
+        body: JSON.stringify({ action, messageId }),
+      });
+    },
+    getOverrides: async (): Promise<{ success: boolean; overrides: any[] }> => {
+      return await apiFetch('/api/ai/overrides');
+    },
+    saveOverride: async (data: { overrideType: string; targetKey: string; content: string }): Promise<{ success: boolean; message?: string }> => {
+      return await apiFetch('/api/ai/overrides', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+    deleteOverride: async (id: string): Promise<{ success: boolean }> => {
+      return await apiFetch(`/api/ai/overrides/${id}`, { method: 'DELETE' });
+    },
+    getMemories: async (): Promise<{ success: boolean; memories: any[] }> => {
+      return await apiFetch('/api/ai/memories');
+    },
+    deleteMemory: async (id: string): Promise<{ success: boolean }> => {
+      return await apiFetch(`/api/ai/memories/${id}`, { method: 'DELETE' });
+    },
+  },
 };
 

@@ -1,0 +1,66 @@
+/* ==========================================================================
+   AI MANEZAR (GEMINI 3 FLASH) COSMIC-DARK WORKSPACE STYLES
+   Tailored for Maha Enterprise (মাহা এন্টারপ্রাইজ)
+   ========================================================================== */
+
+.ai-floating-orb {
+  position: fixed;
+  bottom: 42px;
+  right: 16px;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #1e2640 0%, #0d111a 100%);
+  border: 1.5px solid rgba(168, 85, 247, 0.45);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 16px rgba(168, 85, 247, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 9500;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+
+.ai-floating-fab {
+  display: none !important;
+}
+
+.ai-manezar-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.ai-manezar-backdrop {
+  display: none;
+}
+
+.ai-manezar-container {
+  position: relative;
+  z-index: 10001;
+  width: 100vw !important;
+  max-width: 100vw !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  background: radial-gradient(circle at 50% 42%, #131b36 0%, #0d101b 48%, #090b10 100%) !important;
+  color: #e3e3e3;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  display: flex;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ai-sidebar {
+  width: 270px;
+  background: #11131a;
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+}

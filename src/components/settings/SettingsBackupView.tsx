@@ -33,6 +33,11 @@ import {
   Key,
   Clock,
   MessageSquare,
+  Bot,
+  Eye,
+  EyeOff,
+  ExternalLink,
+  Cpu,
 } from 'lucide-react';
 import { dbService } from '../../services/api';
 import { useTheme } from '../../context/ThemeContext';
@@ -234,8 +239,150 @@ export const SettingsBackupView: React.FC = () => {
     }
   };
 
+  // Block 8: Ai Manezar State
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [hasGeminiKey, setHasGeminiKey] = useState(false);
+  const [maskedGeminiKey, setMaskedGeminiKey] = useState('');
+  const [showGeminiApiKey, setShowGeminiApiKey] = useState(false);
+  const [isSavingAiKey, setIsSavingAiKey] = useState(false);
+  const [aiKeySaveMessage, setAiKeySaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isTestingAiConnection, setIsTestingAiConnection] = useState(false);
+  const [aiTestResult, setAiTestResult] = useState<{ success: boolean; message: string; model?: string; reply?: string } | null>(null);
+  const [isTestingTgAudit, setIsTestingTgAudit] = useState(false);
+  const [tgAuditResult, setTgAuditResult] = useState<{ success: boolean; message: string; report?: string } | null>(null);
+  const [aiMemories, setAiMemories] = useState<any[]>([]);
+  const [aiOverrides, setAiOverrides] = useState<any[]>([]);
+  const [isLoadingAiData, setIsLoadingAiData] = useState(false);
+
+  const fetchAiData = async () => {
+    try {
+      setIsLoadingAiData(true);
+      const [keyRes, memRes, ovRes] = await Promise.all([
+        dbService.ai.getApiKeyStatus(),
+        dbService.ai.getMemories(),
+        dbService.ai.getOverrides(),
+      ]);
+
+      if (keyRes.success) {
+        setHasGeminiKey(keyRes.hasKey);
+        setMaskedGeminiKey(keyRes.maskedKey || '');
+      }
+      if (memRes.success) {
+        setAiMemories(memRes.memories || []);
+      }
+      if (ovRes.success) {
+        setAiOverrides(ovRes.overrides || []);
+      }
+    } catch (err) {
+      console.warn('[Fetch AI Data Error]:', err);
+    } finally {
+      setIsLoadingAiData(false);
+    }
+  };
+
+  const handleSaveAiKey = async () => {
+    if (!geminiApiKey.trim()) {
+      alert('অনুগ্রহ করে একটি বৈধ Google Gemini API Key প্রদান করুন।');
+      return;
+    }
+    try {
+      setIsSavingAiKey(true);
+      setAiKeySaveMessage(null);
+      const res = await dbService.ai.saveApiKey(geminiApiKey.trim());
+      if (res.success) {
+        setAiKeySaveMessage({ text: 'Gemini API Key সফলভাবে সংরক্ষিত হয়েছে! ✅', type: 'success' });
+        setGeminiApiKey('');
+        await fetchAiData();
+        setTimeout(() => setAiKeySaveMessage(null), 5000);
+      } else {
+        setAiKeySaveMessage({ text: 'সংরক্ষণ ব্যর্থ হয়েছে', type: 'error' });
+      }
+    } catch (err: any) {
+      setAiKeySaveMessage({ text: `ব্যর্থ: ${err.message || 'অজানা ত্রুটি'}`, type: 'error' });
+    } finally {
+      setIsSavingAiKey(false);
+    }
+  };
+
+  const handleTestAiConnection = async () => {
+    try {
+      setIsTestingAiConnection(true);
+      setAiTestResult(null);
+      const res = await dbService.ai.testConnection();
+      if (res.success) {
+        setAiTestResult({
+          success: true,
+          message: res.message || 'সংযোগ সফল হয়েছে!',
+          model: res.model || 'gemini-3-flash-preview',
+          reply: res.reply,
+        });
+      } else {
+        setAiTestResult({
+          success: false,
+          message: res.error || 'Gemini API এর সাথে সংযোগ স্থাপন করা যায়নি।',
+        });
+      }
+    } catch (err: any) {
+      setAiTestResult({
+        success: false,
+        message: err.message || 'সংযোগ ব্যর্থ হয়েছে।',
+      });
+    } finally {
+      setIsTestingAiConnection(false);
+    }
+  };
+
+  const handleTestTelegramAudit = async () => {
+    try {
+      setIsTestingTgAudit(true);
+      setTgAuditResult(null);
+      const res = await dbService.ai.testTelegramAudit();
+      if (res.success) {
+        setTgAuditResult({
+          success: true,
+          message: res.message || 'টেলিগ্রাম অডিট রিপোর্ট সফলভাবে পাঠানো হয়েছে!',
+          report: res.report,
+        });
+      } else {
+        setTgAuditResult({
+          success: false,
+          message: res.error || 'টেলিগ্রামে বার্তা পাঠানো ব্যর্থ হয়েছে।',
+        });
+      }
+    } catch (err: any) {
+      setTgAuditResult({
+        success: false,
+        message: err.message || 'টেলিগ্রাম রিপোর্ট ব্যর্থ।',
+      });
+    } finally {
+      setIsTestingTgAudit(false);
+    }
+  };
+
+  const handleDeleteAiMemory = async (id: string) => {
+    if (!window.confirm('এই তথ্যটি মেমরি থেকে মুছে ফেলতে চান?')) return;
+    try {
+      await dbService.ai.deleteMemory(id);
+      setAiMemories((prev) => prev.filter((m) => m.id !== id));
+    } catch (err) {
+      console.error('[Delete Memory Error]:', err);
+    }
+  };
+
+  const handleDeleteAiOverride = async (id: string) => {
+    if (!window.confirm('এই ডাইনামিক স্টাইল ওভাররাইডটি মুছে ফেলতে চান?')) return;
+    try {
+      await dbService.ai.deleteOverride(id);
+      setAiOverrides((prev) => prev.filter((o) => o.id !== id));
+      window.dispatchEvent(new CustomEvent('maha-ai-override-updated'));
+    } catch (err) {
+      console.error('[Delete Override Error]:', err);
+    }
+  };
+
   useEffect(() => {
     fetchSmsData();
+    fetchAiData();
   }, []);
 
   const handleSaveSmsSettings = async () => {
@@ -1697,7 +1844,338 @@ export const SettingsBackupView: React.FC = () => {
         </div>
       </div>
 
-      {/* ADD COMMODITY MODAL */}
+      {/* ========================================================================= */}
+      {/* BLOCK 8: AI MANEZAR — GOOGLE GEMINI 3 FLASH কনফিগারেশন                  */}
+      {/* ========================================================================= */}
+      <div className="bg-white dark:bg-slate-900 border border-purple-500/30 rounded-2xl p-5 shadow-sm space-y-5 relative overflow-hidden">
+        {/* Subtle top ambient glowing border */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-rose-500" />
+
+        {/* Section Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[var(--border-color)]">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30 flex items-center justify-center shrink-0">
+              <Bot className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                  🤖 Ai Manezar — Google Gemini 3 Flash কনফিগারেশন
+                </h2>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 border border-purple-500/30 text-purple-700 dark:text-purple-300">
+                  v1.5.0 PRO AI
+                </span>
+              </div>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                লাইভ শপ ইন্টেলিজেন্স, OCR মেমো স্ক্যানিং, পূর্ণ D1 CRUD এক্সিকিউশন ও ৬০-দিনের রিসাইকেল বিন স্ন্যাপশট
+              </p>
+            </div>
+          </div>
+
+          {/* Quick Open Ai Manezar Button */}
+          <button
+            id="btn-open-ai-from-settings"
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('open-ai-manezar'))}
+            className="px-4 py-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer self-start sm:self-center"
+          >
+            <Sparkles className="w-4 h-4 text-amber-300" />
+            <span>✨ Ai Manezar খুলুন</span>
+          </button>
+        </div>
+
+        {/* Model & Architecture Info Card */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="p-3 bg-purple-500/10 border border-purple-500/25 rounded-xl">
+            <span className="text-[11px] text-purple-800 dark:text-purple-300 font-bold block">
+              প্রধান এআই মডেল:
+            </span>
+            <div className="font-mono font-bold text-xs text-purple-900 dark:text-purple-200 mt-1 flex items-center gap-1">
+              <Cpu className="w-3.5 h-3.5 text-purple-500" />
+              <span>gemini-3-flash-preview</span>
+            </div>
+            <span className="text-[10px] text-slate-500 mt-0.5 block">
+              (Google DeepMind-এর আল্ট্রা-ফাস্ট নেক্সট-জেন মডেল)
+            </span>
+          </div>
+
+          <div className="p-3 bg-blue-500/10 border border-blue-500/25 rounded-xl">
+            <span className="text-[11px] text-blue-800 dark:text-blue-300 font-bold block">
+              অটো-ফলব্যাক ক্যাসকেড:
+            </span>
+            <div className="font-mono font-bold text-xs text-blue-900 dark:text-blue-200 mt-1">
+              3-flash ➔ 2.5-flash ➔ 2.0-flash
+            </div>
+            <span className="text-[10px] text-slate-500 mt-0.5 block">
+              (জিরো ডাউনটাইম নিশ্চিতকরণ অ্যালগরিদম)
+            </span>
+          </div>
+
+          <div className="p-3 bg-emerald-500/10 border border-emerald-500/25 rounded-xl">
+            <span className="text-[11px] text-emerald-800 dark:text-emerald-300 font-bold block">
+              ডাটাবেজ ও ডিজাইন সুরক্ষা:
+            </span>
+            <div className="font-bold text-xs text-emerald-900 dark:text-emerald-200 mt-1 flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+              <span>৬০ দিনের স্ন্যাপশট ও ১-ক্লিক রিস্টোর</span>
+            </div>
+            <span className="text-[10px] text-slate-500 mt-0.5 block">
+              (যেকোনো মিউটেশন বা থিম পরিবর্তনের আগে অটো-ব্যাকআপ)
+            </span>
+          </div>
+        </div>
+
+        {/* Gemini API Key Configuration Section */}
+        <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Key className="w-4 h-4 text-amber-500" />
+              <label className="text-xs font-bold text-slate-900 dark:text-white">
+                Google Gemini API Key:
+              </label>
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  hasGeminiKey
+                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                    : 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+                }`}
+              >
+                {hasGeminiKey ? '● API Key সক্রিয়' : '○ কোনো Key সেট করা নেই'}
+              </span>
+            </div>
+
+            <a
+              href="https://aistudio.google.com/app/apikey"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-semibold"
+            >
+              <span>ফ্রি Gemini API Key নিন (Google AI Studio)</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+
+          {hasGeminiKey && maskedGeminiKey && (
+            <div className="text-[11px] text-slate-500 font-mono">
+              বর্তমান সংরক্ষিত কি: <span className="text-slate-700 dark:text-slate-300 font-bold">{maskedGeminiKey}</span>
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-2.5">
+            <div className="relative flex-1">
+              <input
+                type={showGeminiApiKey ? 'text' : 'password'}
+                placeholder="AIzaSy... (নতুন API Key দিন বা পরিবর্তন করুন)"
+                value={geminiApiKey}
+                onChange={(e) => setGeminiApiKey(e.target.value)}
+                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 pr-10 text-slate-900 dark:text-white outline-none focus:border-purple-500 font-mono text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => setShowGeminiApiKey(!showGeminiApiKey)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                title={showGeminiApiKey ? 'লুকান' : 'দেখুন'}
+              >
+                {showGeminiApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleSaveAiKey}
+              disabled={isSavingAiKey || !geminiApiKey.trim()}
+              className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer whitespace-nowrap"
+            >
+              <Save className="w-4 h-4" />
+              <span>{isSavingAiKey ? 'সংরক্ষণ হচ্ছে...' : '💾 API কি সংরক্ষণ করুন'}</span>
+            </button>
+          </div>
+
+          {aiKeySaveMessage && (
+            <div
+              className={`p-2.5 rounded-lg text-xs font-bold ${
+                aiKeySaveMessage.type === 'success'
+                  ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                  : 'bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400'
+              }`}
+            >
+              {aiKeySaveMessage.text}
+            </div>
+          )}
+        </div>
+
+        {/* Live Diagnostics: Test Connection & Telegram Audit */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Test 1: API Connection Test */}
+          <div className="p-4 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-purple-500" />
+                <span>Gemini API সংযোগ পরীক্ষা:</span>
+              </span>
+              <button
+                type="button"
+                onClick={handleTestAiConnection}
+                disabled={isTestingAiConnection}
+                className="px-3.5 py-1.5 bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-700 dark:text-purple-300 font-bold rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <RotateCw className={`w-3.5 h-3.5 ${isTestingAiConnection ? 'animate-spin' : ''}`} />
+                <span>{isTestingAiConnection ? 'পরীক্ষা চলছে...' : '🔌 সংযোগ পরীক্ষা করুন'}</span>
+              </button>
+            </div>
+
+            {aiTestResult && (
+              <div
+                className={`p-3 rounded-lg text-xs space-y-1 ${
+                  aiTestResult.success
+                    ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                    : 'bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300'
+                }`}
+              >
+                <div className="font-bold flex items-center gap-1">
+                  {aiTestResult.success ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                  <span>{aiTestResult.message}</span>
+                </div>
+                {aiTestResult.model && (
+                  <div className="text-[11px] font-mono opacity-90">
+                    ব্যবহৃত মডেল: <strong>{aiTestResult.model}</strong>
+                  </div>
+                )}
+                {aiTestResult.reply && (
+                  <div className="text-[11px] italic mt-1 pt-1 border-t border-emerald-500/20">
+                    "{aiTestResult.reply}"
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Test 2: Telegram Audit Report Sender */}
+          <div className="p-4 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <Send className="w-4 h-4 text-sky-500" />
+                <span>টেলিগ্রাম অডিট রিপোর্ট টেস্ট:</span>
+              </span>
+              <button
+                type="button"
+                onClick={handleTestTelegramAudit}
+                disabled={isTestingTgAudit}
+                className="px-3.5 py-1.5 bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 text-sky-700 dark:text-sky-300 font-bold rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <Send className={`w-3.5 h-3.5 ${isTestingTgAudit ? 'animate-pulse' : ''}`} />
+                <span>{isTestingTgAudit ? 'পাঠানো হচ্ছে...' : '📱 অডিট রিপোর্ট পাঠান'}</span>
+              </button>
+            </div>
+
+            {tgAuditResult && (
+              <div
+                className={`p-3 rounded-lg text-xs space-y-1 ${
+                  tgAuditResult.success
+                    ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                    : 'bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300'
+                }`}
+              >
+                <div className="font-bold flex items-center gap-1">
+                  {tgAuditResult.success ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                  <span>{tgAuditResult.message}</span>
+                </div>
+                {tgAuditResult.report && (
+                  <div className="text-[10px] font-mono max-h-24 overflow-y-auto mt-1 pt-1 border-t border-emerald-500/20 whitespace-pre-wrap">
+                    {tgAuditResult.report}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* AI Memories & Dynamic Overrides Management (Collapsible or Grids) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
+          {/* 1. AI Memory Table */}
+          <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between pb-2 border-b border-[var(--border-color)]">
+              <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <span>🧠 Ai Manezar দীর্ঘমেয়াদী স্মৃতি (Memory)</span>
+                <span className="text-[10px] font-mono text-slate-500">({aiMemories.length})</span>
+              </span>
+              <span className="text-[10px] text-slate-500">স্বয়ংক্রিয়ভাবে সংরক্ষিত তথ্য</span>
+            </div>
+
+            <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+              {aiMemories.length === 0 ? (
+                <div className="text-xs text-slate-500 italic text-center py-4">
+                  কোনো মেমরি তথ্য সংরক্ষিত নেই
+                </div>
+              ) : (
+                aiMemories.map((mem) => (
+                  <div
+                    key={mem.id}
+                    className="p-2 bg-slate-50 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs gap-2"
+                  >
+                    <span className="text-slate-800 dark:text-slate-200 font-medium truncate flex-1">
+                      {mem.fact}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteAiMemory(mem.id)}
+                      className="text-rose-500 hover:text-rose-700 p-1 shrink-0"
+                      title="মেমরি মুছুন"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* 2. Dynamic UI & CSS Overrides */}
+          <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between pb-2 border-b border-[var(--border-color)]">
+              <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <span>🎨 ডাইনামিক ডিজাইন ওভাররাইড (Dynamic CSS)</span>
+                <span className="text-[10px] font-mono text-slate-500">({aiOverrides.length})</span>
+              </span>
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                🛡️ ৬০-দিন স্ন্যাপশট সক্রিয়
+              </span>
+            </div>
+
+            <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+              {aiOverrides.length === 0 ? (
+                <div className="text-xs text-slate-500 italic text-center py-4">
+                  কোনো সক্রিয় ডাইনামিক স্টাইল নেই (ডিফল্ট থিম চলছে)
+                </div>
+              ) : (
+                aiOverrides.map((ov) => (
+                  <div
+                    key={ov.id}
+                    className="p-2 bg-slate-50 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs gap-2"
+                  >
+                    <div className="flex-1 truncate">
+                      <div className="font-mono font-bold text-[11px] text-purple-600 dark:text-purple-400">
+                        {ov.targetKey} ({ov.overrideType})
+                      </div>
+                      <div className="text-[10px] text-slate-500 truncate font-mono">
+                        {ov.content}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteAiOverride(ov.id)}
+                      className="text-rose-500 hover:text-rose-700 p-1 shrink-0"
+                      title="ওভাররাইড মুছুন ও ডিফল্ট থিমে ফিরুন"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
       {showAddCommModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">

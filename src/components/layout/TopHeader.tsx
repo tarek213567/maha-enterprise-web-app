@@ -146,6 +146,16 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             </button>
           )}
 
+          {/* Ai Manezar (Gemini 3 Flash) Pill Button */}
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('open-ai-manezar'))}
+            title="Ai Manezar (Gemini 3 Flash) আড়ত সহকারী খুলুন"
+            className="px-3.5 py-1.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 active:scale-95 text-white font-black rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all duration-150 cursor-pointer"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            <span>✨ Ai Manezar</span>
+          </button>
+
           {/* Quick Purchase Entry (F2) */}
           <button
             onClick={onOpenQuickPurchase}

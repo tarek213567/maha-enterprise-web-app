@@ -8,6 +8,7 @@ import {
   Database,
   BarChart2,
   Calculator,
+  Sparkles,
 } from 'lucide-react';
 import { DashboardStats, Commodity } from '../../types';
 import { dbService } from '../../services/api';
@@ -184,14 +185,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
               </div>
 
-              <button
-                onClick={() => fetchDashboardData(true)}
-                disabled={isRefreshing}
-                className="border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-              >
-                <RotateCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-emerald-600' : 'text-slate-500'}`} />
-                <span>তথ্য আপডেট</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-ai-manezar'))}
+                  className="bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 active:scale-95 text-white rounded-lg px-3 py-1.5 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                  title="Ai Manezar (Gemini 3 Flash) খুলুন"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>✨ Ai Manezar</span>
+                </button>
+                <button
+                  onClick={() => fetchDashboardData(true)}
+                  disabled={isRefreshing}
+                  className="border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                >
+                  <RotateCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-emerald-600' : 'text-slate-500'}`} />
+                  <span>তথ্য আপডেট</span>
+                </button>
+              </div>
             </div>
 
             {/* Table */}

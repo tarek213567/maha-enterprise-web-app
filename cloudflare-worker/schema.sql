@@ -322,4 +322,43 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
 ('sms_sender_id', ''),
 ('sms_custom_url', ''),
 ('sms_format_mode', 'banglish_1sms'),
-('sms_send_on_due_collect', 'true');
+('sms_send_on_due_collect', 'true'),
+('gemini_api_key', '');
+
+-- 13. Ai Manezar — Intelligent Business Manager, Memory & Live Design Overrides
+CREATE TABLE IF NOT EXISTS AiChatSession (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  isPinned INTEGER DEFAULT 0,
+  updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_ai_session_pinned ON AiChatSession(isPinned DESC, updatedAt DESC);
+
+CREATE TABLE IF NOT EXISTS AiChatMessage (
+  id TEXT PRIMARY KEY,
+  sessionId TEXT NOT NULL,
+  role TEXT NOT NULL, -- 'user' | 'model'
+  message TEXT NOT NULL,
+  hasImage INTEGER DEFAULT 0,
+  actionJson TEXT,
+  actionExecuted INTEGER DEFAULT 0,
+  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_ai_message_session ON AiChatMessage(sessionId, createdAt ASC);
+
+CREATE TABLE IF NOT EXISTS AiMemory (
+  id TEXT PRIMARY KEY,
+  fact TEXT NOT NULL,
+  category TEXT DEFAULT 'GENERAL',
+  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS AiDynamicOverride (
+  id TEXT PRIMARY KEY,
+  overrideType TEXT NOT NULL, -- 'CSS_THEME' | 'UI_CONFIG' | 'CUSTOM_WIDGET'
+  targetKey TEXT NOT NULL,
+  content TEXT NOT NULL,
+  isActive INTEGER DEFAULT 1,
+  updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+);

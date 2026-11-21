@@ -9,6 +9,14 @@ import {
   getSmsLogs,
   resendSms,
 } from './smsService.js';
+import {
+  getGeminiApiKey,
+  callGeminiModel,
+  fetchLiveShopContext,
+  generateAndSendDailyAiAudit,
+  executeAiAction,
+  createRecycleSnapshot,
+} from './aiService.js';
 
 /**
  * মাহা এন্টারপ্রাইজ (Maha Enterprise v1.5.0 PRO)
@@ -525,6 +533,43 @@ async function ensureD1Initialized(db) {
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_backup_logs_created_at ON backup_logs(created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS AiChatSession (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        isPinned INTEGER DEFAULT 0,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_ai_session_pinned ON AiChatSession(isPinned DESC, updatedAt DESC);
+
+      CREATE TABLE IF NOT EXISTS AiChatMessage (
+        id TEXT PRIMARY KEY,
+        sessionId TEXT NOT NULL,
+        role TEXT NOT NULL,
+        message TEXT NOT NULL,
+        hasImage INTEGER DEFAULT 0,
+        actionJson TEXT,
+        actionExecuted INTEGER DEFAULT 0,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_ai_message_session ON AiChatMessage(sessionId, createdAt ASC);
+
+      CREATE TABLE IF NOT EXISTS AiMemory (
+        id TEXT PRIMARY KEY,
+        fact TEXT NOT NULL,
+        category TEXT DEFAULT 'GENERAL',
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS AiDynamicOverride (
+        id TEXT PRIMARY KEY,
+        overrideType TEXT NOT NULL,
+        targetKey TEXT NOT NULL,
+        content TEXT NOT NULL,
+        isActive INTEGER DEFAULT 1,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
     `);
 
     // Ensure settings tables have default seeds
@@ -1593,6 +1638,7 @@ export default {
                 JOIN commodities c ON s.commodity_id = c.id
                 WHERE s.invoice_no = ?
               `).bind(invoiceNo).first();
+              return sendJson(created, 201);
 
               // Auto-SMS Dispatch via ctx.waitUntil (Non-blocking)
               let smsQueued = false;
@@ -1825,6 +1871,7 @@ export default {
               ORDER BY s.id ASC
             `).bind(`${baseInvoiceNo}%`).all();
 
+            return sendJson({ success: true, invoice_no: baseInvoiceNo, sales: createdSales || [] }, 201);
             // Auto-SMS Dispatch for Wholesale POS Batch Sale
             let smsQueued = false;
             const sendSmsReq = body.send_sms !== undefined ? Boolean(body.send_sms) : true;
@@ -2249,6 +2296,7 @@ export default {
               ]);
             }
 
+            return sendJson({ success: true, newBalance: newBal }, 201);
             return sendJson({ success: true, newBalance: newBal, sms_queued: smsQueued }, 201);
           }
           return sendJson({ success: true, newBalance: 0 }, 201);
@@ -3357,6 +3405,487 @@ export default {
           return sendJson(result);
         }
 
+        // =========================================================================
+        // AI MANEZAR (GEMINI 3 FLASH) ENGINE & SETTINGS API
+        // =========================================================================
+
+        // 1. AI Settings (API Key Management)
+        if (url.pathname === '/api/settings/ai-key') {
+          if (request.method === 'GET') {
+            const key = await getGeminiApiKey(db, env);
+            const hasKey = Boolean(key && key.trim().length > 0);
+            const maskedKey = hasKey
+              ? (key.length > 8 ? `${key.slice(0, 3)}••••••••${key.slice(-3)}` : '••••••••')
+              : '';
+            return sendJson({ success: true, hasKey, maskedKey });
+          }
+
+          if (request.method === 'POST') {
+            const body = await request.json().catch(() => ({}));
+            const apiKey = String(body.apiKey || body.gemini_api_key || '').trim();
+
+            if (apiKey && !apiKey.includes('••••') && !apiKey.includes('****')) {
+              if (db) {
+                await db.batch([
+                  db.prepare(`
+                    INSERT INTO settings (key, value) VALUES ('gemini_api_key', ?)
+                    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                  `).bind(apiKey),
+                  db.prepare(`
+                    INSERT INTO app_settings (key, value) VALUES ('gemini_api_key', ?)
+                    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                  `).bind(apiKey),
+                ]);
+              }
+            }
+            return sendJson({ success: true, message: 'Google Gemini API Key সফলভাবে সংরক্ষিত হয়েছে! ✅' });
+          }
+        }
+
+        // 2. AI Connection Test
+        if (url.pathname === '/api/ai/test' && request.method === 'POST') {
+          const apiKey = await getGeminiApiKey(db, env);
+          if (!apiKey) {
+            return sendJson({ success: false, error: 'Gemini API Key সেট করা নেই।' }, 400);
+          }
+
+          const payload = {
+            contents: [{ parts: [{ text: 'সংক্ষেপে উত্তর দাও: মাহা এন্টারপ্রাইজ এআই কানেকশন টেস্ট সফল হয়েছে।' }] }],
+          };
+          const geminiCall = await callGeminiModel(apiKey, payload);
+          if (!geminiCall.ok) {
+            return sendJson({
+              success: false,
+              error: `Google API Error (${geminiCall.status}): ${geminiCall.errorText}`,
+            }, 500);
+          }
+
+          const replyText = geminiCall.data?.candidates?.[0]?.content?.parts?.[0]?.text || 'কানেকশন সফল!';
+          return sendJson({
+            success: true,
+            message: `Gemini ${geminiCall.modelUsed?.includes('3') ? '3 Flash' : 'Flash'}-এর সাথে সংযোগ সফল হয়েছে! ⚡`,
+            model: geminiCall.modelUsed,
+            reply: replyText,
+          });
+        }
+
+        // 3. Telegram Audit Manual Trigger Test
+        if (url.pathname === '/api/ai/telegram-audit-now' && request.method === 'POST') {
+          const auditRes = await generateAndSendDailyAiAudit(db, env);
+          if (auditRes.ok) {
+            return sendJson({
+              success: true,
+              message: 'টেলিগ্রামে রাত ১০টার দৈনিক ব্যবসায়িক অডিট সফলভাবে পাঠানো হয়েছে! 📱',
+              report: auditRes.report,
+            });
+          }
+          return sendJson({
+            success: false,
+            error: auditRes.error || 'টেলিগ্রামে অডিট বার্তা পাঠাতে ব্যর্থ হয়েছে।',
+          }, 500);
+        }
+
+        // 4. AI Chat Sessions (List & Create)
+        if (url.pathname === '/api/ai/sessions') {
+          if (request.method === 'GET') {
+            if (db) {
+              const { results: sessions } = await db.prepare(`
+                SELECT s.id, s.title, s.isPinned, s.updatedAt, s.createdAt,
+                       (SELECT message FROM AiChatMessage WHERE sessionId = s.id ORDER BY createdAt DESC LIMIT 1) as lastMessage,
+                       (SELECT COUNT(*) FROM AiChatMessage WHERE sessionId = s.id) as messageCount
+                FROM AiChatSession s
+                ORDER BY s.isPinned DESC, s.updatedAt DESC
+              `).all().catch(() => ({ results: [] }));
+              return sendJson({ success: true, sessions: sessions || [] });
+            }
+            return sendJson({ success: true, sessions: [] });
+          }
+
+          if (request.method === 'POST') {
+            const body = await request.json().catch(() => ({}));
+            const id = body.id || `sess_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+            const title = String(body.title || 'নতুন আলোচনা').trim();
+
+            if (db) {
+              await db.prepare(`
+                INSERT INTO AiChatSession (id, title, isPinned, createdAt, updatedAt)
+                VALUES (?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+              `).bind(id, title).run();
+            }
+
+            return sendJson({ success: true, session: { id, title, isPinned: 0 } }, 200);
+          }
+        }
+
+        // 5. Specific Session (Update / Delete)
+        if (url.pathname.startsWith('/api/ai/sessions/') && !url.pathname.endsWith('/messages')) {
+          const sessionId = url.pathname.split('/')[4];
+          if (request.method === 'PUT') {
+            const body = await request.json().catch(() => ({}));
+            const updates = [];
+            const binds = [];
+
+            if (body.title !== undefined) {
+              updates.push('title = ?');
+              binds.push(String(body.title).trim());
+            }
+            if (body.isPinned !== undefined) {
+              updates.push('isPinned = ?');
+              binds.push(body.isPinned ? 1 : 0);
+            }
+            updates.push('updatedAt = CURRENT_TIMESTAMP');
+            binds.push(sessionId);
+
+            if (db) {
+              await db.prepare(`UPDATE AiChatSession SET ${updates.join(', ')} WHERE id = ?`).bind(...binds).run();
+            }
+            return sendJson({ success: true, message: 'সেশন আপডেট হয়েছে' });
+          }
+
+          if (request.method === 'DELETE') {
+            if (db) {
+              await db.batch([
+                db.prepare('DELETE FROM AiChatMessage WHERE sessionId = ?').bind(sessionId),
+                db.prepare('DELETE FROM AiChatSession WHERE id = ?').bind(sessionId),
+              ]);
+            }
+            return sendJson({ success: true, message: 'সেশন ও সকল মেসেজ সফলভাবে মুছে ফেলা হয়েছে' });
+          }
+        }
+
+        // 6. Session Message History
+        if (url.pathname.startsWith('/api/ai/sessions/') && url.pathname.endsWith('/messages') && request.method === 'GET') {
+          const parts = url.pathname.split('/');
+          const sessionId = parts[4];
+          if (db) {
+            const { results: messages } = await db.prepare(`
+              SELECT id, sessionId, role, message, hasImage, actionJson, actionExecuted, createdAt
+              FROM AiChatMessage
+              WHERE sessionId = ?
+              ORDER BY createdAt ASC
+            `).bind(sessionId).all().catch(() => ({ results: [] }));
+            return sendJson({ success: true, messages: messages || [] });
+          }
+          return sendJson({ success: true, messages: [] });
+        }
+
+        // 7. Morning Briefing
+        if (url.pathname === '/api/ai/morning-briefing' && request.method === 'GET') {
+          const shopContext = await fetchLiveShopContext(db);
+          const lowStockCommodities = shopContext.commodities.filter((c) => (Number(c.current_stock_kg) / 40.0) <= 25);
+          const topDues = shopContext.buyers.slice(0, 3);
+
+          const briefing = {
+            date: shopContext.todayStr,
+            totalStockMon: shopContext.totalStockMon,
+            totalStockValuation: shopContext.totalStockValuation,
+            totalCustomerDue: shopContext.totalCustomerDue,
+            totalSupplierPayable: shopContext.totalSupplierPayable,
+            lowStockCount: lowStockCommodities.length,
+            lowStockCommodities: lowStockCommodities.map((c) => `${c.name_bn} (${(c.current_stock_kg / 40.0).toFixed(1)} মণ)`),
+            topDueCustomers: topDues.map((b) => `${b.name} (৳${Number(b.current_balance).toLocaleString()})`),
+            summaryText: `শুভ সকাল! গুদামে বর্তমানে মোট ${shopContext.totalStockMon} মণ শস্য মজুদ রয়েছে (আনুমানিক মূল্য ৳ ${shopContext.totalStockValuation.toLocaleString()})। বাজারে বকেয়া পাওনা ৳ ${shopContext.totalCustomerDue.toLocaleString()} এবং মহাজন দেনা ৳ ${shopContext.totalSupplierPayable.toLocaleString()}। ${lowStockCommodities.length > 0 ? `⚠️ ${lowStockCommodities.length}টি শস্যের স্টক কম আছে।` : '✅ গুদামে পর্যাপ্ত শস্য মজুদ রয়েছে।'}`,
+          };
+
+          return sendJson({ success: true, briefing });
+        }
+
+        // 8. Core AI Chat Engine (Text, Audio Multimodal, Vision OCR)
+        if (url.pathname === '/api/ai/chat' && request.method === 'POST') {
+          const body = await request.json().catch(() => ({}));
+          let sessionId = body.sessionId;
+          const userMessage = String(body.message || '').trim();
+          const imageBase64 = body.imageBase64 || null;
+          const mimeType = body.mimeType || 'image/jpeg';
+          const audioBase64 = body.audioBase64 || null;
+          const audioMimeType = body.audioMimeType || 'audio/webm';
+
+          if (!userMessage && !imageBase64 && !audioBase64) {
+            return sendJson({ success: false, error: 'বার্তা, অডিও বা ছবি প্রদান করুন' }, 400);
+          }
+
+          if (db) {
+            if (!sessionId) {
+              sessionId = `sess_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+              await db.prepare(`
+                INSERT INTO AiChatSession (id, title, isPinned, createdAt, updatedAt)
+                VALUES (?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+              `).bind(sessionId, userMessage ? userMessage.slice(0, 30) : (audioBase64 ? 'ভয়েস বার্তা' : 'ছবি বিশ্লেষণ')).run();
+            } else {
+              const exist = await db.prepare('SELECT id FROM AiChatSession WHERE id = ?').bind(sessionId).first();
+              if (!exist) {
+                await db.prepare(`
+                  INSERT INTO AiChatSession (id, title, isPinned, createdAt, updatedAt)
+                  VALUES (?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                `).bind(sessionId, userMessage ? userMessage.slice(0, 30) : (audioBase64 ? 'ভয়েস বার্তা' : 'ছবি বিশ্লেষণ')).run();
+              }
+            }
+
+            const initialText = userMessage || (audioBase64 ? '🎙️ [ভয়েস অডিও রেকর্ডিং বিশ্লেষণ হচ্ছে...]' : '📷 [ছবি সংযুক্ত]');
+            const userMsgId = `msg_u_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+            await db.prepare(`
+              INSERT INTO AiChatMessage (id, sessionId, role, message, hasImage, actionJson, actionExecuted, createdAt)
+              VALUES (?, ?, 'user', ?, ?, NULL, 0, CURRENT_TIMESTAMP)
+            `).bind(userMsgId, sessionId, initialText, imageBase64 ? 1 : 0).run();
+
+            const shopContext = await fetchLiveShopContext(db);
+            const apiKey = await getGeminiApiKey(db, env);
+
+            let aiReply = '';
+            let transcribedText = '';
+            let suggestedTitle = '';
+            let memoryToSave = '';
+            let navigateTo = '';
+            let proposedAction = null;
+
+            if (!apiKey) {
+              aiReply = `⚠️ **Gemini 3 Flash API Key কনফিগার করা হয়নি!**\n\n` +
+                `Ai Manezar-এর কৃত্রিম বুদ্ধিমত্তা ও ভিশন ওসিআর সক্রিয় করতে অনুগ্রহ করে **"সেটিংস ও ব্যাকআপ"** মেনুতে গিয়ে **"🤖 Ai Manezar — Gemini 3 Flash কনফিগারেশন"** কার্ডে আপনার গুগল জেমিনাই API Key প্রদান করুন এবং সংরক্ষণ করুন।\n\n` +
+                `💡 **মাহা এন্টারপ্রাইজের বর্তমান তথ্য:**\n` +
+                `- মোট শস্যের মজুদ: ${shopContext.totalStockMon} মণ\n` +
+                `- মোট ক্রেতা বকেয়া: ৳ ${shopContext.totalCustomerDue.toLocaleString()}\n` +
+                `- মোট মহাজন দেনা: ৳ ${shopContext.totalSupplierPayable.toLocaleString()}\n` +
+                `- ক্যাশ ইন হ্যান্ড: ৳ ${shopContext.cashInHand.toLocaleString()}`;
+            } else {
+              const systemPrompt = `তুমি "Ai Manezar", মাহা এন্টারপ্রাইজ (চাচকৈড় বাজার, গুরুদাসপুর, নাটোর)-এর প্রধান বুদ্ধিমান ব্যবসায়িক সহকারী ও ম্যানেজার।
+তোমাকে গুগল জেমিনাই ৩ ফ্ল্যাশ (Gemini 3 Flash - gemini-3-flash-preview) দ্বারা পরিচালিত করা হচ্ছে।
+
+তুমি দুইটি কাজ নিখুঁতভাবে করতে পারো:
+১. যেকোনো সাধারণ বিষয়ে প্রশ্ন-উত্তর, কোডিং, হিসাব-নিকাশ, পরামর্শ ও চ্যাট করা (Gemini-এর মতো পূর্ণ সাধারণ বুদ্ধিমত্তা)।
+২. আড়তের লাইভ D1 ডাটাবেজ (১৪টি টেবিল) এবং ৬০ দিনের RecycleBin-এর তথ্য জেনে বিশ্লেষণ ও সরাসরি ডাটাবেজ অ্যাকশন এবং লাইভ ডিজাইন ওভাররাইড প্রস্তাব করা।
+
+তোমার কাছে পুরো সফটওয়্যারের ডাটাবেজ, সেটিংস, পিন/লক স্টেট, শস্যের স্টক, খাতা, রিসাইকেল বিন এবং CSS ডিজাইন ওভাররাইডের উপর পূর্ণ পরিচালনা ও সম্পাদনার সার্বিক ক্ষমতা রয়েছে। সফটওয়্যারের আসল ডিজাইন অক্ষুণ্ণ রেখে তুমি যেকোনো ডাটা পড়তে, এন্ট্রি করতে, এডিট করতে এবং রিসাইকেল বিনে পাঠাতে পারো। তবে ডাটাবেজে পরিবর্তনের আগে সর্বদা একটি 'action' অবজেক্ট রিটার্ন করবে, যেন ব্যবহারকারী '✅ নিশ্চিত করুন' চাপলে তা কার্যকর হয়।
+
+যদি ইনপুটে অডিও (audio) থাকে:
+- অডিওটি মনোযোগ দিয়ে শুনবে এবং বাংলা কথ্য রূপটিকে 'transcribedText' ফিল্ডে নিখুঁতভাবে বাংলায় লিখবে।
+- স্থানীয় শস্য মোকামের শব্দভাণ্ডার (যেমন: সরিষা, মাঘি সরিষা, টোরি, ভুট্টা, তোষা পাট, গম, আমন ধান, বোরো ধান, খেসারী, মসুর, বস্তা, মণ, কেজি, শুকতি, ঘাটতি, ডালডাল, চালান, খতিয়ান, নগদ আদায়, বাকি বিক্রয়, মহাজন দেনা) সঠিকভাবে সনাক্ত করবে।
+
+মাহা এন্টারপ্রাইজের বর্তমান লাইভ ডাটা:
+- শস্য তালিকা ও স্টক: ${JSON.stringify(shopContext.commodities.map((c) => ({ id: c.id, name: c.name_bn, mon: Number((c.current_stock_kg / 40.0).toFixed(1)), bags: c.current_stock_bags, wacMon: c.current_wac_per_mon })))}
+- মোট শস্য মজুদ: ${shopContext.totalStockMon} মণ (মূল্য ৳ ${shopContext.totalStockValuation})
+- শীর্ষ বাকিদার ক্রেতা: ${JSON.stringify(shopContext.buyers.slice(0, 10).map((b) => ({ id: b.id, name: b.name, phone: b.phone, due: b.current_balance })))}
+- মোট ক্রেতা বকেয়া: ৳ ${shopContext.totalCustomerDue}
+- শীর্ষ মহাজন/সাপ্লায়ার: ${JSON.stringify(shopContext.suppliers.slice(0, 10).map((s) => ({ id: s.id, name: s.name, payable: Math.abs(s.current_balance) })))}
+- মোট মহাজন দেনা: ৳ ${shopContext.totalSupplierPayable}
+- ক্যাশ ইন হ্যান্ড: ৳ ${shopContext.cashInHand}
+- মেমরি/নিয়মাবলী: ${JSON.stringify(shopContext.memories)}
+- সক্রিয় ডিজাইন ওভাররাইড: ${JSON.stringify(shopContext.overrides)}
+
+যদি ব্যবহারকারী কোনো নতুন তথ্য এন্ট্রি (INSERT), সংশোধন (UPDATE), ডিজাইন পরিবর্তন (DYNAMIC_OVERRIDE) অথবা মুছে ফেলা (DELETE/SOFT_DELETE) করতে বলে:
+অ্যাকশন অবজেক্টে স্পষ্ট Before -> After প্রিভিউ সহ নিচের অ্যাকশন স্কিমা রিটার্ন করবে:
+{
+  "type": "ADD_SALE" | "ADD_PURCHASE" | "ADD_CUSTOMER_PAYMENT" | "ADD_SUPPLIER_PAYMENT" | "ADD_EXPENSE" | "ADD_NOTE" | "EDIT_STOCK" | "DYNAMIC_OVERRIDE" | "DELETE_RECORD" | "UNIVERSAL_DB_MUTATION",
+  "table": "sales" | "purchases" | "parties" | "commodities" | "expenses" | "notes" | "settings",
+  "description": "সংক্ষিপ্ত বাংলা বিবরণ ও Before->After প্রিভিউ (যেমন: ৫০ মণ সরিষা নগদ বিক্রয় - মোট ৳১,৪০,০০০)",
+  "data": { ...টেবিলের ফিল্ডসমূহ বা overrideType, targetKey, content... },
+  "filter": { "id": "রেকর্ড আইডি" },
+  "softDelete": true
+}
+
+যদি বিক্রয় (Sale) হয়:
+"data": {
+  "commodity_id": 1,
+  "varietyName": "সরিষা",
+  "bags": 25,
+  "weightMon": 50.0,
+  "rate": 2800,
+  "totalAmount": 140000,
+  "paymentType": "CASH" বা "DUE",
+  "cashPaid": 140000,
+  "customerName": "রহমান ট্রেডার্স"
+}
+
+যদি নেভিগেশন হতে হয়:
+"navigateTo": "dashboard" | "purchases" | "sales" | "stock" | "ledgers" | "creditors" | "cashbook" | "expenses" | "reports" | "settings" | "notebook" | "recycle_bin"
+
+আউটপুট অবশ্যই নিচের JSON ফরম্যাটে হতে হবে:
+{
+  "transcribedText": "বাংলা ভয়েস রূপান্তর (যদি অডিও ইনপুট থাকে, অন্যথায় খালি)",
+  "reply": "আপনার বিস্তারিত মার্জিত বাংলা উত্তর (Markdown সমর্থিত)",
+  "suggestedTitle": "৩-৫ শব্দের সংক্ষিপ্ত শিরোনাম",
+  "memoryToSave": "সংরক্ষণের উপযোগী দীর্ঘমেয়াদী কোনো তথ্য থাকলে (নতুবা খালি)",
+  "navigateTo": "মডিউল আইডি (নতুবা খালি)",
+  "action": null বা অ্যাকশন অবজেক্ট
+}`;
+
+              try {
+                const parts = [{ text: systemPrompt + (userMessage ? `\n\nইউজারের বার্তা: ${userMessage}` : `\n\n[অডিও বা মিডিয়া ইনপুট দেওয়া হয়েছে, অনুগ্রহ করে ট্রান্সক্রিপশন ও নির্দেশনা প্রস্তুত করুন]`) }];
+
+                if (audioBase64) {
+                  parts.push({
+                    inlineData: {
+                      mimeType: audioMimeType || 'audio/webm',
+                      data: audioBase64.replace(/^data:audio\/\w+;base64,/, ''),
+                    },
+                  });
+                }
+
+                if (imageBase64) {
+                  parts.push({
+                    inlineData: {
+                      mimeType: mimeType || 'image/jpeg',
+                      data: imageBase64.replace(/^data:image\/\w+;base64,/, ''),
+                    },
+                  });
+                }
+
+                const payload = {
+                  contents: [{ parts }],
+                  generationConfig: {
+                    responseMimeType: 'application/json',
+                    temperature: 0.2,
+                  },
+                };
+
+                const geminiCall = await callGeminiModel(apiKey, payload);
+                if (!geminiCall.ok) {
+                  throw new Error(`Google API (${geminiCall.status}): ${geminiCall.errorText}`);
+                }
+
+                const rawContent = geminiCall.data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+                let parsed = {};
+                try {
+                  const cleanJson = rawContent.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+                  parsed = JSON.parse(cleanJson);
+                } catch {
+                  parsed = { reply: rawContent };
+                }
+
+                aiReply = parsed.reply || 'দুঃখিত, কোনো উত্তর পাওয়া যায়নি।';
+                transcribedText = parsed.transcribedText || '';
+                suggestedTitle = parsed.suggestedTitle || '';
+                memoryToSave = parsed.memoryToSave || '';
+                navigateTo = parsed.navigateTo || '';
+                proposedAction = parsed.action || null;
+
+                if (transcribedText && transcribedText.trim()) {
+                  await db.prepare('UPDATE AiChatMessage SET message = ? WHERE id = ?').bind(transcribedText.trim(), userMsgId).run().catch(() => {});
+                }
+              } catch (apiErr) {
+                console.error('[Gemini Chat Error]:', apiErr);
+                aiReply = `⚠️ **এআই প্রতিক্রিয়া ত্রুটি:** ${apiErr.message}\n\nদয়া করে আপনার ইন্টারনেট সংযোগ ও API Key যাচাই করুন।`;
+              }
+            }
+
+            if (memoryToSave && memoryToSave.trim().length > 0) {
+              const memId = `mem_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+              await db.prepare(`
+                INSERT INTO AiMemory (id, fact, category, createdAt)
+                VALUES (?, ?, 'BUSINESS', CURRENT_TIMESTAMP)
+              `).bind(memId, memoryToSave.trim()).run().catch(() => {});
+            }
+
+            if (suggestedTitle && suggestedTitle.trim().length > 0) {
+              await db.prepare(`
+                UPDATE AiChatSession
+                SET title = CASE WHEN title = 'নতুন আলোচনা' OR title LIKE '%ছবি বিশ্লেষণ%' OR title LIKE '%ভয়েস বার্তা%' THEN ? ELSE title END,
+                    updatedAt = CURRENT_TIMESTAMP
+                WHERE id = ?
+              `).bind(suggestedTitle.trim(), sessionId).run().catch(() => {});
+            } else {
+              await db.prepare('UPDATE AiChatSession SET updatedAt = CURRENT_TIMESTAMP WHERE id = ?').bind(sessionId).run().catch(() => {});
+            }
+
+            const modelMsgId = `msg_m_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+            const actionStr = proposedAction ? JSON.stringify(proposedAction) : null;
+            await db.prepare(`
+              INSERT INTO AiChatMessage (id, sessionId, role, message, hasImage, actionJson, actionExecuted, createdAt)
+              VALUES (?, ?, 'model', ?, 0, ?, 0, CURRENT_TIMESTAMP)
+            `).bind(modelMsgId, sessionId, aiReply, actionStr).run();
+
+            return sendJson({
+              success: true,
+              sessionId,
+              messageId: modelMsgId,
+              userMessageId: userMsgId,
+              transcribedText,
+              reply: aiReply,
+              suggestedTitle,
+              memoryToSave,
+              navigateTo,
+              action: proposedAction,
+            });
+          }
+
+          return sendJson({ success: true, reply: 'ডাটাবেজ কানেকশন প্রস্তুত নয়' });
+        }
+
+        // 9. AI Action Execution
+        if (url.pathname === '/api/ai/execute-action' && request.method === 'POST') {
+          const body = await request.json().catch(() => ({}));
+          const messageId = body.messageId || null;
+          const action = body.action;
+
+          if (!action || (!action.type && !action.actionType)) {
+            return sendJson({ success: false, error: 'অবৈধ অ্যাকশন প্যারামিটার' }, 400);
+          }
+
+          const result = await executeAiAction(db, env, action);
+
+          if (result.success && messageId && db) {
+            await db.prepare('UPDATE AiChatMessage SET actionExecuted = 1 WHERE id = ?').bind(messageId).run().catch(() => {});
+          }
+
+          return sendJson(result, result.success ? 200 : 400);
+        }
+
+        // 10. AI Dynamic Overrides (CSS/UI)
+        if (url.pathname === '/api/ai/overrides') {
+          if (request.method === 'GET') {
+            if (db) {
+              const { results } = await db.prepare('SELECT * FROM AiDynamicOverride ORDER BY updatedAt DESC').all().catch(() => ({ results: [] }));
+              return sendJson({ success: true, overrides: results || [] });
+            }
+            return sendJson({ success: true, overrides: [] });
+          }
+
+          if (request.method === 'POST') {
+            const body = await request.json().catch(() => ({}));
+            const result = await executeAiAction(db, env, {
+              type: 'DYNAMIC_OVERRIDE',
+              data: body,
+            });
+            return sendJson(result);
+          }
+        }
+
+        const overrideIdMatch = url.pathname.match(/^\/api\/ai\/overrides\/([^\/]+)$/);
+        if (overrideIdMatch && (request.method === 'DELETE' || request.method === 'POST')) {
+          const ovrId = overrideIdMatch[1];
+          if (db) {
+            const existing = await db.prepare('SELECT * FROM AiDynamicOverride WHERE id = ?').bind(ovrId).first().catch(() => null);
+            if (existing) {
+              await createRecycleSnapshot(db, {
+                module_type: 'AI_OVERRIDE',
+                module_label: 'লাইভ ডিজাইন ওভাররাইড',
+                original_id: ovrId,
+                title: `ডিলিট পূর্বাবস্থা: ${existing.targetKey}`,
+                payload: existing,
+              });
+              await db.prepare('DELETE FROM AiDynamicOverride WHERE id = ?').bind(ovrId).run();
+            }
+          }
+          return sendJson({ success: true, message: 'ওভাররাইডটি মুছে ৬০ দিনের রিসাইকেল বিনে নেওয়া হয়েছে' });
+        }
+
+        // 11. AI Memories
+        if (url.pathname === '/api/ai/memories' && request.method === 'GET') {
+          if (db) {
+            const { results } = await db.prepare('SELECT * FROM AiMemory ORDER BY createdAt DESC').all().catch(() => ({ results: [] }));
+            return sendJson({ success: true, memories: results || [] });
+          }
+          return sendJson({ success: true, memories: [] });
+        }
+
+        const memoryIdMatch = url.pathname.match(/^\/api\/ai\/memories\/([^\/]+)$/);
+        if (memoryIdMatch && request.method === 'DELETE') {
+          const memId = memoryIdMatch[1];
+          if (db) {
+            await db.prepare('DELETE FROM AiMemory WHERE id = ?').bind(memId).run();
+          }
+          return sendJson({ success: true, message: 'মেমরি মুছে ফেলা হয়েছে' });
+        }
+
         return sendJson({ success: false, error: 'Endpoint not found' }, 404);
       } catch (err) {
         console.error('[Worker API Error]:', err);
@@ -3378,5 +3907,8 @@ export default {
   async scheduled(event, env, ctx) {
     console.log('[Cloudflare Cron Scheduled Trigger]:', event.cron, new Date().toISOString());
     ctx.waitUntil(sendExcelBackupToTelegram(env, 'AUTO_SCHEDULED'));
+    if (event.cron === '0 13 * * *') {
+      ctx.waitUntil(generateAndSendDailyAiAudit(env.DB, env));
+    }
   },
 };
