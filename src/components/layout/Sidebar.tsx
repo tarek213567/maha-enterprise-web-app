@@ -12,6 +12,7 @@ import {
   Settings,
   NotebookPen,
   Trash2,
+  Download,
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
@@ -144,9 +145,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <aside className="hidden md:flex w-56 bg-[#08152c] text-slate-200 border-r border-[#0f1d38] flex-col py-2.5 px-2 gap-1 shrink-0 select-none overflow-y-auto h-full scrollbar-thin">
-      {/* Starts directly with the menu items */}
-      <div className="flex-1 flex flex-col gap-0.5 min-h-0 overflow-y-auto">
+    <aside className="hidden md:flex w-60 bg-gradient-to-b from-[#0A251C] to-[#04120D] text-[#FFF9F0] border-r border-[#D4AF37]/20 flex-col py-3 px-2.5 gap-1 shrink-0 select-none overflow-y-auto h-full scrollbar-thin shadow-[0_0_20px_rgba(11,48,34,0.4)] relative">
+      {/* Top Header Brand (Matching image_18.png) */}
+      <div className="flex items-center gap-3 px-1.5 py-2.5 border-b border-[#D4AF37]/20 mb-1.5 shrink-0">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#103D2E] to-[#051C13] border border-[#D4AF37]/40 shadow-[0_0_12px_rgba(212,175,55,0.3)] flex items-center justify-center shrink-0">
+          <svg viewBox="0 0 40 40" className="w-7 h-7" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="goldEmblem" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#FFEFA6" />
+                <stop offset="50%" stopColor="#D4AF37" />
+                <stop offset="100%" stopColor="#8C650A" />
+              </linearGradient>
+            </defs>
+            <path d="M10 34 Q18 20 28 8" stroke="url(#goldEmblem)" strokeWidth="2.5" strokeLinecap="round" />
+            <ellipse cx="27" cy="11" rx="4" ry="2" transform="rotate(-35 27 11)" fill="url(#goldEmblem)" />
+            <ellipse cx="23" cy="15" rx="4" ry="2" transform="rotate(-25 23 15)" fill="url(#goldEmblem)" />
+            <ellipse cx="20" cy="20" rx="4.5" ry="2.2" transform="rotate(-20 20 20)" fill="url(#goldEmblem)" />
+            <ellipse cx="17" cy="25" rx="4.5" ry="2.2" transform="rotate(-15 17 25)" fill="url(#goldEmblem)" />
+            <ellipse cx="14" cy="30" rx="4.5" ry="2.2" transform="rotate(-10 14 30)" fill="url(#goldEmblem)" />
+            <path d="M8 32 C12 36 24 36 28 32" stroke="url(#goldEmblem)" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </div>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-base font-extrabold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-[#FFEFA6] via-[#D4AF37] to-[#AA7C11] truncate drop-shadow-sm font-sans">
+            মাহা এন্টারপ্রাইজ
+          </h1>
+          <p className="text-[10px] text-[#A7C2B2] truncate font-medium flex items-center gap-1 mt-0.5">
+            <span>🌾</span>
+            <span>চাচকৈড় বাজার, নাটোর</span>
+          </p>
+        </div>
+      </div>
+
+      {/* Menu Items */}
+      <div className="flex-1 flex flex-col gap-0.5 min-h-0 overflow-y-auto pr-0.5 scrollbar-thin">
         {menuItems.map((item) => {
           const isActive = currentTab === item.id;
           const Icon = item.icon;
@@ -161,22 +193,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onTabChange(item.id);
                 }
               }}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all text-left cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left cursor-pointer ${
                 item.id === 'calculator'
-                  ? 'text-amber-300 hover:text-white hover:bg-amber-500/15 border border-amber-500/25 bg-amber-950/20'
+                  ? 'text-[#FFEFA6] hover:text-white hover:bg-[#D4AF37]/15 border border-[#D4AF37]/30 bg-[#0E3527]/40'
                   : isActive
-                  ? 'border border-emerald-400/80 bg-emerald-950/60 text-white font-bold shadow-xs'
-                  : 'text-slate-300 hover:text-white hover:bg-white/5 border border-transparent'
+                  ? 'border border-[#D4AF37]/60 bg-[#D4AF37]/15 text-[#FFEFA6] font-bold shadow-[0_0_14px_rgba(212,175,55,0.22)]'
+                  : 'text-[#E2C384] hover:text-white hover:bg-[#D4AF37]/10 border border-transparent'
               }`}
             >
-              <div className="flex items-center gap-2 truncate">
+              <div className="flex items-center gap-2.5 truncate">
                 <Icon
                   className={`w-4 h-4 shrink-0 ${
                     item.id === 'calculator'
-                      ? 'text-amber-400'
+                      ? 'text-[#D4AF37]'
                       : isActive
-                      ? 'text-emerald-400'
-                      : 'text-slate-400'
+                      ? 'text-[#FFEFA6]'
+                      : 'text-[#D4AF37]/80'
                   }`}
                 />
                 <span className="truncate">{item.name}</span>
@@ -187,17 +219,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {toBnDigits(recycleCount)}
                 </span>
               ) : item.id === 'creditors' && creditorCount > 0 ? (
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ml-1 bg-amber-500/25 text-amber-300 border border-amber-500/40">
-                  {toBnDigits(creditorCount)}
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ml-1 bg-[#D4AF37]/25 text-[#FFEFA6] border border-[#D4AF37]/40">
+                  ({toBnDigits(creditorCount)})
                 </span>
               ) : item.shortcut ? (
                 <span
                   className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ml-1 ${
-                    item.id === 'calculator'
-                      ? 'bg-amber-900/60 text-amber-300 border border-amber-500/40'
-                      : isActive
-                      ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-500/40'
-                      : 'bg-slate-800 text-slate-400'
+                    isActive
+                      ? 'bg-[#D4AF37]/25 text-[#FFEFA6] border border-[#D4AF37]/40'
+                      : 'bg-[#03150F] text-[#A7C2B2] border border-[#D4AF37]/20'
                   }`}
                 >
                   {item.shortcut}
@@ -208,29 +238,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
       </div>
 
-      {/* Dedicated Divider directly below ক্যালকুলেটর */}
-      <div className="my-1.5 border-t border-[#0f1d38] shrink-0" />
+      {/* Dedicated Divider directly below menu */}
+      <div className="my-1.5 border-t border-[#D4AF37]/20 shrink-0" />
 
-      {/* Dedicated Quick Action Controls Panel (Screenshot 2) */}
-      <div className="flex flex-col gap-1 pt-0.5 shrink-0">
-        {/* Row 1: 🌙 ডার্ক / ☀️ লাইট & 🔒 লক (2 Columns) */}
+      {/* Dedicated Quick Action Controls Panel */}
+      <div className="flex flex-col gap-1.5 pt-0.5 shrink-0 relative z-10">
+        {/* Row 1: 🌙 ডার্ক / ☀️ লাইট & 🔒 লক */}
         <div className="grid grid-cols-2 gap-1.5">
-          {/* 1. 🌙 ডার্ক / ☀️ লাইট */}
           <button
             type="button"
             onClick={toggleTheme}
-            className="flex items-center justify-center gap-1.5 py-1.5 px-1.5 rounded-lg text-xs font-bold border border-slate-700/80 bg-slate-800/80 hover:bg-slate-700 text-slate-200 active:scale-95 transition-all cursor-pointer shadow-2xs"
+            className="flex items-center justify-center gap-1.5 py-2 px-1.5 rounded-xl text-xs font-bold border border-[#D4AF37]/35 bg-[#061E16] hover:bg-[#D4AF37]/20 text-[#FFEFA6] active:scale-95 transition-all cursor-pointer shadow-sm"
             title={isDark ? 'লাইট মোড চালু করুন' : 'ডার্ক মোড চালু করুন'}
           >
             <span>{isDark ? '☀️' : '🌙'}</span>
             <span>{isDark ? 'লাইট' : 'ডার্ক'}</span>
           </button>
 
-          {/* 2. 🔒 লক */}
           <button
             type="button"
             onClick={lockApp}
-            className="flex items-center justify-center gap-1.5 py-1.5 px-1.5 rounded-lg text-xs font-bold border border-rose-500/40 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 active:scale-95 transition-all cursor-pointer shadow-2xs"
+            className="flex items-center justify-center gap-1.5 py-2 px-1.5 rounded-xl text-xs font-bold border border-rose-500/40 bg-[#2A0808] hover:bg-rose-900/40 text-rose-300 active:scale-95 transition-all cursor-pointer shadow-sm"
             title="সফটওয়্যার স্ক্রিন লক করুন"
           >
             <span>🔒</span>
@@ -238,17 +266,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
-        {/* Row 2: 💾 তাৎক্ষণিক ব্যাকআপ */}
+        {/* Row 2: 📥 তাৎক্ষণিক ব্যাকআপ */}
         <button
           type="button"
           onClick={handleBackup}
           disabled={isBackingUp}
-          className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-bold border border-amber-500/50 bg-amber-950/40 hover:bg-amber-900/60 text-amber-300 active:scale-95 transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+          className="w-full flex items-center justify-center gap-2 py-2 px-2.5 rounded-xl text-xs font-bold border border-[#D4AF37]/45 bg-gradient-to-r from-[#0E3A2B] to-[#0A261C] hover:border-[#D4AF37] text-[#FFEFA6] active:scale-95 transition-all cursor-pointer disabled:opacity-50 shadow-md"
           title="ডাটাবেজ ও রয়্যাল এক্সেল (.xlsx) ব্যাকআপ ডাউনলোড করুন"
         >
-          <span>💾</span>
-          <span className="truncate">{isBackingUp ? 'ব্যাকআপ হচ্ছে...' : 'তাৎক্ষণিক ব্যাকআপ'}</span>
+          <Download className={`w-3.5 h-3.5 text-[#D4AF37] shrink-0 ${isBackingUp ? 'animate-spin' : ''}`} />
+          <span className="truncate">{isBackingUp ? 'তৈরি হচ্ছে...' : 'তাৎক্ষণিক ব্যাকআপ'}</span>
         </button>
+      </div>
+
+      {/* Subtle Wheat Watermark in corner */}
+      <div className="absolute right-0 bottom-0 pointer-events-none opacity-10 select-none overflow-hidden">
+        <svg viewBox="0 0 100 120" className="w-24 h-28 transform rotate-12" fill="none">
+          <path d="M20 120 Q50 60 80 10" stroke="#D4AF37" strokeWidth="2" />
+          <ellipse cx="75" cy="20" rx="8" ry="4" fill="#D4AF37" />
+          <ellipse cx="68" cy="35" rx="8" ry="4" fill="#D4AF37" />
+          <ellipse cx="60" cy="50" rx="8" ry="4" fill="#D4AF37" />
+          <ellipse cx="50" cy="70" rx="8" ry="4" fill="#D4AF37" />
+        </svg>
       </div>
     </aside>
   );

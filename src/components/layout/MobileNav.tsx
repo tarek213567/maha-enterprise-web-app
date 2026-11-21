@@ -26,7 +26,7 @@ const mobileItems = [
 
 export const MobileNav: React.FC<MobileNavProps> = ({ currentTab, onTabChange, onOpenMenu }) => {
   return (
-    <nav className="md:hidden flex items-center justify-around bg-[#0B0F19]/95 backdrop-blur-lg border-t border-slate-800 py-1.5 px-2 shrink-0 z-50 text-[11px] font-bold select-none pb-[calc(env(safe-area-inset-bottom,4px)+6px)] shadow-2xl">
+    <nav className="md:hidden flex items-center justify-around bg-gradient-to-r from-[#0A251C]/95 via-[#04120D]/95 to-[#0A251C]/95 backdrop-blur-lg border-t border-[#D4AF37]/30 py-1.5 px-2 shrink-0 z-50 text-[11px] font-bold select-none pb-[calc(env(safe-area-inset-bottom,4px)+6px)] shadow-2xl">
       {mobileItems.map((item) => {
         const isActive = currentTab === item.id;
         const Icon = item.icon;
@@ -37,11 +37,11 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentTab, onTabChange, o
             onClick={() => onTabChange(item.id)}
             className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all cursor-pointer ${
               isActive
-                ? 'text-emerald-400 bg-emerald-500/15'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'text-[#FFEFA6] bg-[#D4AF37]/20 border border-[#D4AF37]/50 shadow-sm'
+                : 'text-[#A7C2B2] hover:text-[#FFEFA6]'
             }`}
           >
-            <Icon className={`w-5 h-5 mb-0.5 ${isActive ? 'text-emerald-400' : 'text-slate-400'}`} />
+            <Icon className={`w-5 h-5 mb-0.5 ${isActive ? 'text-[#D4AF37]' : 'text-[#A7C2B2]'}`} />
             <span className="text-[10px] leading-tight truncate">{item.name}</span>
           </button>
         );
@@ -52,10 +52,10 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentTab, onTabChange, o
         <button
           type="button"
           onClick={onOpenMenu}
-          className="flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all text-amber-400 hover:text-amber-300 active:scale-95 cursor-pointer"
+          className="flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all text-[#D4AF37] hover:text-[#FFEFA6] active:scale-95 cursor-pointer"
           title="সকল মেনু ও কন্ট্রোল খুলুন"
         >
-          <Menu className="w-5 h-5 mb-0.5 text-amber-400" />
+          <Menu className="w-5 h-5 mb-0.5 text-[#D4AF37]" />
           <span className="text-[10px] leading-tight truncate font-bold">মেনু</span>
         </button>
       )}

@@ -1,26 +1,22 @@
 import React from 'react';
+import { getGregorianDateInBengali } from '../../utils/banglaDate';
 
 export const BottomStatusBar: React.FC = () => {
-  return (
-    <footer className="hidden md:flex bg-white border-t border-slate-200 h-9 px-5 items-center justify-between text-xs text-slate-700 font-medium select-none shrink-0 z-40">
-      {/* Left: Green circle dot 🟢 + bold text "অফলাইন মোড সক্রিয়" */}
-      <div className="flex items-center gap-2">
-        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block shadow-xs animate-pulse"></span>
-        <span className="font-bold text-slate-800">অফলাইন মোড সক্রিয়</span>
-      </div>
+  const todayBn = getGregorianDateInBengali().fullText;
 
-      {/* Right: Vertical divider | + wheat/leaf logo icon + bold text "মাহা এন্টারপ্রাইজ" */}
-      <div className="flex items-center gap-2.5">
-        <span className="text-slate-300 font-light">|</span>
-        <div className="w-4 h-4 flex items-center justify-center">
-          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none">
-            <path d="M12 21C12 21 12 10 17 5" stroke="#10b981" strokeWidth="2" strokeLinecap="round" />
-            <path d="M12 21C12 21 12 8 7 4" stroke="#d97706" strokeWidth="2" strokeLinecap="round" />
-            <circle cx="7" cy="4" r="2" fill="#f59e0b" />
-            <circle cx="17" cy="5" r="2" fill="#10b981" />
-          </svg>
-        </div>
-        <span className="font-bold text-slate-900">মাহা এন্টারপ্রাইজ</span>
+  return (
+    <footer className="hidden md:flex bg-[#04120D] border-t border-[#D4AF37]/25 h-8 px-5 items-center justify-center text-xs text-[#E2C384] font-medium select-none shrink-0 z-40 shadow-inner">
+      <div className="flex items-center gap-2 flex-wrap text-center">
+        <span className="inline-flex items-center gap-1.5 text-emerald-400 font-bold">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          লাইভ সিঙ্ক চালু
+        </span>
+        <span className="text-[#D4AF37]/40">•</span>
+        <span className="text-[#A7C2B2]">সর্বশেষ আপডেট: <strong className="text-white font-mono">{todayBn}</strong></span>
+        <span className="text-[#D4AF37]/40">•</span>
+        <span className="text-[#FFEFA6] font-bold">মাহা এন্টারপ্রাইজ</span>
+        <span className="text-[#D4AF37]/40">|</span>
+        <span className="text-[#A7C2B2] font-mono">সংস্করণ: ২.৬ (PRO)</span>
       </div>
     </footer>
   );

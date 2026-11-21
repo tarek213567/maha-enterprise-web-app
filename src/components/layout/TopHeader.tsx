@@ -110,20 +110,20 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   };
 
   return (
-    <header className="print:hidden bg-[var(--surface)] text-[var(--text-primary)] border-b border-[var(--border-color)] pl-14 pr-4 md:px-5 py-3 sticky top-0 z-10 shadow-2xs transition-colors duration-200">
+    <header className="print:hidden bg-[#0A251C]/90 backdrop-blur-md text-[#FFF9F0] border-b border-[#D4AF37]/25 pl-14 pr-4 md:px-5 py-3 sticky top-0 z-10 shadow-md transition-colors duration-200">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         {/* Left: Active Tab Title & Subtitle */}
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-black text-[var(--text-primary)] tracking-tight truncate">
+            <h2 className="text-lg font-black text-[#FFEFA6] tracking-tight truncate font-sans">
               {currentInfo.title}
             </h2>
-            <span className="hidden lg:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400">
-              <Sparkles className="w-3 h-3 text-amber-400" />
+            <span className="hidden lg:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/35 text-[#FFEFA6]">
+              <Sparkles className="w-3 h-3 text-[#D4AF37]" />
               <span>সক্রিয় মডিউল</span>
             </span>
           </div>
-          <p className="text-xs text-[var(--text-secondary)] truncate mt-0.5">
+          <p className="text-xs text-[#A7C2B2] truncate mt-0.5">
             {currentInfo.subtitle}
           </p>
         </div>

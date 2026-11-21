@@ -138,9 +138,19 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-screen bg-[var(--app-bg)] text-[var(--text-primary)] flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950 transition-colors duration-200 overflow-hidden select-none">
+    <div className="h-screen w-screen bg-[#04110A] text-[#FFF9F0] flex flex-col font-sans selection:bg-[#D4AF37] selection:text-[#04110A] transition-colors duration-200 overflow-hidden select-none relative">
+      {/* Fixed Subtle Watermarked Rice Grain Backdrop Overlay */}
+      <div
+        className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center opacity-15 mix-blend-screen transition-opacity"
+        style={{ backgroundImage: `url('/bg-rice-grains.jpg')` }}
+      />
+      {/* Deep Emerald Ambient Glow Overlay */}
+      <div
+        className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(ellipse_at_top,_rgba(10,37,28,0.75)_0%,_rgba(4,17,10,0.98)_75%)]"
+      />
+
       {/* Main Application Workspace: Sidebar (Left) + Viewport (Right) - Flush with Top Edge */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative z-10">
         {/* Left Vertical Navigation Sidebar */}
         <Sidebar
           currentTab={currentTab}
@@ -150,8 +160,8 @@ const AppContent: React.FC = () => {
         />
 
         {/* Right Scrollable Content Viewport */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-[#f1f5f9] transition-colors duration-200">
-          {/* Top Header Action Bar (Hidden on Dashboard for Design #2 Clean Shell) */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-transparent transition-colors duration-200 scrollbar-thin">
+          {/* Top Header Action Bar (Hidden on Dashboard for Clean Shell) */}
           {currentTab !== 'dashboard' && (
             <TopHeader
               currentTab={currentTab}
@@ -211,11 +221,11 @@ const AppContent: React.FC = () => {
       <button
         type="button"
         onClick={() => setIsMobileDrawerOpen(true)}
-        className="fixed top-3 left-3 z-40 md:hidden flex items-center justify-center w-9 h-9 rounded-full border border-amber-400/50 bg-slate-950/80 backdrop-blur-md text-amber-300 hover:text-amber-200 shadow-lg active:scale-95 transition-all cursor-pointer"
+        className="fixed top-3 left-3 z-40 md:hidden flex items-center justify-center w-10 h-10 rounded-full border border-[#D4AF37]/50 bg-[#0A251C]/90 backdrop-blur-md text-[#FFEFA6] hover:text-white shadow-[0_0_15px_rgba(212,175,55,0.3)] active:scale-95 transition-all cursor-pointer"
         title="মেনু ড্রয়ার খুলুন"
         aria-label="মেনু ড্রয়ার খুলুন"
       >
-        <MoreVertical className="w-5 h-5 text-amber-300" />
+        <MoreVertical className="w-5 h-5 text-[#D4AF37]" />
       </button>
 
       {/* Slide-over Full Mobile Sidebar Drawer */}
