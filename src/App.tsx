@@ -53,50 +53,6 @@ const AppContent: React.FC = () => {
     }
   }, []);
 
-  // Google Drive & Local Auto-Backup Scheduler: 13:00 & 19:00 with offline catch-up
-  useEffect(() => {
-    const checkAndTriggerBackup = async () => {
-      const now = new Date();
-      const currentHour = now.getHours();
-      const todayDateStr = now.toISOString().split('T')[0];
-
-      // Slot 1: 13:00 (1:00 PM)
-      const slot1Key = `maha_backup_slot1_${todayDateStr}`;
-      if (currentHour >= 13 && !localStorage.getItem(slot1Key)) {
-        try {
-          await dbService.system.backup();
-          localStorage.setItem(slot1Key, new Date().toISOString());
-        } catch (e) {
-          console.warn('[AutoBackup] 13:00 backup skipped:', e);
-        }
-      }
-
-      // Slot 2: 19:00 (7:00 PM)
-      const slot2Key = `maha_backup_slot2_${todayDateStr}`;
-      if (currentHour >= 19 && !localStorage.getItem(slot2Key)) {
-        try {
-          await dbService.system.backup();
-          localStorage.setItem(slot2Key, new Date().toISOString());
-        } catch (e) {
-          console.warn('[AutoBackup] 19:00 backup skipped:', e);
-        }
-      }
-    };
-
-    checkAndTriggerBackup();
-
-    const handleOnline = () => {
-      checkAndTriggerBackup();
-    };
-    window.addEventListener('online', handleOnline);
-    const interval = setInterval(checkAndTriggerBackup, 60000);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      clearInterval(interval);
-    };
-  }, []);
-
   // Global Keyboard Shortcuts (F1: Dashboard, F2: Purchases, F3: Sales, F4: Cashbook, Ctrl +/-/0: Zoom)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -172,7 +128,7 @@ const AppContent: React.FC = () => {
     try {
       const res = await dbService.system.backup();
       if (res.success) {
-        showToast(res.message, 'success');
+        showToast('ম্যানুয়াল এক্সেল ব্যাকআপ (.xlsx) ডাউনলোড সম্পন্ন হয়েছে।', 'success');
       } else {
         showToast(res.message, 'error');
       }

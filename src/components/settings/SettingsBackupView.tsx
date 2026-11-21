@@ -67,6 +67,14 @@ export const SettingsBackupView: React.FC = () => {
   const [backupMessage, setBackupMessage] = useState<string>('');
   const [isRestoring, setIsRestoring] = useState(false);
   const [restoreMessage, setRestoreMessage] = useState<string>('');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage((prev) => (prev === msg ? null : prev));
+    }, 4000);
+  };
 
   // Private Premium Cloud Vault State (v1.5.0 PRO)
   const ownerName = 'আল জাবির সরকার';
@@ -582,12 +590,21 @@ export const SettingsBackupView: React.FC = () => {
       setBackupMessage('');
       const res = await dbService.system.backup();
       if (res.success) {
-        setBackupMessage(`✅ ব্যাকআপ সফলভাবে সংরক্ষিত হয়েছে: ${res.filePath}`);
+        const msg = 'ম্যানুয়াল এক্সেল ব্যাকআপ (.xlsx) ডাউনলোড সম্পন্ন হয়েছে।';
+        setBackupMessage(`✅ ${msg}`);
+        setCloudBackupMessage(`✅ ${msg}`);
+        showToast(msg);
       } else {
-        setBackupMessage(`❌ ${res.message}`);
+        const errMsg = res.message || 'ব্যাকআপ সম্পন্ন করতে সমস্যা হয়েছে';
+        setBackupMessage(`❌ ${errMsg}`);
+        setCloudBackupMessage(`❌ ${errMsg}`);
+        showToast(errMsg);
       }
     } catch (err: any) {
-      setBackupMessage(`❌ ব্যাকআপ ত্রুটি: ${err.message}`);
+      const errMsg = `ব্যাকআপ ত্রুটি: ${err.message}`;
+      setBackupMessage(`❌ ${errMsg}`);
+      setCloudBackupMessage(`❌ ${errMsg}`);
+      showToast(errMsg);
     } finally {
       setIsBackingUp(false);
     }
@@ -753,111 +770,12 @@ export const SettingsBackupView: React.FC = () => {
   return (
     <div className="p-2 sm:p-4 space-y-6 max-w-[1550px] mx-auto w-full text-[var(--text-primary)]">
       {/* ========================================================================= */}
-      {/* ব্লক ১: স্বয়ংক্রিয় ও ম্যানুয়াল ডাটাবেজ ব্যাকআপ (Auto Backup & Restore)       */}
-      {/* ========================================================================= */}
-      <div className="bg-[var(--surface)] rounded-2xl border-2 border-amber-500/40 shadow-xl p-5 space-y-4 transition-colors">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[var(--border-color)]">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-amber-500/10 text-amber-400 rounded-2xl border border-amber-500/30">
-              <Database className="w-6 h-6 text-amber-400" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-white">
-                  স্বয়ংক্রিয় ও ম্যানুয়াল ডাটাবেজ ব্যাকআপ (Auto Backup & Restore)
-                </h2>
-                <span className="px-2.5 py-0.5 bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[11px] font-bold rounded-full">
-                  সন্ধ্যা ৭:০০ টায় নির্ধারিত (১৯:০০)
-                </span>
-              </div>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                ডিরেক্টরি: <strong className="text-slate-200 font-mono">{paths.backupDir || 'D:\\Maha Enterprise\\backups'}</strong> • রিটেনশন: <strong className="text-emerald-400 font-mono">সর্বশেষ ৩০ দিনের স্ন্যাপশট সংরক্ষিত</strong>
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={handleChangeBackupDirectory}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 shadow-sm transition-all cursor-pointer"
-              title="কম্পিউটার বা পেনড্রাইভের যেকোনো ফোল্ডার নির্বাচন করুন"
-            >
-              <FolderOpen className="w-3.5 h-3.5 text-amber-400" />
-              <span>📁 ডিরেক্টরি পরিবর্তন</span>
-            </button>
-            <button
-              onClick={handleManualBackup}
-              disabled={isBackingUp}
-              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow-sm transition-all disabled:opacity-50 cursor-pointer"
-              title="সম্পূর্ণ ডাটাবেজ সহ রয়্যাল এক্সেল (.xlsx) ব্যাকআপ ডাউনলোড করুন"
-            >
-              <Download className={`w-3.5 h-3.5 ${isBackingUp ? 'animate-spin' : ''}`} />
-              <span>{isBackingUp ? 'তৈরি হচ্ছে...' : '↓ 💾 ম্যানুয়াল ব্যাকআপ নিন'}</span>
-            </button>
-            <button
-              onClick={handleSnapshotRestore}
-              disabled={isRestoring}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl border border-emerald-600 shadow-sm transition-all cursor-pointer"
-              title="পিসির যেকোনো ফোল্ডার থেকে ব্যাকআপ ফাইল নির্বাচন করে লোকাল ডাটাবেজে রিস্টোর করুন"
-            >
-              <RotateCcw className={`w-3.5 h-3.5 ${isRestoring ? 'animate-spin' : ''}`} />
-              <span>🔄 ফাইল থেকে রিস্টোর</span>
-            </button>
-          </div>
-        </div>
-
-        {/* 4 Info Boxes Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-slate-50 dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
-          <div>
-            <span className="text-slate-600 dark:text-slate-400 block">অটো-ব্যাকআপ শিডিউল:</span>
-            <span className="font-bold text-amber-700 dark:text-amber-300 mt-0.5 block">প্রতিদিন সন্ধ্যা ৭:০০ টায় (১৯:০০)</span>
-          </div>
-          <div>
-            <span className="text-slate-600 dark:text-slate-400 block">মিসড ব্যাকআপ ক্যাচ-আপ:</span>
-            <span className="font-bold text-emerald-700 dark:text-emerald-400 mt-0.5 block">পিসি বন্ধ থাকলে রিস্টার্টে অটো-ক্যাচআপ</span>
-          </div>
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-slate-600 dark:text-slate-400 block">সংরক্ষণ ফোল্ডার (D: ড্রাইভ):</span>
-              <button
-                type="button"
-                onClick={handleChangeBackupDirectory}
-                className="text-[11px] text-amber-500 hover:underline font-bold"
-              >
-                [পরিবর্তন]
-              </button>
-            </div>
-            <span className="font-bold text-slate-800 dark:text-slate-200 font-mono mt-0.5 block truncate" title={paths.backupDir}>
-              {paths.backupDir || 'D:\\Maha Enterprise\\backups'}
-            </span>
-          </div>
-          <div>
-            <span className="text-slate-600 dark:text-slate-400 block">লোকাল পারফরম্যান্স মোড:</span>
-            <span className="font-bold text-cyan-700 dark:text-cyan-400 font-mono mt-0.5 block">
-              Offline SQLite WAL (জিরো ল্যাটেন্সি)
-            </span>
-          </div>
-        </div>
-
-        {backupMessage && (
-          <div className="p-3 bg-emerald-500/15 border border-emerald-500/40 rounded-xl text-xs font-bold text-emerald-600 dark:text-emerald-300">
-            {backupMessage}
-          </div>
-        )}
-        {restoreMessage && (
-          <div className="p-3 bg-amber-500/15 border border-amber-500/40 rounded-xl text-xs font-bold text-amber-700 dark:text-amber-300">
-            {restoreMessage}
-          </div>
-        )}
-      </div>
-
-      {/* ========================================================================= */}
       {/* প্রাইভেট প্রিমিয়াম সার্ভার ক্লাউড ব্যাকআপ ও রিস্টোর (Private Premium Server Vault) */}
       {/* ========================================================================= */}
       <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-color)] shadow-xl p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[var(--border-color)]">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pb-4 border-b border-[var(--border-color)]">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-sky-500/10 text-sky-400 rounded-2xl border border-sky-500/30">
+            <div className="p-3 bg-sky-500/10 text-sky-400 rounded-2xl border border-sky-500/30 shrink-0">
               <Cloud className="w-6 h-6 text-sky-400" />
             </div>
             <div>
@@ -869,6 +787,14 @@ export const SettingsBackupView: React.FC = () => {
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                   ● প্রাইভেট সার্ভার সক্রিয় (টার্গেট আইডি: {targetId})
                 </span>
+                <button
+                  type="button"
+                  onClick={() => setIsPrivateConfigOpen(true)}
+                  className="p-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg border border-slate-300 dark:border-slate-700 transition-all cursor-pointer"
+                  title="সার্ভার স্ট্যাটাস ও বিবরণ"
+                >
+                  <Settings2 className="w-3.5 h-3.5" />
+                </button>
               </div>
               <p className="text-xs text-[var(--text-muted)] mt-0.5">
                 মালিক / গ্রাহক: <strong className="text-slate-900 dark:text-slate-200">{ownerName}</strong> • <strong className="text-sky-600 dark:text-sky-400 font-mono">টার্গেট আইডি: {targetId}</strong> • প্ল্যাটফর্ম: <strong className="text-emerald-600 dark:text-emerald-400">প্রাইভেট ক্লাউড</strong>
@@ -876,36 +802,50 @@ export const SettingsBackupView: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          {/* 2x2 Action Button Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 shrink-0">
+            {/* Top-Left: Cloud Upload */}
             <button
+              type="button"
               onClick={handleCloudUpload}
               disabled={isCloudBackingUp}
-              className="flex items-center gap-1.5 px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded-xl shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-xl shadow-lg transition-all disabled:opacity-50 cursor-pointer text-center"
               title="প্রাইভেট ক্লাউডে সরাসরি ব্যাকআপ ফাইল পাঠান"
             >
-              <UploadCloud className={`w-3.5 h-3.5 ${isCloudBackingUp ? 'animate-spin' : ''}`} />
-              <span>{isCloudBackingUp ? 'আপলোড হচ্ছে...' : 'ক্লাউডে এখনই ব্যাকআপ দিন (Upload to Cloud)'}</span>
+              <UploadCloud className={`w-4 h-4 shrink-0 ${isCloudBackingUp ? 'animate-spin' : ''}`} />
+              <span>{isCloudBackingUp ? 'আপলোড হচ্ছে...' : '☁️ ক্লাউডে এখনই ব্যাকআপ দিন (Upload to Cloud)'}</span>
             </button>
+
+            {/* Top-Right: Cloud Restore */}
             <button
+              type="button"
               onClick={handleOpenCloudRestore}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-semibold rounded-xl shadow-lg transition-all cursor-pointer text-center"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>ক্লাউড থেকে রিস্টোর (1-Click Restore)</span>
+              <RotateCcw className="w-4 h-4 shrink-0" />
+              <span>🔄 ক্লাউড থেকে রিস্টোর (1-Click Restore)</span>
             </button>
+
+            {/* Bottom-Left: Cloud Files List */}
             <button
+              type="button"
               onClick={handleOpenCloudFiles}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm transition-all cursor-pointer"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 shadow-lg transition-all cursor-pointer text-center"
             >
-              <FolderOpen className="w-3.5 h-3.5 text-sky-500" />
-              <span>ক্লাউড ফাইল তালিকা (View Cloud Files)</span>
+              <FolderOpen className="w-4 h-4 text-sky-500 shrink-0" />
+              <span>📋 ক্লাউড ফাইল তালিকা (View Cloud Files)</span>
             </button>
+
+            {/* Bottom-Right: Manual Backup Download (Royal Blue Styling) */}
             <button
-              onClick={() => setIsPrivateConfigOpen(true)}
-              className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl border border-slate-300 dark:border-slate-700 transition-all cursor-pointer"
-              title="সার্ভার স্ট্যাটাস ও বিবরণ"
+              type="button"
+              onClick={handleManualBackup}
+              disabled={isBackingUp}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl shadow-lg transition-all disabled:opacity-50 cursor-pointer text-center"
+              title="সম্পূর্ণ ডাটাবেজ সহ রয়্যাল এক্সেল (.xlsx) ব্যাকআপ ডাউনলোড করুন"
             >
-              <Settings2 className="w-4 h-4" />
+              <Download className={`w-4 h-4 shrink-0 ${isBackingUp ? 'animate-spin' : ''}`} />
+              <span>{isBackingUp ? 'তৈরি হচ্ছে...' : '⬇️ ম্যানুয়াল ব্যাকআপ নিন'}</span>
             </button>
           </div>
         </div>
@@ -913,8 +853,8 @@ export const SettingsBackupView: React.FC = () => {
         {/* Cloud Info Grid */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-slate-50 dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
           <div>
-            <span className="text-slate-600 dark:text-slate-400 block">অটো-ব্যাকআপ সময়সূচি:</span>
-            <span className="font-bold text-sky-700 dark:text-sky-300 mt-0.5 block">দুপুর ১:০০ ও সন্ধ্যা ৭:০০ (১৩:০০ ও ১৯:০০)</span>
+            <span className="text-slate-600 dark:text-slate-400 block">ব্যাকআপ পলিসি:</span>
+            <span className="font-bold text-sky-700 dark:text-sky-300 mt-0.5 block">১০০% নিরাপদ ম্যানুয়াল ও অন-ডিমান্ড</span>
           </div>
           <div>
             <span className="text-slate-600 dark:text-slate-400 block">ক্লাউড প্ল্যাটফর্ম:</span>
@@ -2465,6 +2405,15 @@ export const SettingsBackupView: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 bg-emerald-600 text-white font-bold rounded-2xl shadow-2xl border border-emerald-400 text-xs sm:text-sm animate-bounce">
+          <CheckCircle2 className="w-5 h-5 text-white shrink-0" />
+          <span>{toastMessage}</span>
+          <button onClick={() => setToastMessage(null)} className="ml-2 text-white/80 hover:text-white cursor-pointer">✕</button>
         </div>
       )}
     </div>
