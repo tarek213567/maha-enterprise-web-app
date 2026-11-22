@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { dbService } from '../../services/api';
+import { renderMarkdownToHtml } from '../../utils/markdownRenderer';
 import {
   Sparkles,
   Send,
@@ -567,90 +568,14 @@ export const AiManezarModal: React.FC<AiManezarModalProps> = ({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Helper to render Markdown-like text
+  // Helper to render Markdown text safely (100% XSS-Safe, robust bold & list parsing)
   const renderFormattedText = (rawText: string) => {
-    const lines = rawText.split('\n');
-    return lines.map((line, idx) => {
-      // Headings
-      if (line.startsWith('## ')) {
-        return (
-          <h2 key={idx} className="ai-md-h2">
-            {line.replace('## ', '')}
-          </h2>
-        );
-      }
-      if (line.startsWith('### ')) {
-        return (
-          <h3 key={idx} className="ai-md-h3">
-            {line.replace('### ', '')}
-          </h3>
-        );
-      }
-      if (line.startsWith('#### ')) {
-        return (
-          <h4 key={idx} className="ai-md-h4">
-            {line.replace('#### ', '')}
-          </h4>
-        );
-      }
-
-      // Bullet points
-      if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
-        const content = line.trim().substring(2);
-        return (
-          <li key={idx} className="ml-4 list-disc text-slate-200">
-            {renderInlineMarkdown(content)}
-          </li>
-        );
-      }
-
-      // Numbered lists
-      const numMatch = line.trim().match(/^(\d+)\.\s+(.*)/);
-      if (numMatch) {
-        return (
-          <li key={idx} className="ml-4 list-decimal text-slate-200">
-            {renderInlineMarkdown(numMatch[2])}
-          </li>
-        );
-      }
-
-      // Regular paragraph or blank line
-      if (!line.trim()) {
-        return <div key={idx} className="h-2" />;
-      }
-
-      return (
-        <p key={idx} className="mb-1 text-slate-200 leading-relaxed">
-          {renderInlineMarkdown(line)}
-        </p>
-      );
-    });
-  };
-
-  // Helper for bold, code, highlights
-  const renderInlineMarkdown = (text: string) => {
-    // Simple inline parser for bold **text** and code `code`
-    const parts = text.split(/(\*\*.*?\*\*|`.*?`)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return (
-          <strong key={i} className="text-white font-bold">
-            {part.slice(2, -2)}
-          </strong>
-        );
-      }
-      if (part.startsWith('`') && part.endsWith('`')) {
-        return (
-          <code
-            key={i}
-            className="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 font-mono text-xs border border-slate-700"
-          >
-            {part.slice(1, -1)}
-          </code>
-        );
-      }
-      return part;
-    });
+    return (
+      <div
+        className="ai-markdown-content space-y-1"
+        dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(rawText) }}
+      />
+    );
   };
 
   // Filtered Sessions

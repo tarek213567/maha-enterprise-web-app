@@ -194,9 +194,14 @@ function extractIncomingPin(request, url) {
     return normalizePin(authHeader);
   }
 
-  const queryPin = url.searchParams.get('pin');
-  if (queryPin) return normalizePin(queryPin);
+  // Cookie-based session authentication (HttpOnly)
+  const cookieHeader = request.headers.get('Cookie') || request.headers.get('cookie') || '';
+  if (cookieHeader) {
+    const match = cookieHeader.match(/(?:^|;\s*)(?:app_pin|session_pin|maha_pin)=([^;]+)/);
+    if (match) return normalizePin(decodeURIComponent(match[1]));
+  }
 
+  // OWASP ASVS: Query string (?pin=...) auth is strictly forbidden and rejected
   return '';
 }
 
@@ -756,6 +761,16 @@ export default {
 
       // PIN Authorization Check for Protected Routes
       const activePin = await getActivePin(db);
+
+      // OWASP ASVS: Reject query-string PIN attempts strictly with 401 Unauthorized
+      if (url.searchParams.has('pin')) {
+        if (!incomingPin || incomingPin !== activePin) {
+          return sendJson({
+            success: false,
+            error: 'অননুমোদিত এক্সেস: URL কুয়েরি স্ট্রিং-এ পিন কোড দেওয়া নিষিদ্ধ (OWASP)। অনুগ্রহ করে X-App-Pin হেডার অথবা অথেনটিকেশন সেশন ব্যবহার করুন।',
+          }, 401);
+        }
+      }
 
       if (incomingPin && !isSettingsPinUpdate && incomingPin !== activePin) {
         return sendJson({ success: false, error: 'অননুমোদিত এক্সেস: সঠিক পিন কোড প্রদান করুন' }, 401);
@@ -3568,6 +3583,12 @@ export default {
 
         // 7.1 Automated Live AI vs. App Parity Audit Endpoint (GET /api/ai/verify-parity)
         if (url.pathname === '/api/ai/verify-parity' && request.method === 'GET') {
+          if (!incomingPin || incomingPin !== activePin) {
+            return sendJson({
+              success: false,
+              error: 'অননুমোদিত এক্সেস: সঠিক পিন কোড প্রদান করুন (X-App-Pin হেডার আবশ্যক)',
+            }, 401);
+          }
           const verifiedLedger = await computeVerifiedBusinessLedger(db, inMemoryStore);
           return sendJson({
             ok: true,
