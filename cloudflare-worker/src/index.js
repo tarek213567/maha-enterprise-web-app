@@ -1700,7 +1700,8 @@ export default {
             else if (paidAmount <= 0) payMethod = 'DUE';
             else payMethod = 'PARTIAL';
 
-            const dateStr = (body.purchase_date || new Date().toISOString().split('T')[0]).replace(/-/g, '');
+            const purDate = body.purchase_date || new Date().toISOString().split('T')[0];
+            const dateStr = purDate.replace(/-/g, '');
             const invoiceNo = `PUR-${dateStr}-${Date.now().toString().slice(-4)}`;
 
             if (db) {
@@ -1739,7 +1740,7 @@ export default {
                     paid_amount, due_amount, previous_wac_per_kg, new_wac_per_kg, is_test_draft, notes
                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `).bind(
-                  invoiceNo, body.purchase_date, partyId, body.commodity_id, purchaseSector,
+                  invoiceNo, purDate, partyId, body.commodity_id, purchaseSector,
                   purchaseScaleKg, billedMaund, actualWeightKg, extraWeightKg,
                   bagsCount, grossKg, bagDedKg, netKg, netMon,
                   rateMon, grossAmount, labor, transport, bag, other,
@@ -1756,7 +1757,7 @@ export default {
                   INSERT INTO party_ledger (entry_date, party_id, sector, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
                   VALUES (?, ?, ?, 'PURCHASE', ?, 0, ?, ?, ?, ?)
                 `).bind(
-                  body.purchase_date, partyId, purchaseSector, invoiceNo,
+                  purDate, partyId, purchaseSector, invoiceNo,
                   grossAmount, subMoney(party.current_balance, grossAmount), isTest,
                   `ক্রয়: ${commodity.name_bn} (${billedMaund.toFixed(2)} মণ [${purchaseScaleKg} কেজি স্কেল] / ${isJute ? 'ওজনভিত্তিক' : `${bagsCount} বস্তা`} @ ৳${rateMon}/মণ)`
                 )
@@ -1767,11 +1768,11 @@ export default {
                   db.prepare(`
                     INSERT INTO party_ledger (entry_date, party_id, sector, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
                     VALUES (?, ?, ?, 'PAYMENT_GIVEN', ?, ?, 0, ?, ?, ?)
-                  `).bind(body.purchase_date, partyId, purchaseSector, invoiceNo, paidAmount, newPartyBal, isTest, `নগদ পরিশোধ (ক্রয় বিল: ${invoiceNo})`),
+                  `).bind(purDate, partyId, purchaseSector, invoiceNo, paidAmount, newPartyBal, isTest, `নগদ পরিশোধ (ক্রয় বিল: ${invoiceNo})`),
                   db.prepare(`
                     INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, reference_no, party_id, sector, is_test_draft, description)
                     VALUES (?, 'OUTFLOW', 'PURCHASE_CASH', ?, ?, ?, ?, ?, ?, ?)
-                  `).bind(body.purchase_date, paidAmount, payMethod === 'BANK' ? 'BANK' : 'CASH', invoiceNo, partyId, purchaseSector, isTest, `শস্য ক্রয়ে পরিশোধ: ${party.name} (${commodity.name_bn})`)
+                  `).bind(purDate, paidAmount, payMethod === 'BANK' ? 'BANK' : 'CASH', invoiceNo, partyId, purchaseSector, isTest, `শস্য ক্রয়ে পরিশোধ: ${party.name} (${commodity.name_bn})`)
                 );
               }
 
@@ -1780,7 +1781,7 @@ export default {
                   db.prepare(`
                     INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, reference_no, party_id, sector, is_test_draft, description)
                     VALUES (?, 'OUTFLOW', 'EXPENSE', ?, 'CASH', ?, ?, ?, ?, ?)
-                  `).bind(body.purchase_date, directExp, invoiceNo, partyId, purchaseSector, isTest, `ক্রয় আনুষঙ্গিক খরচ (চালান: ${invoiceNo})`)
+                  `).bind(purDate, directExp, invoiceNo, partyId, purchaseSector, isTest, `ক্রয় আনুষঙ্গিক খরচ (চালান: ${invoiceNo})`)
                 );
               }
 
@@ -1999,7 +2000,8 @@ export default {
                 : 0
             );
 
-            const dateStr = (body.sale_date || new Date().toISOString().split('T')[0]).replace(/-/g, '');
+            const saleDate = body.sale_date || new Date().toISOString().split('T')[0];
+            const dateStr = saleDate.replace(/-/g, '');
             const invoiceNo = `SAL-${dateStr}-${Date.now().toString().slice(-4)}`;
 
             if (db) {
@@ -2055,7 +2057,7 @@ export default {
                     previous_due, remaining_due
                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `).bind(
-                  invoiceNo, body.sale_date, partyId, body.commodity_id, saleSector, bagsCount,
+                  invoiceNo, saleDate, partyId, body.commodity_id, saleSector, bagsCount,
                   grossKg, bagDedKg, netKg, netMon,
                   rateMon, grossAmount, loading, damage, discount,
                   netInvoiceAmount, payMethod, paidAmount, remainingDue,
@@ -2072,7 +2074,7 @@ export default {
                   INSERT INTO party_ledger (entry_date, party_id, sector, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
                   VALUES (?, ?, ?, 'SALE', ?, ?, 0, ?, ?, ?)
                 `).bind(
-                  body.sale_date, partyId, saleSector, invoiceNo,
+                  saleDate, partyId, saleSector, invoiceNo,
                   todayBill, addMoney(prevDue, todayBill), isTest,
                   `বিক্রয়: ${commodity.name_bn} (${netMon.toFixed(2)} মন / ${isJute ? 'ওজনভিত্তিক' : (bagsCount > 0 ? `${bagsCount} বস্তা` : 'খোলা/লুজ')} @ ৳${rateMon}/মন)`
                 )
@@ -2083,11 +2085,11 @@ export default {
                   db.prepare(`
                     INSERT INTO party_ledger (entry_date, party_id, sector, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
                     VALUES (?, ?, ?, 'PAYMENT_RECEIVED', ?, 0, ?, ?, ?, ?)
-                  `).bind(body.sale_date, partyId, saleSector, invoiceNo, paidAmount, newPartyBal, isTest, `নগদ আদায় (বিক্রয় চালান: ${invoiceNo})`),
+                  `).bind(saleDate, partyId, saleSector, invoiceNo, paidAmount, newPartyBal, isTest, `নগদ আদায় (বিক্রয় চালান: ${invoiceNo})`),
                   db.prepare(`
                     INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, reference_no, party_id, sector, is_test_draft, description)
                     VALUES (?, 'INFLOW', 'SALE_CASH', ?, ?, ?, ?, ?, ?, ?)
-                  `).bind(body.sale_date, paidAmount, payMethod === 'BANK' ? 'BANK' : 'CASH', invoiceNo, partyId, saleSector, isTest, `বিক্রয় নগদ আদায়: ${party.name} (${commodity.name_bn})`)
+                  `).bind(saleDate, paidAmount, payMethod === 'BANK' ? 'BANK' : 'CASH', invoiceNo, partyId, saleSector, isTest, `বিক্রয় নগদ আদায়: ${party.name} (${commodity.name_bn})`)
                 );
               }
 
@@ -3101,25 +3103,47 @@ export default {
             const expDate = body.expense_date || new Date().toISOString().split('T')[0];
             const sector = body.sector || 'general';
 
+            const catMap = {
+              'আপ্যায়ন': 'FOOD_ENTERTAINMENT',
+              'চা-নাস্তা': 'FOOD_ENTERTAINMENT',
+              'নাস্তা': 'FOOD_ENTERTAINMENT',
+              'খাবার': 'FOOD_ENTERTAINMENT',
+              'লেবার': 'LABOR',
+              'লেবার বিল': 'LABOR',
+              'মজুরি': 'LABOR',
+              'ভাড়া': 'RENT',
+              'দোকান ভাড়া': 'RENT',
+              'বিদ্যুৎ': 'ELECTRICITY',
+              'বিদ্যুৎ বিল': 'ELECTRICITY',
+              'বেতন': 'SALARY',
+              'কর্মচারী বেতন': 'SALARY',
+              'পরিবহন': 'TRANSPORT',
+              'গাড়ি ভাড়া': 'TRANSPORT',
+              'মেরামত': 'REPAIR',
+              'ট্যাক্স': 'TAX_LEGAL',
+              'অন্যান্য': 'MISC',
+            };
+            const validCats = ['RENT', 'ELECTRICITY', 'SALARY', 'LABOR', 'FOOD_ENTERTAINMENT', 'TRANSPORT', 'REPAIR', 'TAX_LEGAL', 'MISC'];
+            const expCat = catMap[body.category] || (validCats.includes(body.category) ? body.category : 'MISC');
+
             if (db) {
-              const batchStmts = [
-                db.prepare(`
-                  INSERT INTO expenses (expense_date, category, amount, paid_to, payment_mode, sector, is_test_draft, notes)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                `).bind(expDate, body.category || 'MISC', amt, body.paid_to || 'অন্যান্য', body.payment_mode || 'CASH', sector, isTest, body.notes || '')
-              ];
+              const expRes = await db.prepare(`
+                INSERT INTO expenses (expense_date, category, amount, paid_to, payment_mode, sector, is_test_draft, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              `).bind(expDate, expCat, amt, body.paid_to || 'অন্যান্য', body.payment_mode || 'CASH', sector, isTest, body.notes || '').run();
+              const newId = expRes.meta?.last_row_id;
+
               if (body.payment_mode !== 'BANK') {
-                batchStmts.push(
-                  db.prepare(`
-                    INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, sector, is_test_draft, description)
-                    VALUES (?, 'OUTFLOW', 'EXPENSE', ?, 'CASH', ?, ?, ?)
-                  `).bind(expDate, amt, sector, isTest, `পরিচালন খরচ: ${body.category} (${body.paid_to || ''})`)
-                );
+                await db.prepare(`
+                  INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, sector, is_test_draft, description)
+                  VALUES (?, 'OUTFLOW', 'EXPENSE', ?, 'CASH', ?, ?, ?)
+                `).bind(expDate, amt, sector, isTest, `পরিচালন খরচ: ${expCat} (${body.paid_to || ''})`).run().catch(() => null);
               }
-              await db.batch(batchStmts);
-              return sendJson({ success: true, amount: amt }, 201);
+              return sendJson({ success: true, id: newId, amount: amt }, 201);
             }
-            return sendJson({ success: true, amount: amt }, 201);
+            const newExp = { id: inMemoryStore.expenses.length + 1, ...body, category: expCat, amount: amt, sector, is_test_draft: isTest };
+            inMemoryStore.expenses.push(newExp);
+            return sendJson({ success: true, id: newExp.id, amount: amt }, 201);
           }
         }
 
