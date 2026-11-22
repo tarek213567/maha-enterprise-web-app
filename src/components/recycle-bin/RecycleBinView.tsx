@@ -26,16 +26,16 @@ import { toBnDigits, formatDate, formatTakaBn } from '../../utils/bengaliNumbers
 
 const MODULE_OPTIONS = [
   { id: 'ALL', label: 'সকল রেকর্ড', icon: Trash2 },
-  { id: 'sale', label: 'বিক্রয় চালান', icon: ShoppingCart },
-  { id: 'purchase', label: 'ক্রয় চালান', icon: TrendingDown },
-  { id: 'crop', label: 'শস্য / ফসল', icon: Wheat },
-  { id: 'customer', label: 'বাকি খাতা / ক্রেতা', icon: Users },
-  { id: 'creditor', label: 'পাওনাদার / মহাজন', icon: Users },
-  { id: 'party', label: 'পার্টি / গ্রাহক', icon: Users },
+  { id: 'purchase', label: 'শস্য ক্রয়', icon: TrendingDown },
+  { id: 'sale', label: 'পাইকারি বিক্রয়', icon: ShoppingCart },
+  { id: 'customer', label: 'বাকি খাতা', icon: Users },
+  { id: 'creditor', label: 'পাওনাদার', icon: Users },
   { id: 'cashbook', label: 'দৈনিক ক্যাশ বই', icon: Wallet },
   { id: 'expense', label: 'পরিচালন খরচ', icon: Calculator },
-  { id: 'shrinkage', label: 'শুকতি ও ঘাটতি', icon: TrendingDown },
+  { id: 'crop', label: 'গুদাম স্টক', icon: Wheat },
   { id: 'note', label: 'নোটবুক', icon: NotebookPen },
+  { id: 'party', label: 'পার্টি / খতিয়ান', icon: Users },
+  { id: 'shrinkage', label: 'শুকতি ও ঘাটতি', icon: TrendingDown },
   { id: 'ledger', label: 'লেজার ভাউচার', icon: FileText },
 ];
 
@@ -235,7 +235,7 @@ export const RecycleBinView: React.FC = () => {
                 title="রিসাইকেল বিন সম্পূর্ণ খালি করুন"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>{emptying ? 'খালি হচ্ছে...' : 'রিসাইকেল বিন খালি করুন'}</span>
+                <span>{emptying ? 'খালি হচ্ছে...' : 'সবগুলো স্থায়ীভাবে মুছুন'}</span>
               </button>
             )}
           </div>
@@ -407,7 +407,7 @@ export const RecycleBinView: React.FC = () => {
                             title="১-ক্লিকে ফিরিয়ে আনুন"
                           >
                             <RotateCcw className={`w-3.5 h-3.5 ${isRestoring ? 'animate-spin' : ''}`} />
-                            <span>{isRestoring ? 'রিস্টোর...' : 'রিস্টোর'}</span>
+                            <span>{isRestoring ? 'পুনরুদ্ধার হচ্ছে...' : 'পুনরুদ্ধার করুন'}</span>
                           </button>
 
                           {/* View Snapshot JSON Details */}
@@ -425,10 +425,11 @@ export const RecycleBinView: React.FC = () => {
                             type="button"
                             onClick={() => handlePermanentDelete(item)}
                             disabled={isRestoring || isDeleting}
-                            className="p-1 text-rose-500 hover:text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer border border-rose-500/20"
+                            className="px-2 py-1 text-rose-500 hover:text-white hover:bg-rose-600 rounded-lg transition-colors cursor-pointer border border-rose-500/30 text-xs font-bold flex items-center gap-1 disabled:opacity-50"
                             title="স্থায়ীভাবে মুছুন (পুনরুদ্ধার সম্ভব নয়)"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">স্থায়ীভাবে মুছুন</span>
                           </button>
                         </div>
                       </td>
