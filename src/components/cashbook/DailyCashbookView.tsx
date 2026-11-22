@@ -20,8 +20,11 @@ import { CashbookEntry, CashbookCategory } from '../../types';
 import { dbService } from '../../services/api';
 import { formatBanglaCurrency, formatDate, toBnDigits, parseSmartNumber, toBengaliDigits } from '../../utils/bengaliNumbers';
 import { useTheme } from '../../context/ThemeContext';
+import { useSector } from '../../context/SectorContext';
+import { SectorType } from '../../../electron/types';
 
 export const DailyCashbookView: React.FC = () => {
+  const { activeSector } = useSector();
   const todayStr = new Date().toISOString().split('T')[0];
 
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
@@ -38,6 +41,7 @@ export const DailyCashbookView: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [entryType, setEntryType] = useState<'INFLOW' | 'OUTFLOW'>('INFLOW');
   const [category, setCategory] = useState<CashbookCategory>('CAPITAL_IN');
+  const [entrySector, setEntrySector] = useState<SectorType>('general');
   const [amount, setAmount] = useState<string>('');
   const [paymentMode, setPaymentMode] = useState<string>('CASH');
   const [desc, setDesc] = useState<string>('');
@@ -72,12 +76,16 @@ export const DailyCashbookView: React.FC = () => {
   };
 
   useEffect(() => {
+    setEntrySector(activeSector !== 'all' ? activeSector : 'general');
+  }, [activeSector]);
+
+  useEffect(() => {
     loadCashbook(selectedDate);
-  }, [selectedDate]);
+  }, [selectedDate, activeSector]);
 
   const loadCashbook = async (date: string) => {
     try {
-      const data = await dbService.cashbook.getDaily(date);
+      const data = await dbService.cashbook.getDaily(date, activeSector);
       setOpeningBalance(data.opening_balance || 0);
       setEntries(data.entries || []);
       setTotalInflow(data.total_inflow || 0);
@@ -91,6 +99,7 @@ export const DailyCashbookView: React.FC = () => {
   const handleOpenAddEntry = (type: 'INFLOW' | 'OUTFLOW') => {
     setEntryType(type);
     setCategory(type === 'INFLOW' ? 'CAPITAL_IN' : 'DRAWING');
+    setEntrySector(activeSector !== 'all' ? activeSector : 'general');
     setAmount('');
     setPaymentMode('CASH');
     setDesc(type === 'INFLOW' ? 'ক্যাশ ড্রয়ারে নগদ জমা' : 'ক্যাশ ড্রয়ার থেকে নগদ উত্তোলন');
@@ -118,6 +127,7 @@ export const DailyCashbookView: React.FC = () => {
         amount: amt,
         payment_mode: paymentMode,
         description: desc.trim(),
+        sector: entrySector || (activeSector !== 'all' ? activeSector : 'general'),
       });
 
       setIsModalOpen(false);
@@ -616,7 +626,14 @@ export const DailyCashbookView: React.FC = () => {
                         {e.party_name || '---'}
                       </td>
                       <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300">
-                        {e.description}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span>{e.description}</span>
+                          {e.sector && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-bold">
+                              {e.sector === 'jute' ? '🌿 পাট' : e.sector === 'maize' ? '🌽 ভুট্টা' : e.sector === 'mustard' ? '🌼 সরিষা' : '🏢 সাধারণ'}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-2.5 px-3 text-right font-black text-emerald-700 dark:text-emerald-400">
                         {isInflow ? formatBanglaCurrency(e.amount, false, false) : '-'}
@@ -1035,6 +1052,20 @@ export const DailyCashbookView: React.FC = () => {
               </div>
 
               <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">সেক্টর নির্বাচন</label>
+                <select
+                  value={entrySector}
+                  onChange={(e) => setEntrySector(e.target.value as SectorType)}
+                  className="w-full px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-900 dark:text-slate-100 font-bold"
+                >
+                  <option value="general">🏢 সাধারণ অফিস / শেয়ার্ড (General)</option>
+                  <option value="mustard">🌼 সরিষা (Mustard)</option>
+                  <option value="jute">🌿 পাট (Jute)</option>
+                  <option value="maize">🌽 ভুট্টা (Maize)</option>
+                </select>
+              </div>
+
+              <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">টাকার পরিমাণ (৳)</label>
                 <input
                   type="text"
@@ -1059,6 +1090,20 @@ export const DailyCashbookView: React.FC = () => {
                   <option value="NAGAD">নগদ (Nagad)</option>
                   <option value="ROCKET">রকেট (Rocket)</option>
                   <option value="BANK">ব্যাংক একাউন্ট</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">সেক্টর নির্বাচন</label>
+                <select
+                  value={entrySector}
+                  onChange={(e) => setEntrySector(e.target.value as SectorType)}
+                  className="w-full px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-900 dark:text-slate-100 font-bold"
+                >
+                  <option value="general">🏢 সাধারণ অফিস / শেয়ার্ড (General)</option>
+                  <option value="mustard">🌼 সরিষা (Mustard)</option>
+                  <option value="jute">🌿 পাট (Jute)</option>
+                  <option value="maize">🌽 ভুট্টা (Maize)</option>
                 </select>
               </div>
 

@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS commodities (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name_bn TEXT NOT NULL UNIQUE,
   name_en TEXT NOT NULL,
+  sector TEXT NOT NULL DEFAULT 'mustard',
   default_bag_weight_kg REAL NOT NULL DEFAULT 75.0,
   current_stock_kg REAL NOT NULL DEFAULT 0.0,
   current_stock_bags INTEGER NOT NULL DEFAULT 0,
@@ -20,6 +21,7 @@ CREATE TABLE IF NOT EXISTS commodities (
 );
 
 CREATE INDEX IF NOT EXISTS idx_commodities_name ON commodities(name_bn);
+CREATE INDEX IF NOT EXISTS idx_commodities_sector ON commodities(sector);
 
 -- 2. Parties (বেপারী, চাষী, মিলার, আড়তদার, পাইকার)
 CREATE TABLE IF NOT EXISTS parties (
@@ -28,6 +30,7 @@ CREATE TABLE IF NOT EXISTS parties (
   phone TEXT,
   address TEXT NOT NULL,
   party_type TEXT NOT NULL CHECK(party_type IN ('SUPPLIER', 'BUYER', 'BOTH')),
+  sector TEXT NOT NULL DEFAULT 'mustard',
   opening_balance REAL NOT NULL DEFAULT 0.0,
   current_balance REAL NOT NULL DEFAULT 0.0,
   notes TEXT,
@@ -41,6 +44,7 @@ CREATE TABLE IF NOT EXISTS parties (
 CREATE INDEX IF NOT EXISTS idx_parties_name ON parties(name);
 CREATE INDEX IF NOT EXISTS idx_parties_phone ON parties(phone);
 CREATE INDEX IF NOT EXISTS idx_parties_type ON parties(party_type);
+CREATE INDEX IF NOT EXISTS idx_parties_sector ON parties(sector);
 CREATE INDEX IF NOT EXISTS idx_parties_pinned_updated ON parties(is_pinned, updated_at DESC);
 
 -- 3. Purchases (শস্য ক্রয় ও স্টক-ইন)
@@ -50,6 +54,11 @@ CREATE TABLE IF NOT EXISTS purchases (
   purchase_date TEXT NOT NULL,
   party_id INTEGER NOT NULL REFERENCES parties(id),
   commodity_id INTEGER NOT NULL REFERENCES commodities(id),
+  sector TEXT NOT NULL DEFAULT 'mustard',
+  purchase_scale_kg REAL NOT NULL DEFAULT 41.0,
+  billed_maund REAL NOT NULL DEFAULT 0.0,
+  actual_weight_kg REAL NOT NULL DEFAULT 0.0,
+  extra_weight_kg REAL NOT NULL DEFAULT 0.0,
   bags_count INTEGER NOT NULL DEFAULT 0,
   gross_weight_kg REAL NOT NULL,
   bag_deduction_kg REAL NOT NULL DEFAULT 0.0,
@@ -77,6 +86,7 @@ CREATE TABLE IF NOT EXISTS purchases (
 CREATE INDEX IF NOT EXISTS idx_purchases_date ON purchases(purchase_date);
 CREATE INDEX IF NOT EXISTS idx_purchases_party ON purchases(party_id);
 CREATE INDEX IF NOT EXISTS idx_purchases_commodity ON purchases(commodity_id);
+CREATE INDEX IF NOT EXISTS idx_purchases_sector ON purchases(sector);
 
 -- 4. Sales (পাইকারি বিক্রয় ও চালান / স্টক-আউট)
 CREATE TABLE IF NOT EXISTS sales (
@@ -85,6 +95,7 @@ CREATE TABLE IF NOT EXISTS sales (
   sale_date TEXT NOT NULL,
   party_id INTEGER NOT NULL REFERENCES parties(id),
   commodity_id INTEGER NOT NULL REFERENCES commodities(id),
+  sector TEXT NOT NULL DEFAULT 'mustard',
   bags_count INTEGER NOT NULL DEFAULT 0,
   gross_weight_kg REAL NOT NULL,
   bag_deduction_kg REAL NOT NULL DEFAULT 0.0,
@@ -117,6 +128,7 @@ CREATE TABLE IF NOT EXISTS sales (
 CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(sale_date);
 CREATE INDEX IF NOT EXISTS idx_sales_party ON sales(party_id);
 CREATE INDEX IF NOT EXISTS idx_sales_commodity ON sales(commodity_id);
+CREATE INDEX IF NOT EXISTS idx_sales_sector ON sales(sector);
 
 -- 5. Stock Adjustments (শুকতি ও আর্দ্রতা ঘাটতি / স্টক সমন্বয়)
 CREATE TABLE IF NOT EXISTS stock_adjustments (
@@ -143,6 +155,7 @@ CREATE TABLE IF NOT EXISTS party_ledger (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   entry_date TEXT NOT NULL,
   party_id INTEGER NOT NULL REFERENCES parties(id),
+  sector TEXT NOT NULL DEFAULT 'mustard',
   transaction_type TEXT NOT NULL CHECK(transaction_type IN ('PURCHASE', 'SALE', 'PAYMENT_RECEIVED', 'PAYMENT_GIVEN', 'ADJUSTMENT', 'OPENING')),
   reference_id INTEGER,
   reference_no TEXT,
@@ -156,6 +169,7 @@ CREATE TABLE IF NOT EXISTS party_ledger (
 );
 
 CREATE INDEX IF NOT EXISTS idx_ledger_party_date ON party_ledger(party_id, entry_date);
+CREATE INDEX IF NOT EXISTS idx_ledger_sector ON party_ledger(sector);
 
 -- 6.1 Recycle Bin (রিসাইকেল বিন - ৬০ দিনের ডেটা সুরক্ষা ও রিস্টোর)
 CREATE TABLE IF NOT EXISTS recycle_bin (
@@ -177,6 +191,7 @@ CREATE INDEX IF NOT EXISTS idx_recycle_bin_module ON recycle_bin(module_type);
 CREATE TABLE IF NOT EXISTS cashbook (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   entry_date TEXT NOT NULL,
+  sector TEXT NOT NULL DEFAULT 'mustard',
   entry_type TEXT NOT NULL CHECK(entry_type IN ('INFLOW', 'OUTFLOW')),
   category TEXT NOT NULL,
   amount REAL NOT NULL,
@@ -191,6 +206,7 @@ CREATE TABLE IF NOT EXISTS cashbook (
 
 CREATE INDEX IF NOT EXISTS idx_cashbook_date ON cashbook(entry_date);
 CREATE INDEX IF NOT EXISTS idx_cashbook_category ON cashbook(category);
+CREATE INDEX IF NOT EXISTS idx_cashbook_sector ON cashbook(sector);
 
 -- Cashbook Daily Overrides (প্রারম্ভিক ক্যাশ জের সমন্বয় ও তারিখভিত্তিক ওভাররাইড)
 CREATE TABLE IF NOT EXISTS cashbook_overrides (
@@ -204,6 +220,7 @@ CREATE TABLE IF NOT EXISTS cashbook_overrides (
 CREATE TABLE IF NOT EXISTS expenses (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   expense_date TEXT NOT NULL,
+  sector TEXT NOT NULL DEFAULT 'general',
   category TEXT NOT NULL CHECK(category IN ('RENT', 'ELECTRICITY', 'SALARY', 'LABOR', 'FOOD_ENTERTAINMENT', 'TRANSPORT', 'REPAIR', 'TAX_LEGAL', 'MISC')),
   amount REAL NOT NULL,
   paid_to TEXT NOT NULL,
@@ -214,6 +231,7 @@ CREATE TABLE IF NOT EXISTS expenses (
 );
 
 CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expense_date);
+CREATE INDEX IF NOT EXISTS idx_expenses_sector ON expenses(sector);
 
 -- 9. Dedicated Notebook (নোটবুক ও দৈনন্দিন টোকাবহি)
 CREATE TABLE IF NOT EXISTS notes (
@@ -241,22 +259,22 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 -- Default seeds for Parties (Walk-in & Standard Parties)
-INSERT OR IGNORE INTO parties (id, name, phone, address, party_type, opening_balance, current_balance, notes, is_active, is_pinned) VALUES
-(1, 'সাধারণ বিক্রেতা', '০১৭০০-০০০০০০', 'চাচকৈড় বাজার, গুরুদাসপুর', 'SUPPLIER', 0, 0, 'সাধারণ নগদ বিক্রেতা ও কৃষক', 1, 1),
-(2, 'সাধারণ খুচরা ক্রেতা', '০১৭০০-০০০০০০', 'চাচকৈড় বাজার, গুরুদাসপুর', 'BUYER', 0, 0, 'সাধারণ নগদ ক্রেতা ও পাইকার', 1, 1),
-(3, 'মোঃ করিম বেপারী', '01712345678', 'চলনবিল, গুরুদাসপুর', 'SUPPLIER', -25000, -25000, 'রবি শস্য সরবরাহকারী বেপারী', 1, 0),
-(4, 'রহমান ট্রেডার্স (মিল মালিক)', '01819876543', 'ঈশ্বরদী, পাবনা', 'BUYER', 145000, 145000, 'রাইস মিল ও পাইকারি খরিদ্দার', 1, 0);
+INSERT OR IGNORE INTO parties (id, name, phone, address, party_type, sector, opening_balance, current_balance, notes, is_active, is_pinned) VALUES
+(1, 'সাধারণ বিক্রেতা', '০১৭০০-০০০০০০', 'চাচকৈড় বাজার, গুরুদাসপুর', 'SUPPLIER', 'mustard', 0, 0, 'সাধারণ নগদ বিক্রেতা ও কৃষক', 1, 1),
+(2, 'সাধারণ খুচরা ক্রেতা', '০১৭০০-০০০০০০', 'চাচকৈড় বাজার, গুরুদাসপুর', 'BUYER', 'mustard', 0, 0, 'সাধারণ নগদ ক্রেতা ও পাইকার', 1, 1),
+(3, 'মোঃ করিম বেপারী', '01712345678', 'চলনবিল, গুরুদাসপুর', 'SUPPLIER', 'mustard', -25000, -25000, 'রবি শস্য সরবরাহকারী বেপারী', 1, 0),
+(4, 'রহমান ট্রেডার্স (মিল মালিক)', '01819876543', 'ঈশ্বরদী, পাবনা', 'BUYER', 'mustard', 145000, 145000, 'রাইস মিল ও পাইকারি খরিদ্দার', 1, 0);
 
--- Default seeds for Commodities
-INSERT OR IGNORE INTO commodities (id, name_bn, name_en, default_bag_weight_kg, current_stock_kg, current_stock_bags, current_wac_per_kg, current_wac_per_mon, notes) VALUES
-(1, 'সরিষা (মাঘি/টোরি)', 'Mustard (Maghi/Tori)', 80.0, 0, 0, 0, 0, 'চাচকৈড় মোকামের প্রধান রবি শস্য'),
-(2, 'ভুট্টা (হলুদ দানাদার)', 'Corn (Yellow Grain)', 75.0, 0, 0, 0, 0, 'নাটোর-পাবনা অঞ্চলের উচ্চ ফলনশীল ভুট্টা'),
-(3, 'তোষা পাট', 'Toshas Jute', 70.0, 0, 0, 0, 0, 'উচ্চ গ্রেড সোনালী তোষা পাট'),
-(4, 'গম (বারি-২৮/৩৩)', 'Wheat (BARI-28/33)', 85.0, 0, 0, 0, 0, 'চাক্কি ও মিল গ্রেড সাদা গম'),
-(5, 'আমন ধান (ব্রি-৪৯/স্বর্ণা)', 'Aman Paddy (BR-49/Swarna)', 75.0, 0, 0, 0, 0, 'চলনবিল অঞ্চলের আমন ধান'),
-(6, 'বোরো ধান (মিনিকেট/কাটারী)', 'Boro Paddy (Miniket/Katari)', 75.0, 0, 0, 0, 0, 'চলনবিলের সুগন্ধি ও চিকন ধান'),
-(7, 'খেসারী কলাই', 'Grass Pea (Khesari)', 85.0, 0, 0, 0, 0, 'স্থানীয় চাষীদের খেসারী ডাল/কলাই'),
-(8, 'মসুর ডাল (দেশি)', 'Lentil (Deshi)', 85.0, 0, 0, 0, 0, 'নাটোর অঞ্চলের দেশি মসুর');
+-- Default seeds for Commodities (Multi-Sector Presets: Jute, Maize, Mustard)
+INSERT OR IGNORE INTO commodities (id, name_bn, name_en, sector, default_bag_weight_kg, current_stock_kg, current_stock_bags, current_wac_per_kg, current_wac_per_mon, notes) VALUES
+(1, 'মাঘী সরিষা', 'Maghi Mustard', 'mustard', 80.0, 0, 0, 0, 0, 'চাচকৈড় মোকামের প্রধান দেশি মাঘী সরিষা'),
+(2, 'টোরি-৭ সরিষা', 'Tori-7 Mustard', 'mustard', 80.0, 0, 0, 0, 0, 'উন্নত জাতের টোরি-৭ সরিষা'),
+(3, 'রাই সরিষা', 'Rai Mustard', 'mustard', 80.0, 0, 0, 0, 0, 'মোটা দানার রাই সরিষা'),
+(4, 'শুকনা ভুট্টা', 'Dry Maize', 'maize', 75.0, 0, 0, 0, 0, 'চলনবিলের পরিষ্কার শুকনা হলুদ ভুট্টা'),
+(5, 'কাঁচা/ভিজা ভুট্টা', 'Wet Maize', 'maize', 75.0, 0, 0, 0, 0, 'মাঠের তাজা আর্দ্র ভুট্টা'),
+(6, 'তোষা পাট', 'Toshas Jute', 'jute', 0.0, 0, 0, 0, 0, 'উচ্চ গ্রেড সোনালী তোষা পাট (ওজনভিত্তিক)'),
+(7, 'মেস্তা পাট', 'Mesta Jute', 'jute', 0.0, 0, 0, 0, 0, 'মোটা আঁশের মেস্তা পাট (ওজনভিত্তিক)'),
+(8, 'দেশি/বগি পাট', 'Deshi/Bogi Jute', 'jute', 0.0, 0, 0, 0, 0, 'স্থানীয় দেশি বগি পাট (ওজনভিত্তিক)');
 
 -- Initial settings
 INSERT OR IGNORE INTO app_settings (key, value) VALUES

@@ -24,6 +24,8 @@ import { PrintableInvoice } from '../invoices/PrintableInvoice';
 import { toBnDigits, formatBanglaCurrency, formatDate, parseSmartNumber, toBengaliDigits, toEnglishDigits, formatTaka, formatTakaBn } from '../../utils/bengaliNumbers';
 import { totalKgToMonKg } from '../../utils/weightConverter';
 import { roundMoney } from '../../utils/precision';
+import { useSector } from '../../context/SectorContext';
+import { SectorType } from '../../../electron/types';
 
 interface CartItem {
   id: string;
@@ -47,6 +49,7 @@ export const parseSafeNumber = (val: any): number => {
 };
 
 export const SalesView: React.FC<{ initialMode?: string }> = () => {
+  const { activeSector, isJute } = useSector();
   const [commodities, setCommodities] = useState<Commodity[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
@@ -68,6 +71,7 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
   const [newCustPhone, setNewCustPhone] = useState('');
   const [newCustAddress, setNewCustAddress] = useState('');
   const [newCustOpeningDue, setNewCustOpeningDue] = useState<string>('0');
+  const [newCustSector, setNewCustSector] = useState<SectorType>('mustard');
   const [addingCustomer, setAddingCustomer] = useState(false);
 
   // Cart State
@@ -112,17 +116,18 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
     try {
       setLoading(true);
       const [comms, pts, sList] = await Promise.all([
-        dbService.commodities.getAll(),
-        dbService.parties.getAll('BUYER'),
-        dbService.sales.getAll(150),
+        dbService.commodities.getAll(activeSector),
+        dbService.parties.getAll('BUYER', activeSector),
+        dbService.sales.getAll(150, activeSector),
       ]);
       setCommodities(comms);
       setParties(pts);
       setSales(sList);
 
-      if (comms.length > 0 && selectedCommodityId === '') {
-        setSelectedCommodityId(comms[0].id);
-        const bagWeight = comms[0].default_bag_weight_kg || 80;
+      if (comms.length > 0) {
+        setSelectedCommodityId((prev) => (comms.some((c) => c.id === prev) ? prev : comms[0].id));
+        const firstComm = comms[0];
+        const bagWeight = firstComm.default_bag_weight_kg || 80;
         setEntryWeightMon(Number((bagWeight / 40).toFixed(2)));
       }
     } catch (err) {
@@ -130,11 +135,15 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedCommodityId]);
+  }, [activeSector]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    setNewCustSector(activeSector !== 'all' ? activeSector : 'mustard');
+  }, [activeSector]);
 
   // Selected Customer details
   const selectedCustomer = parties.find((p) => p.id === selectedCustomerId);
@@ -157,7 +166,8 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
       alert('অনুগ্রহ করে একটি শস্য নির্বাচন করুন।');
       return;
     }
-    const bagsToAdd = Math.max(0, Number(entryBags) || 0);
+    const isJuteItem = activeCommodity ? isJute(activeCommodity) : false;
+    const bagsToAdd = isJuteItem ? 0 : Math.max(0, Number(entryBags) || 0);
     const monToAdd = Math.max(0.01, Number(entryWeightMon) || 0);
     if (monToAdd <= 0) {
       alert('অনুগ্রহ করে মোট ওজন (মণ) প্রদান করুন।');
@@ -172,7 +182,7 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
 
     const existingIndex = cart.findIndex((i) => i.commodityId === activeCommodity.id);
     const currentBagsInCart = existingIndex >= 0 ? cart[existingIndex].bags : 0;
-    const totalRequiredBags = currentBagsInCart + bagsToAdd;
+    const totalRequiredBags = isJuteItem ? 0 : currentBagsInCart + bagsToAdd;
     const totalRequiredKg = (existingIndex >= 0 ? cart[existingIndex].weightKg : 0) + kgToAdd;
 
     if (totalRequiredKg > (activeCommodity.current_stock_kg || 0)) {
@@ -453,6 +463,7 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
         address: newCustAddress.trim() || 'চাঁচকৈড় বাজার, গুরুদাসপুর',
         party_type: 'BUYER',
         opening_balance: parseSmartNumber(newCustOpeningDue) || 0,
+        sector: newCustSector || (activeSector !== 'all' ? activeSector : 'mustard'),
       });
 
       setParties((prev) => [created, ...prev]);
@@ -720,103 +731,111 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
             </div>
 
             {/* Inputs: শস্যের জাত, বস্তা, মোট ওজন, দর, বাটন */}
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl items-end">
-              {/* Variety Selector */}
-              <div className="sm:col-span-4">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  শস্যের জাত নির্বাচন
-                </label>
-                <select
-                  value={selectedCommodityId}
-                  onChange={(e) => handleCommodityChange(Number(e.target.value))}
-                  className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-2 text-xs text-slate-900 dark:text-white outline-none font-bold cursor-pointer"
-                >
-                  {commodities.map((c) => {
-                    const isZero = (c.current_stock_kg || 0) <= 0;
-                    const monStock = ((c.current_stock_kg || 0) / 40).toFixed(1);
-                    return (
-                      <option key={c.id} value={c.id} disabled={isZero}>
-                        {c.name_bn} {isZero ? '(স্টক নেই)' : `(মজুদ: ${toBnDigits(monStock)} মণ, ${toBnDigits(c.current_stock_bags)} বস্তা)`}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
+            {(() => {
+              const activeCommodityIsJute = activeCommodity ? isJute(activeCommodity) : activeSector === 'jute';
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl items-end">
+                  {/* Variety Selector */}
+                  <div className={activeCommodityIsJute ? "sm:col-span-5" : "sm:col-span-4"}>
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      শস্যের জাত নির্বাচন
+                    </label>
+                    <select
+                      value={selectedCommodityId}
+                      onChange={(e) => handleCommodityChange(Number(e.target.value))}
+                      className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-2 text-xs text-slate-900 dark:text-white outline-none font-bold cursor-pointer"
+                    >
+                      {commodities.map((c) => {
+                        const isZero = (c.current_stock_kg || 0) <= 0;
+                        const monStock = ((c.current_stock_kg || 0) / 40).toFixed(1);
+                        const cIsJute = isJute(c);
+                        return (
+                          <option key={c.id} value={c.id} disabled={isZero}>
+                            {c.name_bn} {isZero ? '(স্টক নেই)' : `(মজুদ: ${toBnDigits(monStock)} মণ, ${cIsJute ? 'ওজনভিত্তিক' : `${toBnDigits(c.current_stock_bags)} বস্তা`})`}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
 
-              {/* Bags Input */}
-              <div className="sm:col-span-2">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  বস্তার সংখ্যা (ঐচ্ছিক)
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="০ (ঐচ্ছিক)"
-                  value={entryBags !== undefined && (entryBags as any) !== '' ? toBengaliDigits(entryBags) : ''}
-                  onFocus={(e) => e.target.select()}
-                  onChange={(e) => {
-                    const norm = toEnglishDigits(e.target.value);
-                    if (norm === '') {
-                      handleBagsChange('');
-                    } else {
-                      const val = parseInt(norm, 10);
-                      handleBagsChange(isNaN(val) ? '' : Math.max(0, val));
-                    }
-                  }}
-                  className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-2 text-xs text-slate-900 dark:text-white font-mono font-bold outline-none text-center"
-                />
-              </div>
+                  {/* Bags Input (Hidden for Jute) */}
+                  {!activeCommodityIsJute && (
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        বস্তার সংখ্যা (ঐচ্ছিক)
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="০ (ঐচ্ছিক)"
+                        value={entryBags !== undefined && (entryBags as any) !== '' ? toBengaliDigits(entryBags) : ''}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => {
+                          const norm = toEnglishDigits(e.target.value);
+                          if (norm === '') {
+                            handleBagsChange('');
+                          } else {
+                            const val = parseInt(norm, 10);
+                            handleBagsChange(isNaN(val) ? '' : Math.max(0, val));
+                          }
+                        }}
+                        className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-2 text-xs text-slate-900 dark:text-white font-mono font-bold outline-none text-center"
+                      />
+                    </div>
+                  )}
 
-              {/* Total Weight Mon */}
-              <div className="sm:col-span-2">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  মোট ওজন (মণ)
-                </label>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={entryWeightMon !== undefined && (entryWeightMon as any) !== '' ? toBengaliDigits(entryWeightMon) : ''}
-                  onFocus={(e) => e.target.select()}
-                  onChange={(e) => {
-                    const norm = toEnglishDigits(e.target.value);
-                    const val = parseFloat(norm);
-                    setEntryWeightMon(isNaN(val) ? (norm === '' ? ('' as any) : 0) : val);
-                  }}
-                  className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-2 text-xs text-cyan-600 dark:text-cyan-300 font-mono font-bold outline-none text-center"
-                />
-              </div>
+                  {/* Total Weight Mon */}
+                  <div className={activeCommodityIsJute ? "sm:col-span-3" : "sm:col-span-2"}>
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      মোট ওজন (মণ)
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={entryWeightMon !== undefined && (entryWeightMon as any) !== '' ? toBengaliDigits(entryWeightMon) : ''}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => {
+                        const norm = toEnglishDigits(e.target.value);
+                        const val = parseFloat(norm);
+                        setEntryWeightMon(isNaN(val) ? (norm === '' ? ('' as any) : 0) : val);
+                      }}
+                      className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-2 text-xs text-cyan-600 dark:text-cyan-300 font-mono font-bold outline-none text-center"
+                    />
+                  </div>
 
-              {/* Rate per Mon */}
-              <div className="sm:col-span-2">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  দর (প্রতি মণ)
-                </label>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={entryRate !== undefined && (entryRate as any) !== '' ? toBengaliDigits(entryRate) : ''}
-                  onFocus={(e) => e.target.select()}
-                  onChange={(e) => {
-                    const norm = toEnglishDigits(e.target.value);
-                    const val = parseFloat(norm);
-                    setEntryRate(isNaN(val) ? (norm === '' ? ('' as any) : 0) : Math.max(0, val));
-                  }}
-                  className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-2 text-xs text-amber-600 dark:text-amber-400 font-mono font-bold outline-none text-right"
-                />
-              </div>
+                  {/* Rate per Mon */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      দর (প্রতি মণ)
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={entryRate !== undefined && (entryRate as any) !== '' ? toBengaliDigits(entryRate) : ''}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => {
+                        const norm = toEnglishDigits(e.target.value);
+                        const val = parseFloat(norm);
+                        setEntryRate(isNaN(val) ? (norm === '' ? ('' as any) : 0) : Math.max(0, val));
+                      }}
+                      className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-2 text-xs text-amber-600 dark:text-amber-400 font-mono font-bold outline-none text-right"
+                    />
+                  </div>
 
-              {/* Add Button */}
-              <div className="sm:col-span-2">
-                <button
-                  type="button"
-                  onClick={handleAddToCart}
-                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 shadow-md cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ যোগ করুন</span>
-                </button>
-              </div>
-            </div>
+                  {/* Add Button */}
+                  <div className="sm:col-span-2">
+                    <button
+                      type="button"
+                      onClick={handleAddToCart}
+                      className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 shadow-md cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ যোগ করুন</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Cart Table */}
             <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-[var(--border-color)]">
@@ -849,7 +868,7 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
                           <span className="font-bold text-slate-900 dark:text-white text-xs">{item.name}</span>
                         </td>
                         <td className="py-2.5 px-3 text-center font-bold text-slate-900 dark:text-white font-mono">
-                          {item.bags > 0 ? `${toBnDigits(item.bags)} বস্তা` : '০ বস্তা (খোলা/লুজ)'}
+                          {isJute(item.name) ? <span className="text-emerald-500 font-semibold">— (ওজনভিত্তিক)</span> : (item.bags > 0 ? `${toBnDigits(item.bags)} বস্তা` : '০ বস্তা (খোলা/লুজ)')}
                         </td>
                         <td className="py-2.5 px-3 text-center font-bold text-cyan-600 dark:text-cyan-300 font-mono">
                           {toBnDigits(item.weightMon)} মণ
@@ -878,7 +897,7 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
                   <tfoot className="bg-slate-100 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 font-bold">
                     <tr>
                       <td colSpan={3} className="py-3 px-3 text-slate-700 dark:text-slate-300">
-                        মোট বস্তা: <span className="text-slate-900 dark:text-white font-mono font-black">{totalBags > 0 ? `${toBnDigits(totalBags)} বস্তা` : '০ বস্তা (খোলা/লুজ)'}</span>
+                        মোট বস্তা: <span className="text-slate-900 dark:text-white font-mono font-black">{cart.some(i => isJute(i.name)) ? '— (ওজনভিত্তিক)' : (totalBags > 0 ? `${toBnDigits(totalBags)} বস্তা` : '০ বস্তা (খোলা/লুজ)')}</span>
                       </td>
                       <td className="py-3 px-3 text-center text-cyan-700 dark:text-cyan-300 font-mono font-bold">
                         {toBnDigits(totalWeightMon.toFixed(2))} মণ
@@ -1248,7 +1267,7 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
                     </td>
                     <td className="py-3 px-4 text-center">
                       <span className="font-bold text-slate-900 dark:text-white font-mono">
-                        {s.bags_count > 0 ? `${toBnDigits(s.bags_count)} বস্তা` : '০ বস্তা (খোলা/লুজ)'}
+                        {(s.sector === 'jute' || (s.commodity_name && s.commodity_name.includes('পাট'))) ? <span className="text-emerald-500 font-semibold">— (ওজনভিত্তিক)</span> : (s.bags_count > 0 ? `${toBnDigits(s.bags_count)} বস্তা` : '০ বস্তা (খোলা/লুজ)')}
                       </span>
                       <span className="text-[10px] text-cyan-600 dark:text-cyan-300 block font-mono">
                         {toBnDigits(s.net_weight_mon?.toFixed(1) || 0)} মণ
@@ -1367,6 +1386,19 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
                   onChange={(e) => setNewCustOpeningDue(toBengaliDigits(e.target.value))}
                   className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-amber-600 dark:text-amber-400 font-bold font-mono outline-none focus:border-amber-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">সেক্টর নির্বাচন *</label>
+                <select
+                  value={newCustSector}
+                  onChange={(e) => setNewCustSector(e.target.value as SectorType)}
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white outline-none focus:border-amber-500 font-bold"
+                >
+                  <option value="mustard">🌼 সরিষা (Mustard)</option>
+                  <option value="jute">🌿 পাট (Jute)</option>
+                  <option value="maize">🌽 ভুট্টা (Maize)</option>
+                </select>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">

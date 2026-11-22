@@ -30,6 +30,8 @@ import { dbService } from '../../services/api';
 import { toBnDigits, formatBanglaCurrency, formatDate, parseSmartNumber, toBengaliDigits, toEnglishDigits, formatTaka, formatTakaBn } from '../../utils/bengaliNumbers';
 import { CustomerExcelImportModal } from '../common/CustomerExcelImportModal';
 import { ENABLE_EXCEL_IMPORT, EXCEL_IMPORT_LOCKED_MESSAGE } from '../../config/featureFlags';
+import { useSector } from '../../context/SectorContext';
+import { SectorType } from '../../../electron/types';
 
 export const PartyLedgerView: React.FC = () => {
   const [dues, setDues] = useState<Party[]>([]);
@@ -84,6 +86,8 @@ export const PartyLedgerView: React.FC = () => {
   // 3-Dot Dropdown State & Pinning
   const [activeDropdownId, setActiveDropdownId] = useState<number | null>(null);
 
+  const { activeSector } = useSector();
+
   // 4. New Customer Modal (নতুন গ্রাহক / বাকি খাতা এন্ট্রি)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const isNewModalOpen = isAddModalOpen;
@@ -92,6 +96,7 @@ export const PartyLedgerView: React.FC = () => {
   const [newPhone, setNewPhone] = useState('');
   const [newAddress, setNewAddress] = useState('');
   const [newOpeningDue, setNewOpeningDue] = useState('0');
+  const [newSector, setNewSector] = useState<SectorType>('mustard');
   const [newNotes, setNewNotes] = useState('');
   const [phoneError, setPhoneError] = useState('');
   const [submittingNew, setSubmittingNew] = useState(false);
@@ -102,23 +107,28 @@ export const PartyLedgerView: React.FC = () => {
   const [editPhone, setEditPhone] = useState('');
   const [editPhoneError, setEditPhoneError] = useState('');
   const [editAddress, setEditAddress] = useState('');
+  const [editSector, setEditSector] = useState<SectorType>('mustard');
   const [submittingEdit, setSubmittingEdit] = useState(false);
 
   // 6. Delete Customer Confirmation Modal (মুছুন)
   const [deleteTargetCustomer, setDeleteTargetCustomer] = useState<Party | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  useEffect(() => {
+    setNewSector(activeSector !== 'all' ? activeSector : 'mustard');
+  }, [activeSector]);
+
   const fetchParties = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await dbService.parties.getAll('BUYER');
+      const data = await dbService.parties.getAll('BUYER', activeSector);
       setDues(data || []);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeSector]);
 
   useEffect(() => {
     fetchParties();
@@ -420,6 +430,7 @@ export const PartyLedgerView: React.FC = () => {
         party_type: 'BUYER',
         opening_balance: openBal,
         notes: newNotes.trim(),
+        sector: newSector || (activeSector !== 'all' ? activeSector : 'mustard'),
       });
 
       // Immediate zero-latency UI update
@@ -475,13 +486,14 @@ export const PartyLedgerView: React.FC = () => {
         name: editName.trim(),
         phone: trimmedEditPhone,
         address: editAddress.trim(),
+        sector: editSector,
       });
 
       // Immediate optimistic update of the party row in table
       setDues((prev) =>
         prev.map((p) =>
           p.id === editCustomer.id
-            ? { ...p, name: editName.trim(), phone: trimmedEditPhone, address: editAddress.trim() }
+            ? { ...p, name: editName.trim(), phone: trimmedEditPhone, address: editAddress.trim(), sector: editSector }
             : p
         )
       );
@@ -688,6 +700,9 @@ export const PartyLedgerView: React.FC = () => {
                             <span>পিন করা</span>
                           </span>
                         )}
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                          {d.sector === 'jute' ? '🌿 পাট' : d.sector === 'maize' ? '🌽 ভুট্টা' : '🌼 সরিষা'}
+                        </span>
                       </div>
                       <button
                         type="button"
@@ -769,6 +784,7 @@ export const PartyLedgerView: React.FC = () => {
                             setEditName(d.name);
                             setEditPhone(d.phone || '');
                             setEditAddress(d.address || '');
+                            setEditSector((d.sector as SectorType) || 'mustard');
                             setEditPhoneError('');
                           }}
                           className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-xs transition-all text-xs flex items-center gap-1 cursor-pointer active:scale-95"
@@ -1071,6 +1087,7 @@ export const PartyLedgerView: React.FC = () => {
                       setEditName(statementCustomer.name);
                       setEditPhone(statementCustomer.phone || '');
                       setEditAddress(statementCustomer.address || '');
+                      setEditSector((statementCustomer.sector as SectorType) || 'mustard');
                       setEditPhoneError('');
                     }}
                     className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/20 hover:bg-white/30 text-white flex items-center gap-1 transition-all cursor-pointer"
@@ -1670,6 +1687,19 @@ export const PartyLedgerView: React.FC = () => {
               </div>
 
               <div>
+                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">সেক্টর নির্বাচন *</label>
+                <select
+                  value={newSector}
+                  onChange={(e) => setNewSector(e.target.value as SectorType)}
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white text-xs outline-none focus:ring-2 focus:ring-orange-500 font-bold"
+                >
+                  <option value="mustard">🌼 সরিষা (Mustard)</option>
+                  <option value="jute">🌿 পাট (Jute)</option>
+                  <option value="maize">🌽 ভুট্টা (Maize)</option>
+                </select>
+              </div>
+
+              <div>
                 <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">মন্তব্য / রেফারেন্স (ঐচ্ছিক)</label>
                 <input
                   type="text"
@@ -1765,6 +1795,19 @@ export const PartyLedgerView: React.FC = () => {
                   onChange={(e) => setEditAddress(e.target.value)}
                   className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">সেক্টর নির্বাচন *</label>
+                <select
+                  value={editSector}
+                  onChange={(e) => setEditSector(e.target.value as SectorType)}
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500 font-bold"
+                >
+                  <option value="mustard">🌼 সরিষা (Mustard)</option>
+                  <option value="jute">🌿 পাট (Jute)</option>
+                  <option value="maize">🌽 ভুট্টা (Maize)</option>
+                </select>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">

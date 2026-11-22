@@ -13,6 +13,7 @@ import type {
   PaymentMethod,
   Note,
   RecycleBinItem,
+  SectorFilter,
 } from '../types';
 
 declare global {
@@ -106,11 +107,15 @@ let mockNotes: Note[] = [
 
 export const dbService = {
   commodities: {
-    getAll: async (): Promise<Commodity[]> => {
+    getAll: async (sector?: SectorFilter): Promise<Commodity[]> => {
       if (window.api) return window.api.commodities.getAll();
       try {
-        return await apiFetch<Commodity[]>('/api/commodities');
+        const query = sector && sector !== 'all' ? `?sector=${sector}` : '';
+        return await apiFetch<Commodity[]>(`/api/commodities${query}`);
       } catch {
+        if (sector && sector !== 'all') {
+          return mockCommodities.filter(c => c.sector === sector);
+        }
         return [...mockCommodities];
       }
     },
@@ -160,13 +165,19 @@ export const dbService = {
   },
 
   parties: {
-    getAll: async (type?: PartyType): Promise<Party[]> => {
+    getAll: async (type?: PartyType, sector?: SectorFilter): Promise<Party[]> => {
       if (window.api) return window.api.parties.getAll(type);
       try {
-        return await apiFetch<Party[]>('/api/parties' + (type ? `?type=${type}` : ''));
+        const params = new URLSearchParams();
+        if (type) params.set('type', type);
+        if (sector && sector !== 'all') params.set('sector', sector);
+        const q = params.toString() ? `?${params.toString()}` : '';
+        return await apiFetch<Party[]>(`/api/parties${q}`);
       } catch {
-        if (!type) return [...mockParties];
-        return mockParties.filter(p => p.party_type === type || p.party_type === 'BOTH');
+        let list = [...mockParties];
+        if (type) list = list.filter(p => p.party_type === type || p.party_type === 'BOTH');
+        if (sector && sector !== 'all') list = list.filter(p => !p.sector || p.sector === sector);
+        return list;
       }
     },
     getById: async (id: number): Promise<Party | undefined> => {
@@ -259,10 +270,14 @@ export const dbService = {
   },
 
   purchases: {
-    getAll: async (limit?: number): Promise<Purchase[]> => {
+    getAll: async (limit?: number, sector?: SectorFilter): Promise<Purchase[]> => {
       if (window.api) return window.api.purchases.getAll(limit);
       try {
-        return await apiFetch<Purchase[]>('/api/purchases' + (limit ? `?limit=${limit}` : ''));
+        const params = new URLSearchParams();
+        if (limit) params.set('limit', limit.toString());
+        if (sector && sector !== 'all') params.set('sector', sector);
+        const q = params.toString() ? `?${params.toString()}` : '';
+        return await apiFetch<Purchase[]>(`/api/purchases${q}`);
       } catch {
         return [];
       }
@@ -282,10 +297,14 @@ export const dbService = {
   },
 
   sales: {
-    getAll: async (limit?: number): Promise<Sale[]> => {
+    getAll: async (limit?: number, sector?: SectorFilter): Promise<Sale[]> => {
       if (window.api) return window.api.sales.getAll(limit);
       try {
-        return await apiFetch<Sale[]>('/api/sales' + (limit ? `?limit=${limit}` : ''));
+        const params = new URLSearchParams();
+        if (limit) params.set('limit', limit.toString());
+        if (sector && sector !== 'all') params.set('sector', sector);
+        const q = params.toString() ? `?${params.toString()}` : '';
+        return await apiFetch<Sale[]>(`/api/sales${q}`);
       } catch {
         return [];
       }
@@ -356,7 +375,7 @@ export const dbService = {
   },
 
   cashbook: {
-    getDaily: async (date: string): Promise<{
+    getDaily: async (date: string, sector?: SectorFilter): Promise<{
       opening_balance: number;
       entries: CashbookEntry[];
       total_inflow: number;
@@ -365,7 +384,8 @@ export const dbService = {
     }> => {
       if (window.api) return window.api.cashbook.getDaily(date);
       try {
-        return await apiFetch<any>(`/api/cashbook?date=${date}`);
+        const query = sector && sector !== 'all' ? `?date=${date}&sector=${sector}` : `?date=${date}`;
+        return await apiFetch<any>(`/api/cashbook${query}`);
       } catch {
         return { opening_balance: 0, entries: [], total_inflow: 0, total_outflow: 0, closing_balance: 0 };
       }
@@ -389,10 +409,14 @@ export const dbService = {
   },
 
   expenses: {
-    getAll: async (limit?: number): Promise<Expense[]> => {
+    getAll: async (limit?: number, sector?: SectorFilter): Promise<Expense[]> => {
       if (window.api) return window.api.expenses.getAll(limit);
       try {
-        return await apiFetch<Expense[]>('/api/expenses' + (limit ? `?limit=${limit}` : ''));
+        const params = new URLSearchParams();
+        if (limit) params.set('limit', limit.toString());
+        if (sector && sector !== 'all') params.set('sector', sector);
+        const q = params.toString() ? `?${params.toString()}` : '';
+        return await apiFetch<Expense[]>(`/api/expenses${q}`);
       } catch {
         return [];
       }
@@ -547,10 +571,11 @@ export const dbService = {
   },
 
   reports: {
-    getDashboardStats: async (): Promise<DashboardStats> => {
+    getDashboardStats: async (sector?: SectorFilter): Promise<DashboardStats> => {
       if (window.api) return window.api.reports.getDashboardStats();
       try {
-        return await apiFetch<DashboardStats>('/api/reports/stats');
+        const query = sector && sector !== 'all' ? `?sector=${sector}` : '';
+        return await apiFetch<DashboardStats>(`/api/reports/stats${query}`);
       } catch {
         return {
           today_purchases_amount: 0,
@@ -571,10 +596,11 @@ export const dbService = {
         };
       }
     },
-    getPnL: async (startDate: string, endDate: string) => {
+    getPnL: async (startDate: string, endDate: string, sector?: SectorFilter) => {
       if (window.api) return window.api.reports.getPnL(startDate, endDate);
       try {
-        return await apiFetch<any>(`/api/reports/pnl?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`);
+        const sectorQuery = sector && sector !== 'all' ? `&sector=${sector}` : '';
+        return await apiFetch<any>(`/api/reports/pnl?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}${sectorQuery}`);
       } catch {
         return {
           startDate,

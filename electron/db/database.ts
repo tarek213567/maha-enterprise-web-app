@@ -434,6 +434,11 @@ export class AppDatabase {
     purchase_date: string;
     party_id: number;
     commodity_id: number;
+    sector?: 'jute' | 'maize' | 'mustard';
+    purchase_scale_kg?: number;
+    billed_maund?: number;
+    actual_weight_kg?: number;
+    extra_weight_kg?: number;
     bags_count: number;
     gross_weight_kg: number;
     bag_deduction_kg: number;
@@ -451,6 +456,13 @@ export class AppDatabase {
   }): Purchase {
     const isTest = data.is_test_draft ? 1 : 0;
     const purchaseTx = this.db.transaction(() => {
+      // 2. Fetch commodity to calculate new Weighted Average Cost (WAC)
+      const commodity = this.getCommodityById(data.commodity_id);
+      if (!commodity) throw new Error('শস্যের তথ্য পাওয়া যায়নি');
+
+      const isJute = commodity.sector === 'jute' || commodity.name_bn.includes('পাট');
+      const purchaseSector = data.sector || commodity.sector || (isJute ? 'jute' : 'mustard');
+
       // Resolve party if not provided
       let partyId = data.party_id;
       if (!partyId || partyId <= 0) {
@@ -461,20 +473,37 @@ export class AppDatabase {
           existing = this.db.prepare("SELECT id FROM parties WHERE name = ?").get(sellerName) as { id: number } | undefined;
         }
         if (!existing) {
-          const ins = this.db.prepare("INSERT INTO parties (name, phone, address, party_type, opening_balance, current_balance, is_test_draft) VALUES (?, ?, 'চাঁচকৈড় বাজার, গুরুদাসপুর', 'SUPPLIER', 0, 0, ?)").run(sellerName, sellerPhone, isTest);
+          const ins = this.db.prepare("INSERT INTO parties (name, phone, address, party_type, sector, opening_balance, current_balance, is_test_draft) VALUES (?, ?, 'চাঁচকৈড় বাজার, গুরুদাসপুর', 'SUPPLIER', ?, 0, 0, ?)").run(sellerName, sellerPhone, purchaseSector, isTest);
           partyId = Number(ins.lastInsertRowid);
         } else {
           partyId = existing.id;
         }
       }
 
-      // 1. High-precision calculations
-      const grossKg = roundWeight(data.gross_weight_kg);
+      // 1. 41kg Purchase Scale Calculations
+      const purchaseScaleKg = Number(data.purchase_scale_kg) > 0 ? Number(data.purchase_scale_kg) : 41.0;
+      const grossKg = roundWeight(data.gross_weight_kg || 0);
       const bagDedKg = roundWeight(data.bag_deduction_kg !== undefined ? data.bag_deduction_kg : (data as any).empty_bag_weight_kg || 0);
-      const net_weight_kg = roundWeight(Math.max(0, grossKg - bagDedKg));
-      const net_weight_mon = roundWeight(net_weight_kg / 40.0);
+
+      let billedMaund = Number(data.billed_maund) || 0;
+      let actualWeightKg = Number(data.actual_weight_kg) || 0;
+
+      if (billedMaund > 0 && actualWeightKg <= 0) {
+        actualWeightKg = roundWeight(billedMaund * purchaseScaleKg);
+      } else if (actualWeightKg > 0 && billedMaund <= 0) {
+        billedMaund = roundWeight(actualWeightKg / purchaseScaleKg);
+      } else if (grossKg > 0) {
+        actualWeightKg = roundWeight(Math.max(0, grossKg - bagDedKg));
+        billedMaund = roundWeight(actualWeightKg / purchaseScaleKg);
+      } else {
+        actualWeightKg = roundWeight(billedMaund * purchaseScaleKg);
+      }
+
+      const extraWeightKg = roundWeight(Math.max(0, actualWeightKg - (billedMaund * 40.0)));
+      const net_weight_kg = actualWeightKg;
+      const net_weight_mon = roundWeight(actualWeightKg / 40.0);
       const rateMon = roundMoney(data.rate_per_mon);
-      const gross_amount = roundMoney((net_weight_kg / 40.0) * rateMon);
+      const gross_amount = roundMoney(billedMaund * rateMon);
 
       const labor = roundMoney(data.labor_cost || 0);
       const transport = roundMoney(data.transport_cost || 0);
@@ -507,15 +536,14 @@ export class AppDatabase {
         paymentMethod = 'PARTIAL';
       }
 
+      // Bags count (0 for Jute)
+      const bagsCount = isJute ? 0 : Math.max(0, Number(data.bags_count) || 0);
+
       // Invoice number
       const countRes = this.db.prepare('SELECT COUNT(*) as c FROM purchases').get() as { c: number };
       const nextNum = (countRes.c + 1).toString().padStart(4, '0');
       const dateStr = data.purchase_date.replace(/-/g, '');
       const invoice_no = `PUR-${dateStr}-${nextNum}`;
-
-      // 2. Fetch commodity to calculate new Weighted Average Cost (WAC)
-      const commodity = this.getCommodityById(data.commodity_id);
-      if (!commodity) throw new Error('শস্যের তথ্য পাওয়া যায়নি');
 
       const oldStockKg = roundWeight(commodity.current_stock_kg);
       const oldWacPerKg = commodity.current_wac_per_kg;
@@ -526,19 +554,21 @@ export class AppDatabase {
       }
       const newWacPerMon = roundMoney(newWacPerKg * 40.0);
       const newStockKg = addWeight(oldStockKg, net_weight_kg);
-      const newStockBags = commodity.current_stock_bags + data.bags_count;
+      const newStockBags = isJute ? commodity.current_stock_bags : (commodity.current_stock_bags + bagsCount);
 
       // 3. Insert Purchase Record
       const insertPurchase = this.db.prepare(`
         INSERT INTO purchases (
-          invoice_no, purchase_date, party_id, commodity_id, bags_count,
-          gross_weight_kg, bag_deduction_kg, net_weight_kg, net_weight_mon,
+          invoice_no, purchase_date, party_id, commodity_id, sector,
+          purchase_scale_kg, billed_maund, actual_weight_kg, extra_weight_kg,
+          bags_count, gross_weight_kg, bag_deduction_kg, net_weight_kg, net_weight_mon,
           rate_per_mon, gross_amount, labor_cost, transport_cost, bag_cost, other_cost,
           total_landed_cost, cost_per_mon, cost_per_kg, payment_method,
           paid_amount, due_amount, previous_wac_per_kg, new_wac_per_kg, is_test_draft, notes
         ) VALUES (
           ?, ?, ?, ?, ?,
           ?, ?, ?, ?,
+          ?, ?, ?, ?, ?,
           ?, ?, ?, ?, ?, ?,
           ?, ?, ?, ?,
           ?, ?, ?, ?, ?, ?
@@ -546,8 +576,9 @@ export class AppDatabase {
       `);
 
       const res = insertPurchase.run(
-        invoice_no, data.purchase_date, partyId, data.commodity_id, data.bags_count,
-        grossKg, bagDedKg, net_weight_kg, net_weight_mon,
+        invoice_no, data.purchase_date, partyId, data.commodity_id, purchaseSector,
+        purchaseScaleKg, billedMaund, actualWeightKg, extraWeightKg,
+        bagsCount, grossKg, bagDedKg, net_weight_kg, net_weight_mon,
         rateMon, gross_amount, labor, transport, bag, other,
         total_landed_cost, cost_per_mon, cost_per_kg, paymentMethod,
         paid_amount, due_amount, oldWacPerKg, newWacPerKg, isTest, data.notes || ''
@@ -577,17 +608,18 @@ export class AppDatabase {
 
       const commodityName = commodity.name_bn;
       this.db.prepare(`
-        INSERT INTO party_ledger (entry_date, party_id, transaction_type, reference_id, reference_no, debit, credit, running_balance, is_test_draft, description)
-        VALUES (?, ?, 'PURCHASE', ?, ?, 0, ?, ?, ?, ?)
+        INSERT INTO party_ledger (entry_date, party_id, sector, transaction_type, reference_id, reference_no, debit, credit, running_balance, is_test_draft, description)
+        VALUES (?, ?, ?, 'PURCHASE', ?, ?, 0, ?, ?, ?, ?)
       `).run(
         data.purchase_date,
         partyId,
+        purchaseSector,
         purchaseId,
         invoice_no,
         gross_amount,
         subMoney(party.current_balance, gross_amount),
         isTest,
-        `ক্রয়: ${commodityName} (${net_weight_mon.toFixed(2)} মন / ${data.bags_count} বস্তা @ ৳${rateMon}/মন)`
+        `ক্রয়: ${commodityName} (${billedMaund.toFixed(2)} মণ [${purchaseScaleKg} কেজি স্কেল] / ${isJute ? 'ওজনভিত্তিক' : `${bagsCount} বস্তা`} @ ৳${rateMon}/মণ)`
       );
 
       if (paid_amount > 0) {

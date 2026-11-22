@@ -18,6 +18,7 @@ import { APP_CONFIG } from '../../config/appConfig';
 import { toBnDigits, parseSmartNumber, formatBanglaCurrency, toBengaliDigits, formatTakaBn } from '../../utils/bengaliNumbers';
 import { monKgToTotalKg } from '../../utils/weightConverter';
 import { roundMoney } from '../../utils/precision';
+import { useSector } from '../../context/SectorContext';
 
 const toBengaliNumber = (num: number | string | undefined | null): string => {
   if (num === undefined || num === null) return '০';
@@ -33,6 +34,8 @@ interface PurchasesViewProps {
 }
 
 export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => {
+  const { activeSector, isJute } = useSector();
+
   // Commodities & Purchases State
   const [commodities, setCommodities] = useState<Commodity[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
@@ -42,6 +45,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
   const [sellerName, setSellerName] = useState('');
   const [sellerPhone, setSellerPhone] = useState('');
   const [selectedCommodityId, setSelectedCommodityId] = useState<number>(0);
+  const [purchaseScaleKgInput, setPurchaseScaleKgInput] = useState('41');
   const [quantityMonInput, setQuantityMonInput] = useState('');
   const [quantityKgInput, setQuantityKgInput] = useState('');
   const [pricePerMonInput, setPricePerMonInput] = useState('');
@@ -69,18 +73,18 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [activeSector]);
 
   const loadData = async () => {
     setLoading(true);
     try {
       const [comms, purs] = await Promise.all([
-        dbService.commodities.getAll(),
-        dbService.purchases.getAll(200),
+        dbService.commodities.getAll(activeSector),
+        dbService.purchases.getAll(250, activeSector),
       ]);
       setCommodities(comms);
-      if (comms.length > 0 && selectedCommodityId === 0) {
-        setSelectedCommodityId(comms[0].id);
+      if (comms.length > 0) {
+        setSelectedCommodityId((prev) => (comms.some((c) => c.id === prev) ? prev : comms[0].id));
       }
       setPurchases(purs);
     } catch (e) {
@@ -90,25 +94,50 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
     }
   };
 
-  const selectedCommodity = useMemo(() => {
-    return commodities.find((c) => c.id === selectedCommodityId) || commodities[0];
-  }, [commodities, selectedCommodityId]);
+  const filteredCommodities = useMemo(() => {
+    if (activeSector === 'all') return commodities;
+    return commodities.filter((c) => (c.sector || 'mustard') === activeSector);
+  }, [commodities, activeSector]);
 
-  // High-Precision Calculations (1 Mon = 40 KG, Total KG = (Mon * 40) + KG)
+  const selectedCommodity = useMemo(() => {
+    return filteredCommodities.find((c) => c.id === selectedCommodityId) || filteredCommodities[0] || commodities[0];
+  }, [filteredCommodities, commodities, selectedCommodityId]);
+
+  // Jute Check
+  const isSelectedJute = useMemo(() => {
+    if (!selectedCommodity) return activeSector === 'jute';
+    return isJute(selectedCommodity);
+  }, [selectedCommodity, activeSector, isJute]);
+
+  // 41 kg Purchase Scale vs 40 kg Stock Scale Calculations
+  // Billed Maund (for supplier invoice): Mon + (KG / scale)
+  const purchaseScaleKg = Math.max(1, parseSmartNumber(purchaseScaleKgInput) || 41);
   const rawMon = parseSmartNumber(quantityMonInput) || 0;
   const rawKg = parseSmartNumber(quantityKgInput) || 0;
-  const totalKg = monKgToTotalKg(rawMon, rawKg);
-  const quantityMon = totalKg > 0 ? totalKg / 40.0 : 0;
+
+  // Billed Maund to supplier based on purchase scale
+  const billedMaund = rawMon + (rawKg > 0 ? rawKg / purchaseScaleKg : 0);
+  // Actual physical KG delivered
+  const actualWeightKg = roundMoney(billedMaund * purchaseScaleKg);
+  // Stock credited at standard 40 kg/maund
+  const stockMaund = actualWeightKg > 0 ? actualWeightKg / 40.0 : 0;
+  const stockMaundWhole = Math.floor(stockMaund);
+  const stockKgRemaining = Math.round(actualWeightKg - stockMaundWhole * 40);
+  // Extra gained weight (41kg - 40kg = +1kg per maund)
+  const extraWeightKg = Math.max(0, roundMoney(actualWeightKg - billedMaund * 40));
+  const extraMaundWhole = Math.floor(extraWeightKg / 40);
+  const extraKgRemaining = Math.round(extraWeightKg - extraMaundWhole * 40);
+
   const pricePerMon = parseSmartNumber(pricePerMonInput) || 0;
-  const totalAmount = roundMoney(quantityMon * pricePerMon);
+  const totalAmount = roundMoney(billedMaund * pricePerMon);
 
   const defaultBags = useMemo(() => {
-    if (!selectedCommodity || totalKg <= 0) return 0;
+    if (isSelectedJute || !selectedCommodity || actualWeightKg <= 0) return 0;
     const bagKg = selectedCommodity.default_bag_weight_kg || 80;
-    return Math.max(1, Math.round(totalKg / bagKg));
-  }, [selectedCommodity, totalKg]);
+    return Math.max(1, Math.round(actualWeightKg / bagKg));
+  }, [isSelectedJute, selectedCommodity, actualWeightKg]);
 
-  const bagsCount = bagsCountInput.trim() !== '' ? parseSmartNumber(bagsCountInput) || 0 : defaultBags;
+  const bagsCount = isSelectedJute ? 0 : (bagsCountInput.trim() !== '' ? parseSmartNumber(bagsCountInput) || 0 : defaultBags);
 
   const paidAmount = useMemo(() => {
     if (paymentType === 'CASH') return totalAmount;
@@ -170,7 +199,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
   // Form Submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (totalKg <= 0) {
+    if (actualWeightKg <= 0) {
       showToast('সঠিক ওজন (মণ বা কেজি) প্রদান করুন', 'error');
       return;
     }
@@ -200,6 +229,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
         paymentMap[paymentType] || 
         (paidAmount >= totalAmount ? 'CASH' : paidAmount <= 0 ? 'DUE' : 'PARTIAL');
 
+      const resolvedSector = selectedCommodity?.sector || (activeSector !== 'all' ? activeSector : 'mustard');
+
       const newPurchase = await dbService.purchases.create({
         purchase_date: todayStr,
         party_id: 0,
@@ -207,22 +238,31 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
         seller_phone: sellerPhone.trim() || '',
         supplier_name: sellerName.trim() || 'সাধারণ বিক্রেতা',
         phone: sellerPhone.trim() || '',
-        commodity_id: selectedCommodityId || (commodities[0]?.id ?? 1),
-        bags_count: bagsCount,
-        gross_weight_kg: totalKg,
+        commodity_id: selectedCommodityId || (filteredCommodities[0]?.id ?? commodities[0]?.id ?? 1),
+        bags_count: isSelectedJute ? 0 : bagsCount,
+        gross_weight_kg: actualWeightKg,
+        net_weight_kg: actualWeightKg,
+        net_weight_mon: stockMaund,
         bag_deduction_kg: 0,
         rate_per_mon: pricePerMon,
         labor_cost: 0,
         transport_cost: 0,
         bag_cost: 0,
         other_cost: 0,
+        gross_amount: totalAmount,
+        net_amount: totalAmount,
         payment_method: resolvedPaymentMethod,
         paid_amount: paidAmount,
         notes: notes.trim(),
+        purchase_scale_kg: purchaseScaleKg,
+        billed_maund: Number(billedMaund.toFixed(4)),
+        actual_weight_kg: actualWeightKg,
+        extra_weight_kg: extraWeightKg,
+        sector: resolvedSector,
       });
 
       setSuccessMessage('শস্য ক্রয় সফলভাবে সম্পন্ন এবং মজুদে যোগ করা হয়েছে!');
-      showToast('শস্য ক্রয় চালান সফলভাবে সংরক্ষিত হয়েছে এবং স্টক বৃদ্ধি করা হয়েছে', 'success');
+      showToast(`শস্য ক্রয় চালান সফল! গুদামে জমা: ${toBengaliNumber(stockMaund.toFixed(2))} মণ (+${toBengaliNumber((extraWeightKg / 40).toFixed(2))} মণ অতিরিক্ত লাভজনক স্টক)`, 'success');
       setPostSubmitPurchase(newPurchase);
 
       // Reset form
@@ -431,18 +471,42 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
                 onChange={(e) => setSelectedCommodityId(Number(e.target.value))}
                 className="w-full bg-white dark:bg-[#0b111e] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-amber-800 dark:text-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold"
               >
-                {commodities.map((c) => (
+                {filteredCommodities.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name_bn} (বর্তমান মজুদ: {toBengaliNumber(Math.round(c.current_stock_kg / 40))} মণ, {toBengaliNumber(c.current_stock_bags)} বস্তা)
+                    {c.name_bn} (বর্তমান মজুদ: {toBengaliNumber(Math.round(c.current_stock_kg / 40))} মণ, {isJute(c) ? 'ওজনভিত্তিক' : `${toBengaliNumber(c.current_stock_bags)} বস্তা`})
                   </option>
                 ))}
               </select>
             </div>
 
+            {/* 41 kg Purchase Scale Controller */}
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2.5">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <label className="text-xs font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+                  <Scale className="w-3.5 h-3.5" />
+                  <span>ক্রয় ওজন স্কেল (কেজি/মণ) *</span>
+                </label>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 bg-amber-500/20 text-amber-800 dark:text-amber-300 rounded border border-amber-500/40">
+                  {toBengaliNumber(purchaseScaleKg)} কেজি = ১ মণ
+                </span>
+              </div>
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder="৪১"
+                value={purchaseScaleKgInput}
+                onChange={(e) => setPurchaseScaleKgInput(toBengaliDigits(e.target.value))}
+                className="w-full bg-white dark:bg-[#0b111e] border border-amber-400 dark:border-amber-500/40 rounded-lg px-2.5 py-1.5 text-sm text-amber-900 dark:text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold font-mono"
+              />
+              <span className="text-[10px] text-amber-800 dark:text-amber-300/80 mt-1 block font-medium">
+                মহাজন থেকে {toBengaliNumber(purchaseScaleKg)} কেজিতে মণ হিসেবে বিল হবে; গুদামে জমা হবে পূর্ণ বাস্তব ওজন (৪০ কেজি স্কেলে)।
+              </span>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <div className="sm:col-span-2">
                 <label className="block text-xs font-bold text-slate-900 dark:text-slate-100 mb-1">
-                  মোট ওজন (মণ) *
+                  মোট ক্রয় মণ (স্কেল অনুযায়ী) *
                 </label>
                 <input
                   type="text"
@@ -454,7 +518,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
                   className="w-full bg-white dark:bg-[#0b111e] border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold font-mono"
                 />
                 <span className="text-[10px] text-amber-700 dark:text-amber-400 mt-1 block font-bold">
-                  {toBengaliNumber(totalKg)} কেজি [৪০ কেজিতে মণ]
+                  বাস্তব ওজন: {toBengaliNumber(actualWeightKg)} কেজি [৪০ কেজিতে = {toBengaliNumber(stockMaund.toFixed(2))} মণ]
                 </span>
               </div>
 
@@ -472,7 +536,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
                   className="w-full bg-white dark:bg-[#0b111e] border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-sm text-amber-800 dark:text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold font-mono"
                 />
                 <span className="text-[10px] text-slate-600 dark:text-slate-300 mt-1 block font-semibold">
-                  = {toBengaliNumber(quantityMon.toFixed(2))} মণ
+                  বিল মণ: {toBengaliNumber(billedMaund.toFixed(2))}
                 </span>
               </div>
             </div>
@@ -495,26 +559,45 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
               </span>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-900 dark:text-slate-100 mb-1">
-                বস্তার সংখ্যা (ঐচ্ছিক)
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder={`স্বয়ংক্রিয়: ~${toBengaliNumber(defaultBags)} বস্তা`}
-                value={bagsCountInput}
-                onChange={(e) => setBagsCountInput(toBengaliDigits(e.target.value))}
-                className="w-full bg-white dark:bg-[#0b111e] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono font-semibold"
-              />
-            </div>
+            {/* Jute Bag-Free Rule: Hide bag count input completely for Jute */}
+            {!isSelectedJute ? (
+              <div>
+                <label className="block text-xs font-bold text-slate-900 dark:text-slate-100 mb-1">
+                  বস্তার সংখ্যা (ঐচ্ছিক)
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder={`স্বয়ংক্রিয়: ~${toBengaliNumber(defaultBags)} বস্তা`}
+                  value={bagsCountInput}
+                  onChange={(e) => setBagsCountInput(toBengaliDigits(e.target.value))}
+                  className="w-full bg-white dark:bg-[#0b111e] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono font-semibold"
+                />
+              </div>
+            ) : (
+              <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2">
+                <span>🌿 পাট ১০০% ওজনভিত্তিক (বস্তা হিসাব প্রযোজ্য নয়)</span>
+              </div>
+            )}
 
-            {/* Total Amount Badge */}
-            <div className="p-3 bg-amber-50/80 dark:bg-slate-900 border border-amber-200 dark:border-slate-800 rounded-lg flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-900 dark:text-slate-200">মোট শস্যের মূল্য:</span>
-              <span className="text-base font-black text-amber-700 dark:text-amber-400 font-mono">
-                {formatTakaBn(totalAmount, true)}
-              </span>
+            {/* 41kg Purchase vs 40kg Stock Gain Live Preview Badge */}
+            <div className="p-3 bg-gradient-to-r from-amber-500/10 via-emerald-500/10 to-amber-500/10 dark:from-[#13281e] dark:to-[#0f2018] border border-amber-300 dark:border-amber-500/40 rounded-lg text-xs space-y-1.5">
+              <div className="flex items-center justify-between font-bold">
+                <span className="text-slate-800 dark:text-slate-200">মহাজন ক্রয় বিল ({toBengaliNumber(purchaseScaleKg)} কেজি স্কেল):</span>
+                <span className="text-amber-800 dark:text-amber-300 font-mono text-sm font-black">{formatTakaBn(totalAmount, true)}</span>
+              </div>
+              <div className="text-[11px] text-emerald-800 dark:text-emerald-300 font-bold flex items-center justify-between">
+                <span>গুদামে স্টক জমা (৪০ কেজি স্কেল):</span>
+                <span>{toBengaliNumber(stockMaundWhole)} মণ {stockKgRemaining > 0 ? `${toBengaliNumber(stockKgRemaining)} কেজি` : ''} ({toBengaliNumber(actualWeightKg)} কেজি)</span>
+              </div>
+              {extraWeightKg > 0 && (
+                <div className="text-[11px] text-amber-700 dark:text-amber-400 font-bold flex items-center justify-between border-t border-amber-300/30 dark:border-amber-500/20 pt-1">
+                  <span>অতিরিক্ত লাভজনক স্টক:</span>
+                  <span className="bg-emerald-500/20 text-emerald-900 dark:text-emerald-200 px-1.5 py-0.5 rounded">
+                    +{toBengaliNumber(extraMaundWhole)} মণ {extraKgRemaining > 0 ? `${toBengaliNumber(extraKgRemaining)} কেজি` : ''} (+{toBengaliNumber(extraWeightKg)} কেজি অতিরিক্ত স্টক)
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Payment Type */}
@@ -655,6 +738,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
                       const dt = p.purchase_date ? new Date(p.purchase_date) : new Date();
                       const timeStr = p.created_at ? new Date(p.created_at).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }) : '';
                       const dateStr = `${toBengaliNumber(dt.getDate())}/${toBengaliNumber(dt.getMonth() + 1)}`;
+                      const pIsJute = p.sector === 'jute' || (p.commodity_name && p.commodity_name.includes('পাট'));
 
                       return (
                         <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
@@ -682,7 +766,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
                               {toBengaliNumber(p.net_weight_mon)} মণ
                             </div>
                             <div className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold">
-                              ~{toBengaliNumber(p.bags_count)} বস্তা ({toBengaliNumber(p.net_weight_kg)} কেজি)
+                              {pIsJute ? '— (ওজনভিত্তিক)' : `~${toBengaliNumber(p.bags_count)} বস্তা`} ({toBengaliNumber(p.net_weight_kg)} কেজি)
                             </div>
                           </td>
                           <td className="py-3 px-3 text-right text-slate-900 dark:text-slate-200 font-mono font-bold">
@@ -945,7 +1029,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ initialMode }) => 
                     <td className="p-2 text-right border-r border-slate-300">
                       <div className="font-bold">{toBengaliNumber(printModalPurchase.net_weight_mon)} মণ</div>
                       <div className="text-[9px] text-slate-500">
-                        (~{toBengaliNumber(printModalPurchase.bags_count)} বস্তা / {toBengaliNumber(printModalPurchase.net_weight_kg)} কেজি)
+                        ({(printModalPurchase.sector === 'jute' || (printModalPurchase.commodity_name && printModalPurchase.commodity_name.includes('পাট'))) ? '— (ওজনভিত্তিক)' : `~${toBengaliNumber(printModalPurchase.bags_count)} বস্তা`} / {toBengaliNumber(printModalPurchase.net_weight_kg)} কেজি)
                       </div>
                     </td>
                     <td className="p-2 text-right border-r border-slate-300 font-mono">

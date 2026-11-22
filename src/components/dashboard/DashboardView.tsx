@@ -16,6 +16,7 @@ import { dbService } from '../../services/api';
 import { toBnDigits, formatTakaBn } from '../../utils/bengaliNumbers';
 import { totalKgToMonKg } from '../../utils/weightConverter';
 import { HeroWheatBanner } from './HeroWheatBanner';
+import { useSector } from '../../context/SectorContext';
 
 interface DashboardViewProps {
   onNavigate: (tab: string) => void;
@@ -28,6 +29,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenQuickPurchase,
   onOpenQuickSale,
 }) => {
+  const { activeSector, isJute } = useSector();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [commodities, setCommodities] = useState<Commodity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,10 +45,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     try {
       if (isManual) setIsRefreshing(true);
       const [st, comms, suppliers, purchases] = await Promise.all([
-        dbService.reports.getDashboardStats().catch(() => null),
-        dbService.commodities.getAll().catch(() => []),
-        dbService.parties.getAll('SUPPLIER').catch(() => []),
-        dbService.purchases.getAll().catch(() => []),
+        dbService.reports.getDashboardStats(activeSector).catch(() => null),
+        dbService.commodities.getAll(activeSector).catch(() => []),
+        dbService.parties.getAll('SUPPLIER', activeSector).catch(() => []),
+        dbService.purchases.getAll(100, activeSector).catch(() => []),
       ]);
       if (st) setStats(st);
       if (comms && comms.length > 0) {
@@ -55,27 +57,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         // Fallback default sample commodities matching image_18.png if DB empty
         setCommodities([
           {
-            id: '1',
+            id: 1,
             name_bn: 'সরিষা (মাঘি/টোরি)',
             name_en: 'Mustard',
+            sector: 'mustard',
             current_stock_kg: 4820,
             current_stock_bags: 60,
             current_wac_per_mon: 2989.63,
             current_wac_per_kg: 74.74,
           } as unknown as Commodity,
           {
-            id: '2',
+            id: 2,
             name_bn: 'পাট (তোষা)',
             name_en: 'Toshas Jute',
+            sector: 'jute',
             current_stock_kg: 0,
             current_stock_bags: 0,
             current_wac_per_mon: 0,
             current_wac_per_kg: 0,
           } as unknown as Commodity,
           {
-            id: '3',
+            id: 3,
             name_bn: 'ভুট্টা',
             name_en: 'Corn',
+            sector: 'maize',
             current_stock_kg: 0,
             current_stock_bags: 0,
             current_wac_per_mon: 0,
@@ -110,7 +115,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, []);
+  }, [activeSector]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -370,6 +375,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       const { mon, kg } = totalKgToMonKg(c.current_stock_kg || 0);
                       const isOutOfStock = (c.current_stock_kg || 0) <= 0;
                       const isAdequate = (c.current_stock_bags || 0) > 0 || (c.current_stock_kg || 0) > 0;
+                      const isJuteCrop = isJute(c);
 
                       return (
                         <tr key={c.id} className="hover:bg-[#D4AF37]/5 transition-colors text-[#FFF9F0]">
@@ -387,7 +393,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           </td>
                           <td className="py-3 px-3 text-center">
                             <span className="bg-[#0A261C] text-[#FFEFA6] border border-[#D4AF37]/30 px-2.5 py-0.5 rounded font-bold text-xs font-mono">
-                              {toBnDigits(c.current_stock_bags || 0)} বস্তা
+                              {isJuteCrop ? '— (ওজনভিত্তিক)' : `${toBnDigits(c.current_stock_bags || 0)} বস্তা`}
                             </span>
                           </td>
                           <td className="py-3 px-3 text-center font-bold text-slate-100 font-mono">

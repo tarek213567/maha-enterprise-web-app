@@ -15,6 +15,8 @@ import {
 import { Expense, ExpenseCategory } from '../../types';
 import { dbService } from '../../services/api';
 import { formatBanglaCurrency, formatDate, parseSmartNumber, toBengaliDigits } from '../../utils/bengaliNumbers';
+import { useSector } from '../../context/SectorContext';
+import { SectorType } from '../../../electron/types';
 
 const CATEGORIES: { key: ExpenseCategory; label: string; icon: any }[] = [
   { key: 'RENT', label: 'গুদাম ভাড়া', icon: Building },
@@ -29,6 +31,7 @@ const CATEGORIES: { key: ExpenseCategory; label: string; icon: any }[] = [
 ];
 
 export const ExpenseView: React.FC = () => {
+  const { activeSector } = useSector();
   const todayStr = new Date().toISOString().split('T')[0];
 
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -37,6 +40,7 @@ export const ExpenseView: React.FC = () => {
   // Form states
   const [expenseDate, setExpenseDate] = useState(todayStr);
   const [category, setCategory] = useState<ExpenseCategory>('FOOD_ENTERTAINMENT');
+  const [expenseSector, setExpenseSector] = useState<SectorType>('general');
   const [amount, setAmount] = useState('');
   const [paidTo, setPaidTo] = useState('');
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'BANK'>('CASH');
@@ -44,12 +48,16 @@ export const ExpenseView: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
+    setExpenseSector(activeSector !== 'all' ? activeSector : 'general');
+  }, [activeSector]);
+
+  useEffect(() => {
     loadExpenses();
-  }, []);
+  }, [activeSector]);
 
   const loadExpenses = async () => {
     try {
-      const data = await dbService.expenses.getAll(100);
+      const data = await dbService.expenses.getAll(200, activeSector);
       setExpenses(data);
     } catch (e) {
       console.error(e);
@@ -77,6 +85,7 @@ export const ExpenseView: React.FC = () => {
         paid_to: paidTo.trim() || 'প্রযোজ্য নয়',
         payment_mode: paymentMode,
         notes: notes.trim(),
+        sector: expenseSector || (activeSector !== 'all' ? activeSector : 'general'),
       });
 
       setIsModalOpen(false);
@@ -176,7 +185,14 @@ export const ExpenseView: React.FC = () => {
                     <tr key={e.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
                       <td className="py-2.5 px-3 font-medium text-slate-900 dark:text-slate-100">{formatDate(e.expense_date)}</td>
                       <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-slate-200">
-                        {catObj?.label || e.category}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span>{catObj?.label || e.category}</span>
+                          {e.sector && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-bold">
+                              {e.sector === 'jute' ? '🌿 পাট' : e.sector === 'maize' ? '🌽 ভুট্টা' : e.sector === 'mustard' ? '🌼 সরিষা' : '🏢 সাধারণ'}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300">{e.paid_to}</td>
                       <td className="py-2.5 px-3 text-right font-black text-rose-700 dark:text-rose-400">
@@ -229,6 +245,20 @@ export const ExpenseView: React.FC = () => {
                       {cat.label}
                     </option>
                   ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">সেক্টর নির্বাচন *</label>
+                <select
+                  value={expenseSector}
+                  onChange={(e) => setExpenseSector(e.target.value as SectorType)}
+                  className="w-full px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-900 dark:text-slate-100 font-bold"
+                >
+                  <option value="general">🏢 সাধারণ অফিস / শেয়ার্ড (General)</option>
+                  <option value="mustard">🌼 সরিষা (Mustard)</option>
+                  <option value="jute">🌿 পাট (Jute)</option>
+                  <option value="maize">🌽 ভুট্টা (Maize)</option>
                 </select>
               </div>
 

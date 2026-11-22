@@ -1,6 +1,8 @@
 export type PartyType = 'SUPPLIER' | 'BUYER' | 'BOTH';
 export type PaymentMethod = 'CASH' | 'BANK' | 'DUE' | 'PARTIAL';
 export type AdjustmentType = 'SHRINKAGE' | 'DAMAGE' | 'SPILLAGE' | 'AUDIT_CORRECTION';
+export type SectorType = 'jute' | 'maize' | 'mustard' | 'general';
+export type SectorFilter = 'all' | 'jute' | 'maize' | 'mustard';
 export type CashbookCategory =
   | 'SALE_CASH'
   | 'DUE_COLLECTION'
@@ -27,6 +29,7 @@ export interface Commodity {
   id: number;
   name_bn: string;
   name_en: string;
+  sector?: SectorType;
   default_bag_weight_kg: number;
   current_stock_kg: number;
   current_stock_bags: number;
@@ -47,6 +50,7 @@ export interface Party {
   phone?: string;
   address: string;
   party_type: PartyType;
+  sector?: SectorType;
   opening_balance: number; // positive = receivable from party, negative = payable to party
   current_balance: number;
   total_due?: number; // alias for current_balance (receivable due)
@@ -84,6 +88,11 @@ export interface Purchase {
   id: number;
   invoice_no: string;
   purchase_date: string;
+  sector?: SectorType;
+  purchase_scale_kg?: number;
+  billed_maund?: number;
+  actual_weight_kg?: number;
+  extra_weight_kg?: number;
   party_id: number;
   party_name?: string;
   party_phone?: string;
@@ -116,6 +125,7 @@ export interface Sale {
   id: number;
   invoice_no: string;
   sale_date: string;
+  sector?: SectorType;
   party_id: number;
   party_name?: string;
   party_phone?: string;
@@ -170,6 +180,7 @@ export interface StockAdjustment {
 export interface LedgerEntry {
   id: number;
   entry_date: string;
+  sector?: 'jute' | 'maize' | 'mustard';
   party_id: number;
   party_name?: string;
   transaction_type: 'PURCHASE' | 'SALE' | 'PAYMENT_RECEIVED' | 'PAYMENT_GIVEN' | 'ADJUSTMENT' | 'OPENING';
@@ -199,6 +210,7 @@ export interface RecycleBinItem {
 export interface CashbookEntry {
   id: number;
   entry_date: string;
+  sector?: SectorType;
   entry_type: 'INFLOW' | 'OUTFLOW';
   category: CashbookCategory;
   amount: number;
@@ -215,6 +227,7 @@ export interface CashbookEntry {
 export interface Expense {
   id: number;
   expense_date: string;
+  sector?: SectorType;
   category: ExpenseCategory;
   category_name_bn?: string;
   amount: number;

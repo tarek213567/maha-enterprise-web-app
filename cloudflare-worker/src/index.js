@@ -210,7 +210,7 @@ function extractIncomingPin(request, url) {
  * Resolves by partyId, exact phone, or exact name.
  * If not found, automatically creates the party record in D1 or in-memory store.
  */
-async function resolveOrCreateParty(db, partyId, partyName, partyPhone = '', partyType = 'SUPPLIER', isTest = 0) {
+async function resolveOrCreateParty(db, partyId, partyName, partyPhone = '', partyType = 'SUPPLIER', isTest = 0, sector = 'mustard') {
   const defaultName = partyType === 'SUPPLIER' ? 'সাধারণ বিক্রেতা' : 'সাধারণ খুচরা ক্রেতা';
   const cleanName = (partyName && String(partyName).trim()) ? String(partyName).trim() : defaultName;
   const cleanPhone = (partyPhone && String(partyPhone).trim()) ? String(partyPhone).trim() : '';
@@ -235,13 +235,14 @@ async function resolveOrCreateParty(db, partyId, partyName, partyPhone = '', par
 
     // 4. Auto-create new party record in D1
     const res = await db.prepare(`
-      INSERT INTO parties (name, phone, address, party_type, opening_balance, current_balance, notes, is_pinned, is_test_draft)
-      VALUES (?, ?, ?, ?, 0, 0, '', 0, ?)
+      INSERT INTO parties (name, phone, address, party_type, sector, opening_balance, current_balance, notes, is_pinned, is_test_draft)
+      VALUES (?, ?, ?, ?, ?, 0, 0, '', 0, ?)
     `).bind(
       cleanName,
       cleanPhone || '০১৭০০-০০০০০০',
       'চাচকৈড় বাজার, গুরুদাসপুর',
       partyType,
+      sector || 'mustard',
       isTest ? 1 : 0
     ).run().catch(() => null);
 
@@ -265,6 +266,7 @@ async function resolveOrCreateParty(db, partyId, partyName, partyPhone = '', par
       phone: cleanPhone || '০১৭০০-০০০০০০',
       address: 'চাচকৈড় বাজার, গুরুদাসপুর',
       party_type: partyType,
+      sector: sector || 'mustard',
       current_balance: 0,
       opening_balance: 0,
     };
@@ -283,6 +285,7 @@ async function resolveOrCreateParty(db, partyId, partyName, partyPhone = '', par
       phone: cleanPhone || '০১৭০০-০০০০০০',
       address: 'চাচকৈড় বাজার, গুরুদাসপুর',
       party_type: partyType,
+      sector: sector || 'mustard',
       opening_balance: 0,
       current_balance: 0,
       is_active: 1,
@@ -659,6 +662,38 @@ async function ensureD1Initialized(db) {
     await db.exec(`ALTER TABLE sales ADD COLUMN destination TEXT;`).catch(() => null);
     await db.exec(`ALTER TABLE party_ledger ADD COLUMN notes TEXT;`).catch(() => null);
 
+    // Multi-Sector Schema Migrations (Idempotent):
+    await db.exec(`ALTER TABLE commodities ADD COLUMN sector TEXT DEFAULT 'mustard';`).catch(() => null);
+    await db.exec(`ALTER TABLE parties ADD COLUMN sector TEXT DEFAULT 'mustard';`).catch(() => null);
+    await db.exec(`ALTER TABLE purchases ADD COLUMN sector TEXT DEFAULT 'mustard';`).catch(() => null);
+    await db.exec(`ALTER TABLE purchases ADD COLUMN purchase_scale_kg REAL DEFAULT 41.0;`).catch(() => null);
+    await db.exec(`ALTER TABLE purchases ADD COLUMN billed_maund REAL DEFAULT 0.0;`).catch(() => null);
+    await db.exec(`ALTER TABLE purchases ADD COLUMN actual_weight_kg REAL DEFAULT 0.0;`).catch(() => null);
+    await db.exec(`ALTER TABLE purchases ADD COLUMN extra_weight_kg REAL DEFAULT 0.0;`).catch(() => null);
+    await db.exec(`ALTER TABLE sales ADD COLUMN sector TEXT DEFAULT 'mustard';`).catch(() => null);
+    await db.exec(`ALTER TABLE party_ledger ADD COLUMN sector TEXT DEFAULT 'mustard';`).catch(() => null);
+    await db.exec(`ALTER TABLE cashbook ADD COLUMN sector TEXT DEFAULT 'mustard';`).catch(() => null);
+    await db.exec(`ALTER TABLE expenses ADD COLUMN sector TEXT DEFAULT 'general';`).catch(() => null);
+
+    // Smart Data Categorization for existing commodities:
+    await db.exec(`UPDATE commodities SET sector = 'jute' WHERE (name_bn LIKE '%পাট%' OR name_en LIKE '%jute%') AND (sector IS NULL OR sector = '' OR sector = 'mustard');`).catch(() => null);
+    await db.exec(`UPDATE commodities SET sector = 'maize' WHERE (name_bn LIKE '%ভুট্টা%' OR name_en LIKE '%maize%' OR name_en LIKE '%corn%') AND (sector IS NULL OR sector = '' OR sector = 'mustard');`).catch(() => null);
+    await db.exec(`UPDATE commodities SET sector = 'mustard' WHERE sector IS NULL OR sector = '';`).catch(() => null);
+
+    // Ensure preset varieties exist per sector:
+    await db.exec(`INSERT OR IGNORE INTO commodities (name_bn, name_en, sector, default_bag_weight_kg) VALUES ('তোষা পাট', 'Toshas Jute', 'jute', 0.0);`).catch(() => null);
+    await db.exec(`INSERT OR IGNORE INTO commodities (name_bn, name_en, sector, default_bag_weight_kg) VALUES ('মেস্তা পাট', 'Mesta Jute', 'jute', 0.0);`).catch(() => null);
+    await db.exec(`INSERT OR IGNORE INTO commodities (name_bn, name_en, sector, default_bag_weight_kg) VALUES ('দেশি/বগি পাট', 'Deshi/Bogi Jute', 'jute', 0.0);`).catch(() => null);
+    await db.exec(`INSERT OR IGNORE INTO commodities (name_bn, name_en, sector, default_bag_weight_kg) VALUES ('শুকনা ভুট্টা', 'Dry Maize', 'maize', 75.0);`).catch(() => null);
+    await db.exec(`INSERT OR IGNORE INTO commodities (name_bn, name_en, sector, default_bag_weight_kg) VALUES ('কাঁচা/ভিজা ভুট্টা', 'Wet Maize', 'maize', 75.0);`).catch(() => null);
+    await db.exec(`INSERT OR IGNORE INTO commodities (name_bn, name_en, sector, default_bag_weight_kg) VALUES ('মাঘী সরিষা', 'Maghi Mustard', 'mustard', 80.0);`).catch(() => null);
+    await db.exec(`INSERT OR IGNORE INTO commodities (name_bn, name_en, sector, default_bag_weight_kg) VALUES ('টোরি-৭ সরিষা', 'Tori-7 Mustard', 'mustard', 80.0);`).catch(() => null);
+    await db.exec(`INSERT OR IGNORE INTO commodities (name_bn, name_en, sector, default_bag_weight_kg) VALUES ('রাই সরিষা', 'Rai Mustard', 'mustard', 80.0);`).catch(() => null);
+
+    // Sync purchases and sales sectors from commodities:
+    await db.exec(`UPDATE purchases SET sector = (SELECT sector FROM commodities WHERE commodities.id = purchases.commodity_id) WHERE sector IS NULL OR sector = '' OR sector = 'mustard';`).catch(() => null);
+    await db.exec(`UPDATE sales SET sector = (SELECT sector FROM commodities WHERE commodities.id = sales.commodity_id) WHERE sector IS NULL OR sector = '' OR sector = 'mustard';`).catch(() => null);
+
     // Auto-purge recycle bin entries older than 60 days
     await db.exec(`DELETE FROM recycle_bin WHERE expires_at < CURRENT_TIMESTAMP;`).catch(() => null);
 
@@ -786,26 +821,36 @@ export default {
         // --- COMMODITIES & CROPS ---
         if (url.pathname === '/api/commodities' || url.pathname === '/api/stock' || url.pathname === '/api/crops') {
           if (request.method === 'GET') {
+            const sectorParam = url.searchParams.get('sector');
             if (db) {
+              if (sectorParam && sectorParam !== 'all') {
+                const { results } = await db.prepare('SELECT * FROM commodities WHERE is_active = 1 AND sector = ? ORDER BY id ASC').bind(sectorParam).all();
+                return sendJson(results);
+              }
               const { results } = await db.prepare('SELECT * FROM commodities WHERE is_active = 1 ORDER BY id ASC').all();
               return sendJson(results);
             }
-            return sendJson(inMemoryStore.commodities.filter(c => c.is_active === 1));
+            let list = inMemoryStore.commodities.filter(c => c.is_active === 1);
+            if (sectorParam && sectorParam !== 'all') {
+              list = list.filter(c => c.sector === sectorParam);
+            }
+            return sendJson(list);
           }
           if (request.method === 'POST') {
             const body = await request.json();
+            const sector = body.sector || 'mustard';
             if (db) {
               const res = await db.prepare(`
-                INSERT INTO commodities (name_bn, name_en, default_bag_weight_kg, current_stock_kg, current_stock_bags, current_wac_per_kg, current_wac_per_mon, notes)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO commodities (name_bn, name_en, sector, default_bag_weight_kg, current_stock_kg, current_stock_bags, current_wac_per_kg, current_wac_per_mon, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
               `).bind(
-                body.name_bn, body.name_en || body.name_bn, body.default_bag_weight_kg || 75.0,
+                body.name_bn, body.name_en || body.name_bn, sector, body.default_bag_weight_kg || 75.0,
                 0, 0, 0, 0, body.notes || ''
               ).run();
               const newRecord = await db.prepare('SELECT * FROM commodities WHERE id = ?').bind(res.meta.last_row_id).first();
               return sendJson(newRecord, 201);
             }
-            const newCom = { id: inMemoryStore.commodities.length + 1, ...body, current_stock_kg: 0, current_stock_bags: 0, current_wac_per_kg: 0, current_wac_per_mon: 0, is_active: 1 };
+            const newCom = { id: inMemoryStore.commodities.length + 1, ...body, sector, current_stock_kg: 0, current_stock_bags: 0, current_wac_per_kg: 0, current_wac_per_mon: 0, is_active: 1 };
             inMemoryStore.commodities.push(newCom);
             return sendJson(newCom, 201);
           }
@@ -821,11 +866,12 @@ export default {
                 UPDATE commodities SET
                   name_bn = COALESCE(?, name_bn),
                   name_en = COALESCE(?, name_en),
+                  sector = COALESCE(?, sector),
                   default_bag_weight_kg = COALESCE(?, default_bag_weight_kg),
                   notes = COALESCE(?, notes),
                   updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-              `).bind(body.name_bn, body.name_en, body.default_bag_weight_kg, body.notes, id).run();
+              `).bind(body.name_bn, body.name_en, body.sector !== undefined ? body.sector : null, body.default_bag_weight_kg, body.notes, id).run();
               const updated = await db.prepare('SELECT * FROM commodities WHERE id = ?').bind(id).first();
               return sendJson(updated);
             }
@@ -880,6 +926,7 @@ export default {
         if (url.pathname === '/api/parties' || url.pathname === '/api/dues') {
           if (request.method === 'GET') {
             const rawType = (url.searchParams.get('type') || '').toUpperCase();
+            const sectorParam = url.searchParams.get('sector');
             if (db) {
               let sql = 'SELECT * FROM parties WHERE is_active = 1';
               const params = [];
@@ -891,6 +938,10 @@ export default {
                 sql += ' AND (party_type = ? OR party_type = "BOTH")';
                 params.push(rawType);
               }
+              if (sectorParam && sectorParam !== 'all') {
+                sql += ' AND (sector = ? OR sector IS NULL)';
+                params.push(sectorParam);
+              }
               sql += ' ORDER BY is_pinned DESC, updated_at DESC';
               const { results } = await db.prepare(sql).bind(...params).all();
               return sendJson(results);
@@ -899,23 +950,27 @@ export default {
             if (rawType === 'BUYER' || rawType === 'CUSTOMER') list = list.filter(p => p.party_type === 'BUYER' || p.party_type === 'CUSTOMER' || p.party_type === 'BOTH');
             else if (rawType === 'SUPPLIER' || rawType === 'CREDITOR') list = list.filter(p => p.party_type === 'SUPPLIER' || p.party_type === 'CREDITOR' || p.party_type === 'BOTH');
             else if (rawType && rawType !== 'BOTH') list = list.filter(p => p.party_type === rawType || p.party_type === 'BOTH');
+            if (sectorParam && sectorParam !== 'all') {
+              list = list.filter(p => !p.sector || p.sector === sectorParam);
+            }
             return sendJson(list);
           }
           if (request.method === 'POST') {
             const body = await request.json();
             const openBal = roundMoney(body.opening_balance || 0);
+            const sector = body.sector || 'mustard';
             if (db) {
               const res = await db.prepare(`
-                INSERT INTO parties (name, phone, address, party_type, opening_balance, current_balance, notes, is_pinned)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO parties (name, phone, address, party_type, sector, opening_balance, current_balance, notes, is_pinned)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
               `).bind(
                 body.name, body.phone || '', body.address || 'চাচকৈড় বাজার, গুরুদাসপুর',
-                body.party_type || 'BOTH', openBal, openBal, body.notes || '', body.is_pinned ? 1 : 0
+                body.party_type || 'BOTH', sector, openBal, openBal, body.notes || '', body.is_pinned ? 1 : 0
               ).run();
               const newParty = await db.prepare('SELECT * FROM parties WHERE id = ?').bind(res.meta.last_row_id).first();
               return sendJson(newParty, 201);
             }
-            const newP = { id: inMemoryStore.parties.length + 1, ...body, opening_balance: openBal, current_balance: openBal, is_active: 1 };
+            const newP = { id: inMemoryStore.parties.length + 1, ...body, sector, opening_balance: openBal, current_balance: openBal, is_active: 1 };
             inMemoryStore.parties.push(newP);
             return sendJson(newP, 201);
           }
@@ -1062,6 +1117,7 @@ export default {
                   phone = COALESCE(?, phone),
                   address = COALESCE(?, address),
                   party_type = COALESCE(?, party_type),
+                  sector = COALESCE(?, sector),
                   notes = COALESCE(?, notes),
                   is_pinned = COALESCE(?, is_pinned),
                   updated_at = CURRENT_TIMESTAMP
@@ -1071,6 +1127,7 @@ export default {
                 body.phone !== undefined ? body.phone : null,
                 body.address !== undefined ? body.address : null,
                 body.party_type !== undefined ? body.party_type : null,
+                body.sector !== undefined ? body.sector : null,
                 body.notes !== undefined ? body.notes : null,
                 body.is_pinned !== undefined ? (body.is_pinned ? 1 : 0) : null,
                 id
@@ -1273,30 +1330,63 @@ export default {
         if (url.pathname === '/api/purchases') {
           if (request.method === 'GET') {
             const limit = parseInt(url.searchParams.get('limit') || '100', 10);
+            const sectorParam = url.searchParams.get('sector');
             if (db) {
-              const { results } = await db.prepare(`
+              let sql = `
                 SELECT p.*, pt.name as party_name, pt.phone as party_phone, pt.address as party_address,
-                       c.name_bn as commodity_name
+                       c.name_bn as commodity_name, c.sector as comm_sector
                 FROM purchases p
                 JOIN parties pt ON p.party_id = pt.id
                 JOIN commodities c ON p.commodity_id = c.id
-                ORDER BY p.id DESC
-                LIMIT ?
-              `).bind(limit).all();
+              `;
+              const params = [];
+              if (sectorParam && sectorParam !== 'all') {
+                sql += ' WHERE (p.sector = ? OR (p.sector IS NULL AND c.sector = ?))';
+                params.push(sectorParam, sectorParam);
+              }
+              sql += ' ORDER BY p.id DESC LIMIT ?';
+              params.push(limit);
+              const { results } = await db.prepare(sql).bind(...params).all();
               return sendJson(results);
             }
-            return sendJson(inMemoryStore.purchases);
+            let list = inMemoryStore.purchases;
+            if (sectorParam && sectorParam !== 'all') {
+              list = list.filter(p => !p.sector || p.sector === sectorParam);
+            }
+            return sendJson(list);
           }
 
           if (request.method === 'POST') {
             const body = await request.json();
             const isTest = body.is_test_draft ? 1 : 0;
-            const grossKg = roundWeight(body.gross_weight_kg);
+            const purchaseScaleKg = Number(body.purchase_scale_kg) > 0 ? Number(body.purchase_scale_kg) : 41.0;
+            const grossKg = roundWeight(body.gross_weight_kg || 0);
             const bagDedKg = roundWeight(body.bag_deduction_kg || 0);
-            const netKg = roundWeight(Math.max(0, grossKg - bagDedKg));
-            const netMon = roundWeight(netKg / 40.0);
+
+            let billedMaund = Number(body.billed_maund) || 0;
+            let actualWeightKg = Number(body.actual_weight_kg) || 0;
+
+            if (billedMaund > 0 && actualWeightKg <= 0) {
+              actualWeightKg = roundWeight(billedMaund * purchaseScaleKg);
+            } else if (actualWeightKg > 0 && billedMaund <= 0) {
+              billedMaund = roundWeight(actualWeightKg / purchaseScaleKg);
+            } else if (grossKg > 0) {
+              actualWeightKg = roundWeight(Math.max(0, grossKg - bagDedKg));
+              billedMaund = roundWeight(actualWeightKg / purchaseScaleKg);
+            } else if (body.net_weight_kg) {
+              actualWeightKg = roundWeight(Number(body.net_weight_kg));
+              billedMaund = roundWeight(actualWeightKg / purchaseScaleKg);
+            } else if (body.net_weight_mon) {
+              billedMaund = roundWeight(Number(body.net_weight_mon));
+              actualWeightKg = roundWeight(billedMaund * purchaseScaleKg);
+            }
+
+            const extraWeightKg = roundWeight(Math.max(0, actualWeightKg - (billedMaund * 40.0)));
             const rateMon = roundMoney(body.rate_per_mon);
-            const grossAmount = roundMoney((netKg / 40.0) * rateMon);
+            const grossAmount = roundMoney(billedMaund * rateMon);
+
+            const netKg = actualWeightKg;
+            const netMon = roundWeight(actualWeightKg / 40.0);
 
             const labor = roundMoney(body.labor_cost || 0);
             const transport = roundMoney(body.transport_cost || 0);
@@ -1323,9 +1413,13 @@ export default {
               const commodity = await db.prepare('SELECT * FROM commodities WHERE id = ?').bind(body.commodity_id).first();
               if (!commodity) return sendJson({ success: false, error: 'শস্য পাওয়া যায়নি' }, 404);
 
+              const isJute = commodity.sector === 'jute' || (commodity.name_bn && commodity.name_bn.includes('পাট'));
+              const bagsCount = isJute ? 0 : Math.max(0, Number(body.bags_count) || 0);
+              const purchaseSector = body.sector || commodity.sector || (isJute ? 'jute' : 'mustard');
+
               const sellerName = (body.supplier_name || body.seller_name || body.party_name || '').trim();
               const sellerPhone = (body.supplier_phone || body.seller_phone || body.phone || '').trim();
-              const party = await resolveOrCreateParty(db, body.party_id, sellerName, sellerPhone, 'SUPPLIER', isTest);
+              const party = await resolveOrCreateParty(db, body.party_id, sellerName, sellerPhone, 'SUPPLIER', isTest, purchaseSector);
               const partyId = party.id;
 
               const oldStockKg = roundWeight(commodity.current_stock_kg);
@@ -1336,22 +1430,24 @@ export default {
               }
               const newWacPerMon = roundMoney(newWacPerKg * 40.0);
               const newStockKg = addWeight(oldStockKg, netKg);
-              const newStockBags = commodity.current_stock_bags + (body.bags_count || 0);
+              const newStockBags = isJute ? commodity.current_stock_bags : (commodity.current_stock_bags + bagsCount);
 
               const newPartyBal = addMoney(party.current_balance, subMoney(paidAmount, grossAmount));
 
               const batchStmts = [
                 db.prepare(`
                   INSERT INTO purchases (
-                    invoice_no, purchase_date, party_id, commodity_id, bags_count,
-                    gross_weight_kg, bag_deduction_kg, net_weight_kg, net_weight_mon,
+                    invoice_no, purchase_date, party_id, commodity_id, sector,
+                    purchase_scale_kg, billed_maund, actual_weight_kg, extra_weight_kg,
+                    bags_count, gross_weight_kg, bag_deduction_kg, net_weight_kg, net_weight_mon,
                     rate_per_mon, gross_amount, labor_cost, transport_cost, bag_cost, other_cost,
                     total_landed_cost, cost_per_mon, cost_per_kg, payment_method,
                     paid_amount, due_amount, previous_wac_per_kg, new_wac_per_kg, is_test_draft, notes
-                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `).bind(
-                  invoiceNo, body.purchase_date, partyId, body.commodity_id, body.bags_count || 0,
-                  grossKg, bagDedKg, netKg, netMon,
+                  invoiceNo, body.purchase_date, partyId, body.commodity_id, purchaseSector,
+                  purchaseScaleKg, billedMaund, actualWeightKg, extraWeightKg,
+                  bagsCount, grossKg, bagDedKg, netKg, netMon,
                   rateMon, grossAmount, labor, transport, bag, other,
                   totalLandedCost, costPerMon, costPerKg, payMethod,
                   paidAmount, dueAmount, oldWacPerKg, newWacPerKg, isTest, body.notes || ''
@@ -1363,34 +1459,34 @@ export default {
                 `).bind(newStockKg, newStockBags, newWacPerKg, newWacPerMon, body.commodity_id),
                 db.prepare('UPDATE parties SET current_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(newPartyBal, partyId),
                 db.prepare(`
-                  INSERT INTO party_ledger (entry_date, party_id, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
-                  VALUES (?, ?, 'PURCHASE', ?, 0, ?, ?, ?, ?)
+                  INSERT INTO party_ledger (entry_date, party_id, sector, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
+                  VALUES (?, ?, ?, 'PURCHASE', ?, 0, ?, ?, ?, ?)
                 `).bind(
-                  body.purchase_date, partyId, invoiceNo,
+                  body.purchase_date, partyId, purchaseSector, invoiceNo,
                   grossAmount, subMoney(party.current_balance, grossAmount), isTest,
-                  `ক্রয়: ${commodity.name_bn} (${netMon.toFixed(2)} মন / ${body.bags_count} বস্তা @ ৳${rateMon}/মন)`
+                  `ক্রয়: ${commodity.name_bn} (${billedMaund.toFixed(2)} মণ [${purchaseScaleKg} কেজি স্কেল] / ${isJute ? 'ওজনভিত্তিক' : `${bagsCount} বস্তা`} @ ৳${rateMon}/মণ)`
                 )
               ];
 
               if (paidAmount > 0) {
                 batchStmts.push(
                   db.prepare(`
-                    INSERT INTO party_ledger (entry_date, party_id, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
-                    VALUES (?, ?, 'PAYMENT_GIVEN', ?, ?, 0, ?, ?, ?)
-                  `).bind(body.purchase_date, partyId, invoiceNo, paidAmount, newPartyBal, isTest, `নগদ পরিশোধ (ক্রয় বিল: ${invoiceNo})`),
+                    INSERT INTO party_ledger (entry_date, party_id, sector, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
+                    VALUES (?, ?, ?, 'PAYMENT_GIVEN', ?, ?, 0, ?, ?, ?)
+                  `).bind(body.purchase_date, partyId, purchaseSector, invoiceNo, paidAmount, newPartyBal, isTest, `নগদ পরিশোধ (ক্রয় বিল: ${invoiceNo})`),
                   db.prepare(`
-                    INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, reference_no, party_id, is_test_draft, description)
-                    VALUES (?, 'OUTFLOW', 'PURCHASE_CASH', ?, ?, ?, ?, ?, ?)
-                  `).bind(body.purchase_date, paidAmount, payMethod === 'BANK' ? 'BANK' : 'CASH', invoiceNo, partyId, isTest, `শস্য ক্রয়ে পরিশোধ: ${party.name} (${commodity.name_bn})`)
+                    INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, reference_no, party_id, sector, is_test_draft, description)
+                    VALUES (?, 'OUTFLOW', 'PURCHASE_CASH', ?, ?, ?, ?, ?, ?, ?)
+                  `).bind(body.purchase_date, paidAmount, payMethod === 'BANK' ? 'BANK' : 'CASH', invoiceNo, partyId, purchaseSector, isTest, `শস্য ক্রয়ে পরিশোধ: ${party.name} (${commodity.name_bn})`)
                 );
               }
 
               if (directExp > 0) {
                 batchStmts.push(
                   db.prepare(`
-                    INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, reference_no, party_id, is_test_draft, description)
-                    VALUES (?, 'OUTFLOW', 'EXPENSE', ?, 'CASH', ?, ?, ?, ?)
-                  `).bind(body.purchase_date, directExp, invoiceNo, partyId, isTest, `ক্রয় আনুষঙ্গিক খরচ (চালান: ${invoiceNo})`)
+                    INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, reference_no, party_id, sector, is_test_draft, description)
+                    VALUES (?, 'OUTFLOW', 'EXPENSE', ?, 'CASH', ?, ?, ?, ?, ?)
+                  `).bind(body.purchase_date, directExp, invoiceNo, partyId, purchaseSector, isTest, `ক্রয় আনুষঙ্গিক খরচ (চালান: ${invoiceNo})`)
                 );
               }
 
@@ -1407,7 +1503,7 @@ export default {
 
             const sellerName = (body.supplier_name || body.seller_name || body.party_name || '').trim();
             const sellerPhone = (body.supplier_phone || body.seller_phone || body.phone || '').trim();
-            const party = await resolveOrCreateParty(null, body.party_id, sellerName, sellerPhone, 'SUPPLIER', isTest);
+            const party = await resolveOrCreateParty(null, body.party_id, sellerName, sellerPhone, 'SUPPLIER', isTest, body.sector || 'mustard');
             const mockPurchase = {
               id: Date.now(),
               invoice_no: invoiceNo,
@@ -1415,6 +1511,10 @@ export default {
               party_id: party.id,
               party_name: party.name,
               party_phone: party.phone,
+              purchase_scale_kg: purchaseScaleKg,
+              billed_maund: billedMaund,
+              actual_weight_kg: actualWeightKg,
+              extra_weight_kg: extraWeightKg,
               net_weight_kg: netKg,
               net_weight_mon: netMon,
               gross_amount: grossAmount,
@@ -1543,19 +1643,30 @@ export default {
         if (url.pathname === '/api/sales') {
           if (request.method === 'GET') {
             const limit = parseInt(url.searchParams.get('limit') || '100', 10);
+            const sectorParam = url.searchParams.get('sector');
             if (db) {
-              const { results } = await db.prepare(`
+              let sql = `
                 SELECT s.*, pt.name as party_name, pt.phone as party_phone, pt.address as party_address,
-                       c.name_bn as commodity_name
+                       c.name_bn as commodity_name, c.sector as comm_sector
                 FROM sales s
                 JOIN parties pt ON s.party_id = pt.id
                 JOIN commodities c ON s.commodity_id = c.id
-                ORDER BY s.id DESC
-                LIMIT ?
-              `).bind(limit).all();
+              `;
+              const params = [];
+              if (sectorParam && sectorParam !== 'all') {
+                sql += ' WHERE (s.sector = ? OR (s.sector IS NULL AND c.sector = ?))';
+                params.push(sectorParam, sectorParam);
+              }
+              sql += ' ORDER BY s.id DESC LIMIT ?';
+              params.push(limit);
+              const { results } = await db.prepare(sql).bind(...params).all();
               return sendJson(results);
             }
-            return sendJson(inMemoryStore.sales);
+            let list = inMemoryStore.sales;
+            if (sectorParam && sectorParam !== 'all') {
+              list = list.filter(s => !s.sector || s.sector === sectorParam);
+            }
+            return sendJson(list);
           }
 
           if (request.method === 'POST') {
@@ -1589,9 +1700,12 @@ export default {
                 return sendJson({ success: false, error: `গুদামে পর্যাপ্ত মজুত নেই! বর্তমান মজুত: ${(commodity.current_stock_kg / 40).toFixed(2)} মণ` }, 400);
               }
 
+              const isJute = commodity.sector === 'jute' || (commodity.name_bn && commodity.name_bn.includes('পাট'));
+              const saleSector = body.sector || commodity.sector || (isJute ? 'jute' : 'mustard');
+
               const customerName = (body.customer_name || body.buyer_name || body.party_name || '').trim();
               const customerPhone = (body.customer_phone || body.buyer_phone || body.phone || '').trim();
-              const party = await resolveOrCreateParty(db, body.party_id, customerName, customerPhone, 'BUYER', isTest);
+              const party = await resolveOrCreateParty(db, body.party_id, customerName, customerPhone, 'BUYER', isTest, saleSector);
               const partyId = party.id;
 
               // Exact 5-Step Formula
@@ -1609,9 +1723,9 @@ export default {
               const cogs = roundMoney(netKg * commodity.current_wac_per_kg);
               const profit = subMoney(netInvoiceAmount, cogs);
 
-              const bagsCount = Math.max(0, Number(body.bags_count) || 0);
+              const bagsCount = isJute ? 0 : Math.max(0, Number(body.bags_count) || 0);
               const remainingStockKg = roundWeight(subWeight(commodity.current_stock_kg, netKg));
-              const remainingBags = bagsCount > 0 ? Math.max(0, commodity.current_stock_bags - bagsCount) : commodity.current_stock_bags;
+              const remainingBags = isJute ? commodity.current_stock_bags : (bagsCount > 0 ? Math.max(0, commodity.current_stock_bags - bagsCount) : commodity.current_stock_bags);
               const newPartyBal = remainingDue;
 
               const truckNo = (body.truck_no || body.vehicle_no || '').trim();
@@ -1622,7 +1736,7 @@ export default {
               const batchStmts = [
                 db.prepare(`
                   INSERT INTO sales (
-                    invoice_no, sale_date, party_id, commodity_id, bags_count,
+                    invoice_no, sale_date, party_id, commodity_id, sector, bags_count,
                     gross_weight_kg, bag_deduction_kg, net_weight_kg, net_weight_mon,
                     rate_per_mon, gross_amount, loading_charge, damaged_bag_deduction, discount_amount,
                     net_invoice_amount, payment_method, paid_amount, due_amount,
@@ -1630,9 +1744,9 @@ export default {
                     truck_no, transport_info,
                     cogs_amount, realized_profit, is_test_draft, notes,
                     previous_due, remaining_due
-                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `).bind(
-                  invoiceNo, body.sale_date, partyId, body.commodity_id, bagsCount,
+                  invoiceNo, body.sale_date, partyId, body.commodity_id, saleSector, bagsCount,
                   grossKg, bagDedKg, netKg, netMon,
                   rateMon, grossAmount, loading, damage, discount,
                   netInvoiceAmount, payMethod, paidAmount, remainingDue,
@@ -1646,25 +1760,25 @@ export default {
                 `).bind(remainingStockKg, remainingBags, body.commodity_id),
                 db.prepare('UPDATE parties SET current_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(newPartyBal, partyId),
                 db.prepare(`
-                  INSERT INTO party_ledger (entry_date, party_id, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
-                  VALUES (?, ?, 'SALE', ?, ?, 0, ?, ?, ?)
+                  INSERT INTO party_ledger (entry_date, party_id, sector, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
+                  VALUES (?, ?, ?, 'SALE', ?, ?, 0, ?, ?, ?)
                 `).bind(
-                  body.sale_date, partyId, invoiceNo,
+                  body.sale_date, partyId, saleSector, invoiceNo,
                   todayBill, addMoney(prevDue, todayBill), isTest,
-                  `বিক্রয়: ${commodity.name_bn} (${netMon.toFixed(2)} মন / ${bagsCount > 0 ? `${bagsCount} বস্তা` : 'খোলা/লুজ'} @ ৳${rateMon}/মন)`
+                  `বিক্রয়: ${commodity.name_bn} (${netMon.toFixed(2)} মন / ${isJute ? 'ওজনভিত্তিক' : (bagsCount > 0 ? `${bagsCount} বস্তা` : 'খোলা/লুজ')} @ ৳${rateMon}/মন)`
                 )
               ];
 
               if (paidAmount > 0) {
                 batchStmts.push(
                   db.prepare(`
-                    INSERT INTO party_ledger (entry_date, party_id, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
-                    VALUES (?, ?, 'PAYMENT_RECEIVED', ?, 0, ?, ?, ?, ?)
-                  `).bind(body.sale_date, partyId, invoiceNo, paidAmount, newPartyBal, isTest, `নগদ আদায় (বিক্রয় চালান: ${invoiceNo})`),
+                    INSERT INTO party_ledger (entry_date, party_id, sector, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
+                    VALUES (?, ?, ?, 'PAYMENT_RECEIVED', ?, 0, ?, ?, ?, ?)
+                  `).bind(body.sale_date, partyId, saleSector, invoiceNo, paidAmount, newPartyBal, isTest, `নগদ আদায় (বিক্রয় চালান: ${invoiceNo})`),
                   db.prepare(`
-                    INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, reference_no, party_id, is_test_draft, description)
-                    VALUES (?, 'INFLOW', 'SALE_CASH', ?, ?, ?, ?, ?, ?)
-                  `).bind(body.sale_date, paidAmount, payMethod === 'BANK' ? 'BANK' : 'CASH', invoiceNo, partyId, isTest, `বিক্রয় নগদ আদায়: ${party.name} (${commodity.name_bn})`)
+                    INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, reference_no, party_id, sector, is_test_draft, description)
+                    VALUES (?, 'INFLOW', 'SALE_CASH', ?, ?, ?, ?, ?, ?, ?)
+                  `).bind(body.sale_date, paidAmount, payMethod === 'BANK' ? 'BANK' : 'CASH', invoiceNo, partyId, saleSector, isTest, `বিক্রয় নগদ আদায়: ${party.name} (${commodity.name_bn})`)
                 );
               }
 
@@ -1773,7 +1887,10 @@ export default {
               const commodity = await db.prepare('SELECT * FROM commodities WHERE id = ?').bind(item.commodity_id).first();
               if (!commodity) return sendJson({ success: false, error: `শস্যের আইডি ${item.commodity_id} পাওয়া যায়নি` }, 404);
 
-              const bagsCount = Math.max(0, Number(item.bags_count) || 0);
+              const isJute = commodity.sector === 'jute' || (commodity.name_bn && commodity.name_bn.includes('পাট'));
+              const bagsCount = isJute ? 0 : Math.max(0, Number(item.bags_count) || 0);
+              const itemSector = item.sector || commodity.sector || (isJute ? 'jute' : 'mustard');
+
               let netMon = item.net_weight_mon
                 ? Number(item.net_weight_mon)
                 : (bagsCount > 0
@@ -1801,6 +1918,8 @@ export default {
               itemsProcessed.push({
                 item,
                 commodity,
+                isJute,
+                itemSector,
                 bagsCount,
                 netMon,
                 netKg,
@@ -1832,6 +1951,7 @@ export default {
 
             const batchStmts = [];
             const itemSummaries = [];
+            const primarySector = itemsProcessed[0]?.itemSector || body.sector || 'mustard';
 
             for (let idx = 0; idx < itemsProcessed.length; idx++) {
               const p = itemsProcessed[idx];
@@ -1842,7 +1962,7 @@ export default {
               batchStmts.push(
                 db.prepare(`
                   INSERT INTO sales (
-                    invoice_no, sale_date, party_id, commodity_id, bags_count,
+                    invoice_no, sale_date, party_id, commodity_id, sector, bags_count,
                     gross_weight_kg, bag_deduction_kg, net_weight_kg, net_weight_mon,
                     rate_per_mon, gross_amount, loading_charge, damaged_bag_deduction, discount_amount,
                     net_invoice_amount, payment_method, paid_amount, due_amount,
@@ -1850,9 +1970,9 @@ export default {
                     truck_no, transport_info,
                     cogs_amount, realized_profit, is_test_draft, notes,
                     previous_due, remaining_due
-                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `).bind(
-                  p.itemInvoiceNo, body.sale_date, partyId, p.item.commodity_id, p.bagsCount,
+                  p.itemInvoiceNo, body.sale_date, partyId, p.item.commodity_id, p.itemSector, p.bagsCount,
                   p.grossKg, p.bagDedKg, p.netKg, p.netMon,
                   p.rateMon, p.itemTotal,
                   p.itemTotal, payMethod, itemPaid, itemRemainingDue,
@@ -1867,12 +1987,12 @@ export default {
                   WHERE id = ?
                 `).bind(
                   roundWeight(subWeight(p.commodity.current_stock_kg, p.netKg)),
-                  p.bagsCount > 0 ? Math.max(0, p.commodity.current_stock_bags - p.bagsCount) : p.commodity.current_stock_bags,
+                  p.isJute ? p.commodity.current_stock_bags : (p.bagsCount > 0 ? Math.max(0, p.commodity.current_stock_bags - p.bagsCount) : p.commodity.current_stock_bags),
                   p.item.commodity_id
                 )
               );
 
-              const bagDesc = p.bagsCount > 0 ? `${p.bagsCount} বস্তা, ` : 'খোলা/লুজ, ';
+              const bagDesc = p.isJute ? 'ওজনভিত্তিক, ' : (p.bagsCount > 0 ? `${p.bagsCount} বস্তা, ` : 'খোলা/লুজ, ');
               itemSummaries.push(`${p.commodity.name_bn} (${bagDesc}${p.netMon.toFixed(1)} মণ @ ৳${p.rateMon})`);
             }
 
@@ -1881,10 +2001,10 @@ export default {
             batchStmts.push(
               db.prepare('UPDATE parties SET current_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(newPartyBal, partyId),
               db.prepare(`
-                INSERT INTO party_ledger (entry_date, party_id, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
-                VALUES (?, ?, 'SALE', ?, ?, 0, ?, ?, ?)
+                INSERT INTO party_ledger (entry_date, party_id, sector, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
+                VALUES (?, ?, ?, 'SALE', ?, ?, 0, ?, ?, ?)
               `).bind(
-                body.sale_date, partyId, baseInvoiceNo,
+                body.sale_date, partyId, primarySector, baseInvoiceNo,
                 grandTotalBill, addMoney(prevDue, grandTotalBill), isTest,
                 `পাইকারি বিক্রয় চালান: ${itemSummaries.join(', ')}`
               )
@@ -1893,19 +2013,19 @@ export default {
             if (totalPaid > 0) {
               batchStmts.push(
                 db.prepare(`
-                  INSERT INTO party_ledger (entry_date, party_id, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
-                  VALUES (?, ?, 'PAYMENT_RECEIVED', ?, 0, ?, ?, ?, ?)
+                  INSERT INTO party_ledger (entry_date, party_id, sector, transaction_type, reference_no, debit, credit, running_balance, is_test_draft, description)
+                  VALUES (?, ?, ?, 'PAYMENT_RECEIVED', ?, 0, ?, ?, ?, ?)
                 `).bind(
-                  body.sale_date, partyId, baseInvoiceNo,
+                  body.sale_date, partyId, primarySector, baseInvoiceNo,
                   totalPaid, newPartyBal, isTest,
                   `নগদ আদায় (চালান নং: ${baseInvoiceNo})`
                 ),
                 db.prepare(`
-                  INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, reference_no, party_id, is_test_draft, description)
-                  VALUES (?, 'INFLOW', 'SALE_CASH', ?, ?, ?, ?, ?, ?)
+                  INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, reference_no, party_id, sector, is_test_draft, description)
+                  VALUES (?, 'INFLOW', 'SALE_CASH', ?, ?, ?, ?, ?, ?, ?)
                 `).bind(
                   body.sale_date, totalPaid, payMethod === 'BANK' ? 'BANK' : 'CASH',
-                  baseInvoiceNo, partyId, isTest,
+                  baseInvoiceNo, partyId, primarySector, isTest,
                   `চালান নগদ আদায়: ${party.name} (${baseInvoiceNo})`
                 )
               );
@@ -2362,35 +2482,53 @@ export default {
         // --- CASHBOOK ---
         if (url.pathname === '/api/cashbook') {
           const date = url.searchParams.get('date') || new Date().toISOString().split('T')[0];
+          const sectorParam = url.searchParams.get('sector');
+          const isSectorScoped = Boolean(sectorParam && sectorParam !== 'all');
+
           if (request.method === 'GET') {
             if (db) {
-              const { results: entries } = await db.prepare('SELECT c.*, p.name as party_name FROM cashbook c LEFT JOIN parties p ON c.party_id = p.id WHERE c.entry_date = ? ORDER BY c.id ASC').bind(date).all();
+              const entriesSql = isSectorScoped
+                ? 'SELECT c.*, p.name as party_name FROM cashbook c LEFT JOIN parties p ON c.party_id = p.id WHERE c.entry_date = ? AND (c.sector = ? OR c.sector = "general" OR c.sector IS NULL) ORDER BY c.id ASC'
+                : 'SELECT c.*, p.name as party_name FROM cashbook c LEFT JOIN parties p ON c.party_id = p.id WHERE c.entry_date = ? ORDER BY c.id ASC';
+              const entriesStmt = isSectorScoped
+                ? db.prepare(entriesSql).bind(date, sectorParam)
+                : db.prepare(entriesSql).bind(date);
+              const { results: entries } = await entriesStmt.all();
 
               // Check for date-specific opening override first
               let opening = null;
-              try {
-                const override = await db.prepare('SELECT opening_balance FROM cashbook_overrides WHERE entry_date = ?').bind(date).first();
-                if (override && override.opening_balance !== null && override.opening_balance !== undefined) {
-                  opening = Number(override.opening_balance);
-                }
-              } catch (e) {}
-
-              if (opening === null) {
+              if (!isSectorScoped) {
                 try {
-                  const settingVal = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(`cashbook_opening_${date}`).first();
-                  if (settingVal && settingVal.value !== null && settingVal.value !== undefined) {
-                    opening = Number(settingVal.value);
+                  const override = await db.prepare('SELECT opening_balance FROM cashbook_overrides WHERE entry_date = ?').bind(date).first();
+                  if (override && override.opening_balance !== null && override.opening_balance !== undefined) {
+                    opening = Number(override.opening_balance);
                   }
                 } catch (e) {}
+
+                if (opening === null) {
+                  try {
+                    const settingVal = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(`cashbook_opening_${date}`).first();
+                    if (settingVal && settingVal.value !== null && settingVal.value !== undefined) {
+                      opening = Number(settingVal.value);
+                    }
+                  } catch (e) {}
+                }
               }
 
               if (opening === null) {
-                const prior = await db.prepare(`
-                  SELECT
-                    COALESCE(SUM(CASE WHEN entry_type = 'INFLOW' THEN amount ELSE 0 END), 0) as inf,
-                    COALESCE(SUM(CASE WHEN entry_type = 'OUTFLOW' THEN amount ELSE 0 END), 0) as outf
-                  FROM cashbook WHERE entry_date < ?
-                `).bind(date).first();
+                const priorSql = isSectorScoped
+                  ? `SELECT
+                      COALESCE(SUM(CASE WHEN entry_type = 'INFLOW' THEN amount ELSE 0 END), 0) as inf,
+                      COALESCE(SUM(CASE WHEN entry_type = 'OUTFLOW' THEN amount ELSE 0 END), 0) as outf
+                    FROM cashbook WHERE entry_date < ? AND (sector = ? OR sector = "general" OR sector IS NULL)`
+                  : `SELECT
+                      COALESCE(SUM(CASE WHEN entry_type = 'INFLOW' THEN amount ELSE 0 END), 0) as inf,
+                      COALESCE(SUM(CASE WHEN entry_type = 'OUTFLOW' THEN amount ELSE 0 END), 0) as outf
+                    FROM cashbook WHERE entry_date < ?`;
+                const priorStmt = isSectorScoped
+                  ? db.prepare(priorSql).bind(date, sectorParam)
+                  : db.prepare(priorSql).bind(date);
+                const prior = await priorStmt.first();
                 opening = subMoney(prior.inf, prior.outf);
               }
 
@@ -2416,19 +2554,20 @@ export default {
           if (request.method === 'POST') {
             const body = await request.json();
             const isTest = body.is_test_draft ? 1 : 0;
+            const sector = body.sector || 'mustard';
             if (db) {
               const res = await db.prepare(`
-                INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, reference_no, party_id, is_test_draft, description)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, reference_no, party_id, sector, is_test_draft, description)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               `).bind(
                 body.entry_date || date, body.entry_type, body.category || 'GENERAL',
                 roundMoney(body.amount), body.payment_mode || 'CASH', body.reference_no || '',
-                body.party_id || null, isTest, body.description || ''
+                body.party_id || null, sector, isTest, body.description || ''
               ).run();
               const created = await db.prepare('SELECT * FROM cashbook WHERE id = ?').bind(res.meta.last_row_id).first();
               return sendJson(created, 201);
             }
-            return sendJson({ id: Date.now(), ...body }, 201);
+            return sendJson({ id: Date.now(), ...body, sector }, 201);
           }
         }
 
@@ -2593,32 +2732,44 @@ export default {
 
         // --- EXPENSES ---
         if (url.pathname === '/api/expenses') {
+          const sectorParam = url.searchParams.get('sector');
+          const isSectorScoped = Boolean(sectorParam && sectorParam !== 'all');
+
           if (request.method === 'GET') {
             if (db) {
-              const { results } = await db.prepare('SELECT * FROM expenses ORDER BY id DESC LIMIT 100').all();
+              const expSql = isSectorScoped
+                ? 'SELECT * FROM expenses WHERE (sector = ? OR sector = "general" OR sector IS NULL) ORDER BY id DESC LIMIT 100'
+                : 'SELECT * FROM expenses ORDER BY id DESC LIMIT 100';
+              const expStmt = isSectorScoped ? db.prepare(expSql).bind(sectorParam) : db.prepare(expSql);
+              const { results } = await expStmt.all();
               return sendJson(results);
             }
-            return sendJson(inMemoryStore.expenses);
+            let list = inMemoryStore.expenses;
+            if (isSectorScoped) {
+              list = list.filter(e => !e.sector || e.sector === sectorParam || e.sector === 'general');
+            }
+            return sendJson(list);
           }
           if (request.method === 'POST') {
             const body = await request.json();
             const amt = roundMoney(body.amount);
             const isTest = body.is_test_draft ? 1 : 0;
             const expDate = body.expense_date || new Date().toISOString().split('T')[0];
+            const sector = body.sector || 'general';
 
             if (db) {
               const batchStmts = [
                 db.prepare(`
-                  INSERT INTO expenses (expense_date, category, amount, paid_to, payment_mode, is_test_draft, notes)
-                  VALUES (?, ?, ?, ?, ?, ?, ?)
-                `).bind(expDate, body.category || 'MISC', amt, body.paid_to || 'অন্যান্য', body.payment_mode || 'CASH', isTest, body.notes || '')
+                  INSERT INTO expenses (expense_date, category, amount, paid_to, payment_mode, sector, is_test_draft, notes)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                `).bind(expDate, body.category || 'MISC', amt, body.paid_to || 'অন্যান্য', body.payment_mode || 'CASH', sector, isTest, body.notes || '')
               ];
               if (body.payment_mode !== 'BANK') {
                 batchStmts.push(
                   db.prepare(`
-                    INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, is_test_draft, description)
-                    VALUES (?, 'OUTFLOW', 'EXPENSE', ?, 'CASH', ?, ?)
-                  `).bind(expDate, amt, isTest, `পরিচালন খরচ: ${body.category} (${body.paid_to || ''})`)
+                    INSERT INTO cashbook (entry_date, entry_type, category, amount, payment_mode, sector, is_test_draft, description)
+                    VALUES (?, 'OUTFLOW', 'EXPENSE', ?, 'CASH', ?, ?, ?)
+                  `).bind(expDate, amt, sector, isTest, `পরিচালন খরচ: ${body.category} (${body.paid_to || ''})`)
                 );
               }
               await db.batch(batchStmts);
@@ -3055,7 +3206,9 @@ export default {
 
         // --- REPORTS & DASHBOARD (POWERED BY SINGLE-SOURCE-OF-TRUTH BST LEDGER) ---
         if (url.pathname === '/api/reports/stats') {
-          const ledger = await computeVerifiedBusinessLedger(db, inMemoryStore);
+          const sectorParam = url.searchParams.get('sector');
+          const isSectorScoped = Boolean(sectorParam && sectorParam !== 'all');
+          const ledger = await computeVerifiedBusinessLedger(db, inMemoryStore, sectorParam);
           const today = ledger.bstDate;
           const monthStart = `${today.slice(0, 7)}-01`;
 
@@ -3065,11 +3218,25 @@ export default {
           let monthlyRev = 0;
 
           if (db) {
-            const monthlySales = await db.prepare("SELECT COALESCE(SUM(net_invoice_amount), 0) as rev, COALESCE(SUM(realized_profit), 0) as gp FROM sales WHERE sale_date >= ? AND sale_date <= ? AND COALESCE(is_test_draft, 0) = 0").bind(monthStart, today).first().catch(() => ({ rev: 0, gp: 0 }));
+            const mSalesSql = isSectorScoped
+              ? "SELECT COALESCE(SUM(net_invoice_amount), 0) as rev, COALESCE(SUM(realized_profit), 0) as gp FROM sales WHERE sale_date >= ? AND sale_date <= ? AND (sector = ? OR sector IS NULL) AND COALESCE(is_test_draft, 0) = 0"
+              : "SELECT COALESCE(SUM(net_invoice_amount), 0) as rev, COALESCE(SUM(realized_profit), 0) as gp FROM sales WHERE sale_date >= ? AND sale_date <= ? AND COALESCE(is_test_draft, 0) = 0";
+            const mSalesStmt = isSectorScoped
+              ? db.prepare(mSalesSql).bind(monthStart, today, sectorParam)
+              : db.prepare(mSalesSql).bind(monthStart, today);
+            const monthlySales = await mSalesStmt.first().catch(() => ({ rev: 0, gp: 0 }));
             monthlyRev = monthlySales?.rev || 0;
             monthlyGp = monthlySales?.gp || 0;
-            const expRow = await db.prepare("SELECT COALESCE(SUM(amount), 0) as s FROM expenses WHERE expense_date >= ? AND expense_date <= ? AND COALESCE(is_test_draft, 0) = 0").bind(monthStart, today).first().catch(() => ({ s: 0 }));
+
+            const mExpSql = isSectorScoped
+              ? "SELECT COALESCE(SUM(amount), 0) as s FROM expenses WHERE expense_date >= ? AND expense_date <= ? AND (sector = ? OR sector = 'general' OR sector IS NULL) AND COALESCE(is_test_draft, 0) = 0"
+              : "SELECT COALESCE(SUM(amount), 0) as s FROM expenses WHERE expense_date >= ? AND expense_date <= ? AND COALESCE(is_test_draft, 0) = 0";
+            const mExpStmt = isSectorScoped
+              ? db.prepare(mExpSql).bind(monthStart, today, sectorParam)
+              : db.prepare(mExpSql).bind(monthStart, today);
+            const expRow = await mExpStmt.first().catch(() => ({ s: 0 }));
             monthlyExp = expRow?.s || 0;
+
             const shrinkRow = await db.prepare("SELECT COALESCE(SUM(cost_value), 0) as s FROM stock_adjustments WHERE adjustment_date >= ? AND adjustment_date <= ? AND COALESCE(is_test_draft, 0) = 0").bind(monthStart, today).first().catch(() => ({ s: 0 }));
             monthlyShrinkage = shrinkRow?.s || 0;
           }
@@ -3096,25 +3263,40 @@ export default {
             monthly_gross_profit: roundMoney(monthlyGp),
             monthly_net_profit: netProfit,
             bst_date: today,
+            sector: sectorParam || 'all',
           });
         }
 
         if (url.pathname === '/api/reports/pnl') {
           const startDate = url.searchParams.get('startDate') || new Date().toISOString().split('T')[0];
           const endDate = url.searchParams.get('endDate') || startDate;
+          const sectorParam = url.searchParams.get('sector');
+          const isSectorScoped = Boolean(sectorParam && sectorParam !== 'all');
 
           if (db) {
-            const salesData = await db.prepare(`
-              SELECT
-                COALESCE(SUM(gross_amount), 0) as total_gross_sales,
-                COALESCE(SUM(loading_charge), 0) as total_loading,
-                COALESCE(SUM(damaged_bag_deduction), 0) as total_deduction,
-                COALESCE(SUM(discount_amount), 0) as total_discount,
-                COALESCE(SUM(net_invoice_amount), 0) as total_net_revenue,
-                COALESCE(SUM(cogs_amount), 0) as total_cogs,
-                COALESCE(SUM(realized_profit), 0) as gross_profit
-              FROM sales WHERE sale_date >= ? AND sale_date <= ?
-            `).bind(startDate, endDate).first();
+            const salesSql = isSectorScoped
+              ? `SELECT
+                  COALESCE(SUM(gross_amount), 0) as total_gross_sales,
+                  COALESCE(SUM(loading_charge), 0) as total_loading,
+                  COALESCE(SUM(damaged_bag_deduction), 0) as total_deduction,
+                  COALESCE(SUM(discount_amount), 0) as total_discount,
+                  COALESCE(SUM(net_invoice_amount), 0) as total_net_revenue,
+                  COALESCE(SUM(cogs_amount), 0) as total_cogs,
+                  COALESCE(SUM(realized_profit), 0) as gross_profit
+                FROM sales WHERE sale_date >= ? AND sale_date <= ? AND (sector = ? OR sector IS NULL)`
+              : `SELECT
+                  COALESCE(SUM(gross_amount), 0) as total_gross_sales,
+                  COALESCE(SUM(loading_charge), 0) as total_loading,
+                  COALESCE(SUM(damaged_bag_deduction), 0) as total_deduction,
+                  COALESCE(SUM(discount_amount), 0) as total_discount,
+                  COALESCE(SUM(net_invoice_amount), 0) as total_net_revenue,
+                  COALESCE(SUM(cogs_amount), 0) as total_cogs,
+                  COALESCE(SUM(realized_profit), 0) as gross_profit
+                FROM sales WHERE sale_date >= ? AND sale_date <= ?`;
+            const salesStmt = isSectorScoped
+              ? db.prepare(salesSql).bind(startDate, endDate, sectorParam)
+              : db.prepare(salesSql).bind(startDate, endDate);
+            const salesData = await salesStmt.first();
 
             const shrinkageData = await db.prepare(`
               SELECT
@@ -3124,11 +3306,17 @@ export default {
               FROM stock_adjustments WHERE adjustment_date >= ? AND adjustment_date <= ?
             `).bind(startDate, endDate).first();
 
-            const { results: expenses } = await db.prepare(`
-              SELECT category, SUM(amount) as total_amount
-              FROM expenses WHERE expense_date >= ? AND expense_date <= ?
-              GROUP BY category
-            `).bind(startDate, endDate).all();
+            const expSql = isSectorScoped
+              ? `SELECT category, SUM(amount) as total_amount
+                 FROM expenses WHERE expense_date >= ? AND expense_date <= ? AND (sector = ? OR sector = 'general' OR sector IS NULL)
+                 GROUP BY category`
+              : `SELECT category, SUM(amount) as total_amount
+                 FROM expenses WHERE expense_date >= ? AND expense_date <= ?
+                 GROUP BY category`;
+            const expStmt = isSectorScoped
+              ? db.prepare(expSql).bind(startDate, endDate, sectorParam)
+              : db.prepare(expSql).bind(startDate, endDate);
+            const { results: expenses } = await expStmt.all();
 
             const totalOperatingExpenses = roundMoney(expenses.reduce((s, e) => s + e.total_amount, 0));
             const netProfit = roundMoney(salesData.gross_profit - shrinkageData.shrinkage_cost - totalOperatingExpenses);
@@ -3136,6 +3324,7 @@ export default {
             return sendJson({
               startDate,
               endDate,
+              sector: sectorParam || 'all',
               sales: salesData,
               shrinkage: shrinkageData,
               expenses,

@@ -1,6 +1,6 @@
 /**
  * মাহা এন্টারপ্রাইজ (Maha Enterprise v1.5.0 PRO)
- * Single-Source-of-Truth BST Accounting Engine
+ * Single-Source-of-Truth BST Accounting Engine with Multi-Sector Support (পাট, ভুট্টা, সরিষা)
  * Strict Asia/Dhaka (+06:00) normalization, active-record filtering, and 100% full-table sums (Zero LIMIT).
  */
 
@@ -59,22 +59,29 @@ export function isSameBstDate(rawValue, targetBstYmd) {
 }
 
 /**
- * Deterministic computeVerifiedBusinessLedger(db, inMemoryFallback)
+ * Deterministic computeVerifiedBusinessLedger(db, inMemoryFallback, sector)
  * Single Source of Truth for Dashboard, Ai Manezar, Parity Audit and Telegram Reports.
+ * Supports optional sector scoping ('jute' | 'maize' | 'mustard' | 'general' | 'all').
  */
-export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
+export async function computeVerifiedBusinessLedger(db, inMemoryStore = null, sector = null) {
   const bstDate = getBstDateString();
   const bstTimestamp = new Date().toISOString();
+  const isSectorScoped = Boolean(sector && sector !== 'all');
 
   // 1. D1 Database Mode
   if (db) {
     // 1.1 Warehouse Stock (Full-table scan across active commodities)
-    const { results: rawComms } = await db.prepare(`
-      SELECT id, name_bn, name_en, default_bag_weight_kg, current_stock_kg, current_stock_bags, current_wac_per_kg, current_wac_per_mon
-      FROM commodities
-      WHERE is_active = 1
-      ORDER BY id ASC
-    `).all().catch(() => ({ results: [] }));
+    const commSql = isSectorScoped
+      ? `SELECT id, name_bn, name_en, sector, default_bag_weight_kg, current_stock_kg, current_stock_bags, current_wac_per_kg, current_wac_per_mon
+         FROM commodities
+         WHERE is_active = 1 AND sector = ?
+         ORDER BY id ASC`
+      : `SELECT id, name_bn, name_en, sector, default_bag_weight_kg, current_stock_kg, current_stock_bags, current_wac_per_kg, current_wac_per_mon
+         FROM commodities
+         WHERE is_active = 1
+         ORDER BY id ASC`;
+    const commStmt = isSectorScoped ? db.prepare(commSql).bind(sector) : db.prepare(commSql);
+    const { results: rawComms } = await commStmt.all().catch(() => ({ results: [] }));
 
     let totalBags = 0;
     let totalWeightKg = 0;
@@ -82,7 +89,8 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
 
     const varieties = (rawComms || []).map((c) => {
       const kg = Number(c.current_stock_kg) || 0;
-      const bags = Number(c.current_stock_bags) || 0;
+      const isJute = c.sector === 'jute' || (c.name_bn && c.name_bn.includes('পাট'));
+      const bags = isJute ? 0 : (Number(c.current_stock_bags) || 0);
       const wacKg = Number(c.current_wac_per_kg) || 0;
       const wacMon = Number(c.current_wac_per_mon) || (wacKg * 40.0);
       const maund = roundWeight(kg / 40.0);
@@ -103,7 +111,10 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
         id: c.id,
         name: c.name_bn,
         name_en: c.name_en,
+        sector: c.sector || (isJute ? 'jute' : 'mustard'),
+        isJute,
         bags,
+        bagsDisplay: isJute ? '— (ওজনভিত্তিক)' : `${bags} বস্তা`,
         weightKg: roundWeight(kg),
         maund,
         avgRatePerMon: roundMoney(wacMon),
@@ -123,12 +134,17 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
 
     // 1.2 Customer Dues (বাকি খাতা) & Supplier Payables (মহাজন দেনা)
     // 100% full-table query without LIMIT before summing
-    const { results: allParties } = await db.prepare(`
-      SELECT id, name, phone, address, party_type, opening_balance, current_balance, is_pinned
-      FROM parties
-      WHERE is_active = 1 AND COALESCE(is_test_draft, 0) = 0
-      ORDER BY is_pinned DESC, ABS(current_balance) DESC, id ASC
-    `).all().catch(() => ({ results: [] }));
+    const partySql = isSectorScoped
+      ? `SELECT id, name, phone, address, party_type, sector, opening_balance, current_balance, is_pinned
+         FROM parties
+         WHERE is_active = 1 AND COALESCE(is_test_draft, 0) = 0 AND (sector = ? OR sector IS NULL)
+         ORDER BY is_pinned DESC, ABS(current_balance) DESC, id ASC`
+      : `SELECT id, name, phone, address, party_type, sector, opening_balance, current_balance, is_pinned
+         FROM parties
+         WHERE is_active = 1 AND COALESCE(is_test_draft, 0) = 0
+         ORDER BY is_pinned DESC, ABS(current_balance) DESC, id ASC`;
+    const partyStmt = isSectorScoped ? db.prepare(partySql).bind(sector) : db.prepare(partySql);
+    const { results: allParties } = await partyStmt.all().catch(() => ({ results: [] }));
 
     let totalReceivable = 0;
     let activeCustomerCount = 0;
@@ -156,13 +172,13 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
             d: roundMoney(bal),
             p: p.phone || '',
             a: p.address || '',
+            sector: p.sector || 'mustard',
           });
         }
       }
 
       if (isSupplier) {
         activeSupplierCount++;
-        // Negative balance indicates shop owes supplier money
         const payable = bal < 0 ? Math.abs(bal) : (p.party_type === 'SUPPLIER' && bal === 0 && Number(p.opening_balance || 0) < 0 ? Math.abs(Number(p.opening_balance)) : 0);
         if (payable > 0) {
           suppliersWithPayableCount++;
@@ -173,6 +189,7 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
             d: roundMoney(payable),
             p: p.phone || '',
             a: p.address || '',
+            sector: p.sector || 'mustard',
           });
         }
       }
@@ -195,15 +212,26 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
     };
 
     // 1.3 Today's Sales (F3)
-    const { results: rawSales } = await db.prepare(`
-      SELECT s.*, p.name as party_name, c.name_bn as commodity_name
-      FROM sales s
-      LEFT JOIN parties p ON s.party_id = p.id
-      LEFT JOIN commodities c ON s.commodity_id = c.id
-      WHERE COALESCE(s.is_test_draft, 0) = 0
-        AND (s.sale_date = ? OR s.sale_date LIKE ?)
-      ORDER BY s.id DESC
-    `).bind(bstDate, `${bstDate}%`).all().catch(() => ({ results: [] }));
+    const salesSql = isSectorScoped
+      ? `SELECT s.*, p.name as party_name, c.name_bn as commodity_name, c.sector as comm_sector
+         FROM sales s
+         LEFT JOIN parties p ON s.party_id = p.id
+         LEFT JOIN commodities c ON s.commodity_id = c.id
+         WHERE COALESCE(s.is_test_draft, 0) = 0
+           AND (s.sale_date = ? OR s.sale_date LIKE ?)
+           AND (s.sector = ? OR (s.sector IS NULL AND c.sector = ?))
+         ORDER BY s.id DESC`
+      : `SELECT s.*, p.name as party_name, c.name_bn as commodity_name, c.sector as comm_sector
+         FROM sales s
+         LEFT JOIN parties p ON s.party_id = p.id
+         LEFT JOIN commodities c ON s.commodity_id = c.id
+         WHERE COALESCE(s.is_test_draft, 0) = 0
+           AND (s.sale_date = ? OR s.sale_date LIKE ?)
+         ORDER BY s.id DESC`;
+    const salesStmt = isSectorScoped
+      ? db.prepare(salesSql).bind(bstDate, `${bstDate}%`, sector, sector)
+      : db.prepare(salesSql).bind(bstDate, `${bstDate}%`);
+    const { results: rawSales } = await salesStmt.all().catch(() => ({ results: [] }));
 
     let saleTotal = 0;
     let saleCash = 0;
@@ -215,7 +243,8 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
       const netAmt = Number(s.net_invoice_amount || s.gross_amount || 0);
       const paid = Number(s.paid_amount || 0);
       const due = Number(s.due_amount || 0);
-      const bags = Number(s.bags_count || 0);
+      const isJute = s.sector === 'jute' || (s.commodity_name && s.commodity_name.includes('পাট'));
+      const bags = isJute ? 0 : Number(s.bags_count || 0);
       const kg = Number(s.net_weight_kg || 0);
 
       saleTotal += netAmt;
@@ -229,7 +258,10 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
         invoiceNo: s.invoice_no,
         partyName: s.party_name || 'সাধারণ খুচরা ক্রেতা',
         commodityName: s.commodity_name || '',
+        sector: s.sector || (isJute ? 'jute' : 'mustard'),
+        isJute,
         bags,
+        bagsDisplay: isJute ? '— (ওজনভিত্তিক)' : `${bags} বস্তা`,
         weightMon: roundWeight(s.net_weight_mon || (kg / 40.0)),
         weightKg: roundWeight(kg),
         ratePerMon: roundMoney(s.rate_per_mon || 0),
@@ -237,6 +269,10 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
         paidAmount: roundMoney(paid),
         dueAmount: roundMoney(due),
         paymentMethod: s.payment_method || 'CASH',
+        truckNo: s.truck_no || s.vehicle_no || '',
+        driverName: s.driver_name || '',
+        driverPhone: s.driver_phone || '',
+        transportInfo: s.transport_info || s.destination || '',
       };
     });
 
@@ -252,15 +288,26 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
     };
 
     // 1.4 Today's Purchases (F2)
-    const { results: rawPurchases } = await db.prepare(`
-      SELECT pr.*, p.name as party_name, c.name_bn as commodity_name
-      FROM purchases pr
-      LEFT JOIN parties p ON pr.party_id = p.id
-      LEFT JOIN commodities c ON pr.commodity_id = c.id
-      WHERE COALESCE(pr.is_test_draft, 0) = 0
-        AND (pr.purchase_date = ? OR pr.purchase_date LIKE ?)
-      ORDER BY pr.id DESC
-    `).bind(bstDate, `${bstDate}%`).all().catch(() => ({ results: [] }));
+    const purSql = isSectorScoped
+      ? `SELECT pr.*, p.name as party_name, c.name_bn as commodity_name, c.sector as comm_sector
+         FROM purchases pr
+         LEFT JOIN parties p ON pr.party_id = p.id
+         LEFT JOIN commodities c ON pr.commodity_id = c.id
+         WHERE COALESCE(pr.is_test_draft, 0) = 0
+           AND (pr.purchase_date = ? OR pr.purchase_date LIKE ?)
+           AND (pr.sector = ? OR (pr.sector IS NULL AND c.sector = ?))
+         ORDER BY pr.id DESC`
+      : `SELECT pr.*, p.name as party_name, c.name_bn as commodity_name, c.sector as comm_sector
+         FROM purchases pr
+         LEFT JOIN parties p ON pr.party_id = p.id
+         LEFT JOIN commodities c ON pr.commodity_id = c.id
+         WHERE COALESCE(pr.is_test_draft, 0) = 0
+           AND (pr.purchase_date = ? OR pr.purchase_date LIKE ?)
+         ORDER BY pr.id DESC`;
+    const purStmt = isSectorScoped
+      ? db.prepare(purSql).bind(bstDate, `${bstDate}%`, sector, sector)
+      : db.prepare(purSql).bind(bstDate, `${bstDate}%`);
+    const { results: rawPurchases } = await purStmt.all().catch(() => ({ results: [] }));
 
     let purTotal = 0;
     let purPaid = 0;
@@ -272,8 +319,9 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
       const landed = Number(pr.total_landed_cost || pr.gross_amount || 0);
       const paid = Number(pr.paid_amount || 0);
       const due = Number(pr.due_amount || 0);
-      const bags = Number(pr.bags_count || 0);
-      const kg = Number(pr.net_weight_kg || 0);
+      const isJute = pr.sector === 'jute' || (pr.commodity_name && pr.commodity_name.includes('পাট'));
+      const bags = isJute ? 0 : Number(pr.bags_count || 0);
+      const kg = Number(pr.net_weight_kg || pr.actual_weight_kg || 0);
 
       purTotal += landed;
       purPaid += paid;
@@ -286,7 +334,14 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
         invoiceNo: pr.invoice_no,
         partyName: pr.party_name || 'সাধারণ বিক্রেতা',
         commodityName: pr.commodity_name || '',
+        sector: pr.sector || (isJute ? 'jute' : 'mustard'),
+        isJute,
         bags,
+        bagsDisplay: isJute ? '— (ওজনভিত্তিক)' : `${bags} বস্তা`,
+        purchaseScaleKg: Number(pr.purchase_scale_kg || 41.0),
+        billedMaund: roundWeight(Number(pr.billed_maund || 0)),
+        actualWeightKg: roundWeight(kg),
+        extraWeightKg: roundWeight(Number(pr.extra_weight_kg || 0)),
         weightMon: roundWeight(pr.net_weight_mon || (kg / 40.0)),
         weightKg: roundWeight(kg),
         ratePerMon: roundMoney(pr.rate_per_mon || 0),
@@ -309,12 +364,20 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
     };
 
     // 1.5 Today's Expenses (পরিচালন খরচ)
-    const { results: rawExpenses } = await db.prepare(`
-      SELECT * FROM expenses
-      WHERE COALESCE(is_test_draft, 0) = 0
-        AND (expense_date = ? OR expense_date LIKE ?)
-      ORDER BY id DESC
-    `).bind(bstDate, `${bstDate}%`).all().catch(() => ({ results: [] }));
+    const expSql = isSectorScoped
+      ? `SELECT * FROM expenses
+         WHERE COALESCE(is_test_draft, 0) = 0
+           AND (expense_date = ? OR expense_date LIKE ?)
+           AND (sector = ? OR sector = 'general' OR sector IS NULL)
+         ORDER BY id DESC`
+      : `SELECT * FROM expenses
+         WHERE COALESCE(is_test_draft, 0) = 0
+           AND (expense_date = ? OR expense_date LIKE ?)
+         ORDER BY id DESC`;
+    const expStmt = isSectorScoped
+      ? db.prepare(expSql).bind(bstDate, `${bstDate}%`, sector)
+      : db.prepare(expSql).bind(bstDate, `${bstDate}%`);
+    const { results: rawExpenses } = await expStmt.all().catch(() => ({ results: [] }));
 
     let expTotal = 0;
     const formattedExpenses = (rawExpenses || []).map((e) => {
@@ -326,6 +389,7 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
         amount: roundMoney(amt),
         paidTo: e.paid_to || '',
         paymentMode: e.payment_mode || 'CASH',
+        sector: e.sector || 'general',
         notes: e.notes || '',
       };
     });
@@ -339,43 +403,59 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
     // 1.6 Daily Cash Book (F4)
     let openingBalance = null;
 
-    // Check cashbook_overrides
-    try {
-      const override = await db.prepare('SELECT opening_balance FROM cashbook_overrides WHERE entry_date = ?').bind(bstDate).first();
-      if (override && override.opening_balance !== null && override.opening_balance !== undefined) {
-        openingBalance = Number(override.opening_balance);
-      }
-    } catch (_) {}
-
-    // Check settings fallback
-    if (openingBalance === null) {
+    if (!isSectorScoped) {
+      // Check cashbook_overrides
       try {
-        const s = await db.prepare("SELECT value FROM settings WHERE key = ?").bind(`cashbook_opening_${bstDate}`).first();
-        if (s && s.value !== null && s.value !== undefined) {
-          openingBalance = Number(s.value);
+        const override = await db.prepare('SELECT opening_balance FROM cashbook_overrides WHERE entry_date = ?').bind(bstDate).first();
+        if (override && override.opening_balance !== null && override.opening_balance !== undefined) {
+          openingBalance = Number(override.opening_balance);
         }
       } catch (_) {}
+
+      // Check settings fallback
+      if (openingBalance === null) {
+        try {
+          const s = await db.prepare("SELECT value FROM settings WHERE key = ?").bind(`cashbook_opening_${bstDate}`).first();
+          if (s && s.value !== null && s.value !== undefined) {
+            openingBalance = Number(s.value);
+          }
+        } catch (_) {}
+      }
     }
 
     // Compute from prior entries if no manual override
     if (openingBalance === null) {
-      const prior = await db.prepare(`
-        SELECT
-          COALESCE(SUM(CASE WHEN entry_type = 'INFLOW' THEN amount ELSE 0 END), 0) as inf,
-          COALESCE(SUM(CASE WHEN entry_type = 'OUTFLOW' THEN amount ELSE 0 END), 0) as outf
-        FROM cashbook
-        WHERE entry_date < ? AND COALESCE(is_test_draft, 0) = 0
-      `).bind(bstDate).first().catch(() => ({ inf: 0, outf: 0 }));
+      const priorSql = isSectorScoped
+        ? `SELECT
+             COALESCE(SUM(CASE WHEN entry_type = 'INFLOW' THEN amount ELSE 0 END), 0) as inf,
+             COALESCE(SUM(CASE WHEN entry_type = 'OUTFLOW' THEN amount ELSE 0 END), 0) as outf
+           FROM cashbook
+           WHERE entry_date < ? AND COALESCE(is_test_draft, 0) = 0
+             AND (sector = ? OR sector = 'general' OR sector IS NULL)`
+        : `SELECT
+             COALESCE(SUM(CASE WHEN entry_type = 'INFLOW' THEN amount ELSE 0 END), 0) as inf,
+             COALESCE(SUM(CASE WHEN entry_type = 'OUTFLOW' THEN amount ELSE 0 END), 0) as outf
+           FROM cashbook
+           WHERE entry_date < ? AND COALESCE(is_test_draft, 0) = 0`;
+      const priorStmt = isSectorScoped ? db.prepare(priorSql).bind(bstDate, sector) : db.prepare(priorSql).bind(bstDate);
+      const prior = await priorStmt.first().catch(() => ({ inf: 0, outf: 0 }));
       openingBalance = roundMoney((prior?.inf || 0) - (prior?.outf || 0));
     }
 
-    const todayCashbook = await db.prepare(`
-      SELECT
-        COALESCE(SUM(CASE WHEN entry_type = 'INFLOW' THEN amount ELSE 0 END), 0) as today_in,
-        COALESCE(SUM(CASE WHEN entry_type = 'OUTFLOW' THEN amount ELSE 0 END), 0) as today_out
-      FROM cashbook
-      WHERE entry_date = ? AND COALESCE(is_test_draft, 0) = 0
-    `).bind(bstDate).first().catch(() => ({ today_in: 0, today_out: 0 }));
+    const todayCashSql = isSectorScoped
+      ? `SELECT
+           COALESCE(SUM(CASE WHEN entry_type = 'INFLOW' THEN amount ELSE 0 END), 0) as today_in,
+           COALESCE(SUM(CASE WHEN entry_type = 'OUTFLOW' THEN amount ELSE 0 END), 0) as today_out
+         FROM cashbook
+         WHERE entry_date = ? AND COALESCE(is_test_draft, 0) = 0
+           AND (sector = ? OR sector = 'general' OR sector IS NULL)`
+      : `SELECT
+           COALESCE(SUM(CASE WHEN entry_type = 'INFLOW' THEN amount ELSE 0 END), 0) as today_in,
+           COALESCE(SUM(CASE WHEN entry_type = 'OUTFLOW' THEN amount ELSE 0 END), 0) as today_out
+         FROM cashbook
+         WHERE entry_date = ? AND COALESCE(is_test_draft, 0) = 0`;
+    const todayCashStmt = isSectorScoped ? db.prepare(todayCashSql).bind(bstDate, sector) : db.prepare(todayCashSql).bind(bstDate);
+    const todayCashbook = await todayCashStmt.first().catch(() => ({ today_in: 0, today_out: 0 }));
 
     const todayCashIn = roundMoney(todayCashbook?.today_in || 0);
     const todayCashOut = roundMoney(todayCashbook?.today_out || 0);
@@ -393,6 +473,7 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
     return {
       bstDate,
       bstTimestamp,
+      sector: sector || 'all',
       warehouseStock,
       customerDues,
       supplierPayables,
@@ -405,14 +486,19 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
 
   // 2. In-Memory Store Fallback
   const mem = inMemoryStore || {};
-  const comms = mem.commodities || [];
+  let comms = mem.commodities || [];
+  if (isSectorScoped) {
+    comms = comms.filter(c => c.sector === sector);
+  }
+
   let totalBags = 0;
   let totalWeightKg = 0;
   let totalValuation = 0;
 
   const varieties = comms.filter((c) => c.is_active !== 0).map((c) => {
     const kg = Number(c.current_stock_kg) || 0;
-    const bags = Number(c.current_stock_bags) || 0;
+    const isJute = c.sector === 'jute' || (c.name_bn && c.name_bn.includes('পাট'));
+    const bags = isJute ? 0 : (Number(c.current_stock_bags) || 0);
     const wacKg = Number(c.current_wac_per_kg) || 0;
     const wacMon = Number(c.current_wac_per_mon) || (wacKg * 40.0);
     const maund = roundWeight(kg / 40.0);
@@ -426,7 +512,10 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
       id: c.id,
       name: c.name_bn,
       name_en: c.name_en,
+      sector: c.sector || (isJute ? 'jute' : 'mustard'),
+      isJute,
       bags,
+      bagsDisplay: isJute ? '— (ওজনভিত্তিক)' : `${bags} বস্তা`,
       weightKg: roundWeight(kg),
       maund,
       avgRatePerMon: roundMoney(wacMon),
@@ -444,7 +533,11 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
     categories: varieties,
   };
 
-  const parties = mem.parties || [];
+  let parties = mem.parties || [];
+  if (isSectorScoped) {
+    parties = parties.filter(p => !p.sector || p.sector === sector);
+  }
+
   let totalReceivable = 0;
   let activeCustomerCount = 0;
   let customersWithDueCount = 0;
@@ -471,6 +564,7 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
           d: roundMoney(bal),
           p: p.phone || '',
           a: p.address || '',
+          sector: p.sector || 'mustard',
         });
       }
     }
@@ -487,6 +581,7 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
           d: roundMoney(payable),
           p: p.phone || '',
           a: p.address || '',
+          sector: p.sector || 'mustard',
         });
       }
     }
@@ -508,7 +603,10 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
     allActiveSupplierPayables,
   };
 
-  const sales = (mem.sales || []).filter((s) => !s.is_test_draft && isSameBstDate(s.sale_date, bstDate));
+  let sales = (mem.sales || []).filter((s) => !s.is_test_draft && isSameBstDate(s.sale_date, bstDate));
+  if (isSectorScoped) {
+    sales = sales.filter((s) => !s.sector || s.sector === sector);
+  }
   let saleTotal = 0;
   let saleCash = 0;
   let saleDue = 0;
@@ -519,7 +617,8 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
     const netAmt = Number(s.net_invoice_amount || s.gross_amount || 0);
     const paid = Number(s.paid_amount || 0);
     const due = Number(s.due_amount || 0);
-    const bags = Number(s.bags_count || 0);
+    const isJute = s.sector === 'jute' || (s.commodity_name && s.commodity_name.includes('পাট'));
+    const bags = isJute ? 0 : Number(s.bags_count || 0);
     const kg = Number(s.net_weight_kg || 0);
 
     saleTotal += netAmt;
@@ -533,7 +632,10 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
       invoiceNo: s.invoice_no,
       partyName: s.party_name || 'সাধারণ খুচরা ক্রেতা',
       commodityName: s.commodity_name || '',
+      sector: s.sector || (isJute ? 'jute' : 'mustard'),
+      isJute,
       bags,
+      bagsDisplay: isJute ? '— (ওজনভিত্তিক)' : `${bags} বস্তা`,
       weightMon: roundWeight(s.net_weight_mon || (kg / 40.0)),
       weightKg: roundWeight(kg),
       ratePerMon: roundMoney(s.rate_per_mon || 0),
@@ -541,6 +643,10 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
       paidAmount: roundMoney(paid),
       dueAmount: roundMoney(due),
       paymentMethod: s.payment_method || 'CASH',
+      truckNo: s.truck_no || s.vehicle_no || '',
+      driverName: s.driver_name || '',
+      driverPhone: s.driver_phone || '',
+      transportInfo: s.transport_info || s.destination || '',
     };
   });
 
@@ -555,7 +661,10 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
     invoices: formattedSales,
   };
 
-  const purchases = (mem.purchases || []).filter((p) => !p.is_test_draft && isSameBstDate(p.purchase_date, bstDate));
+  let purchases = (mem.purchases || []).filter((p) => !p.is_test_draft && isSameBstDate(p.purchase_date, bstDate));
+  if (isSectorScoped) {
+    purchases = purchases.filter((p) => !p.sector || p.sector === sector);
+  }
   let purTotal = 0;
   let purPaid = 0;
   let purDue = 0;
@@ -566,8 +675,9 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
     const landed = Number(pr.total_landed_cost || pr.gross_amount || 0);
     const paid = Number(pr.paid_amount || 0);
     const due = Number(pr.due_amount || 0);
-    const bags = Number(pr.bags_count || 0);
-    const kg = Number(pr.net_weight_kg || 0);
+    const isJute = pr.sector === 'jute' || (pr.commodity_name && pr.commodity_name.includes('পাট'));
+    const bags = isJute ? 0 : Number(pr.bags_count || 0);
+    const kg = Number(pr.net_weight_kg || pr.actual_weight_kg || 0);
 
     purTotal += landed;
     purPaid += paid;
@@ -580,7 +690,14 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
       invoiceNo: pr.invoice_no,
       partyName: pr.party_name || 'সাধারণ বিক্রেতা',
       commodityName: pr.commodity_name || '',
+      sector: pr.sector || (isJute ? 'jute' : 'mustard'),
+      isJute,
       bags,
+      bagsDisplay: isJute ? '— (ওজনভিত্তিক)' : `${bags} বস্তা`,
+      purchaseScaleKg: Number(pr.purchase_scale_kg || 41.0),
+      billedMaund: roundWeight(Number(pr.billed_maund || 0)),
+      actualWeightKg: roundWeight(kg),
+      extraWeightKg: roundWeight(Number(pr.extra_weight_kg || 0)),
       weightMon: roundWeight(pr.net_weight_mon || (kg / 40.0)),
       weightKg: roundWeight(kg),
       ratePerMon: roundMoney(pr.rate_per_mon || 0),
@@ -602,7 +719,10 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
     purchases: formattedPurchases,
   };
 
-  const expenses = (mem.expenses || []).filter((e) => !e.is_test_draft && isSameBstDate(e.expense_date, bstDate));
+  let expenses = (mem.expenses || []).filter((e) => !e.is_test_draft && isSameBstDate(e.expense_date, bstDate));
+  if (isSectorScoped) {
+    expenses = expenses.filter((e) => !e.sector || e.sector === sector || e.sector === 'general');
+  }
   let expTotal = 0;
   const formattedExpenses = expenses.map((e) => {
     const amt = Number(e.amount || 0);
@@ -613,6 +733,7 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
       amount: roundMoney(amt),
       paidTo: e.paid_to || '',
       paymentMode: e.payment_mode || 'CASH',
+      sector: e.sector || 'general',
       notes: e.notes || '',
     };
   });
@@ -624,7 +745,7 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
   };
 
   let openingBalance = 0;
-  (mem.cashbook || []).filter((c) => !c.is_test_draft).forEach((c) => {
+  (mem.cashbook || []).filter((c) => !c.is_test_draft && (!isSectorScoped || !c.sector || c.sector === sector || c.sector === 'general')).forEach((c) => {
     if (c.entry_date < bstDate) {
       if (c.entry_type === 'INFLOW') openingBalance += Number(c.amount || 0);
       else if (c.entry_type === 'OUTFLOW') openingBalance -= Number(c.amount || 0);
@@ -633,7 +754,7 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
 
   let todayCashIn = 0;
   let todayCashOut = 0;
-  (mem.cashbook || []).filter((c) => !c.is_test_draft && isSameBstDate(c.entry_date, bstDate)).forEach((c) => {
+  (mem.cashbook || []).filter((c) => !c.is_test_draft && isSameBstDate(c.entry_date, bstDate) && (!isSectorScoped || !c.sector || c.sector === sector || c.sector === 'general')).forEach((c) => {
     if (c.entry_type === 'INFLOW') todayCashIn += Number(c.amount || 0);
     else if (c.entry_type === 'OUTFLOW') todayCashOut += Number(c.amount || 0);
   });
@@ -649,6 +770,7 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null) {
   return {
     bstDate,
     bstTimestamp,
+    sector: sector || 'all',
     warehouseStock,
     customerDues,
     supplierPayables,

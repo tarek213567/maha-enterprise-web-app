@@ -44,8 +44,11 @@ import {
 } from '../../utils/bengaliNumbers';
 import { CreditorExcelImportModal } from '../common/CreditorExcelImportModal';
 import { ENABLE_EXCEL_IMPORT, EXCEL_IMPORT_LOCKED_MESSAGE } from '../../config/featureFlags';
+import { useSector } from '../../context/SectorContext';
+import { SectorType } from '../../../electron/types';
 
 export const CreditorLedgerView: React.FC = () => {
+  const { activeSector } = useSector();
   const [creditors, setCreditors] = useState<Party[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -104,6 +107,7 @@ export const CreditorLedgerView: React.FC = () => {
   const [newPhone, setNewPhone] = useState('');
   const [newAddress, setNewAddress] = useState('');
   const [newOpeningPayable, setNewOpeningPayable] = useState('0');
+  const [newSector, setNewSector] = useState<SectorType>('mustard');
   const [newNotes, setNewNotes] = useState('');
   const [phoneError, setPhoneError] = useState('');
   const [submittingNew, setSubmittingNew] = useState(false);
@@ -114,6 +118,7 @@ export const CreditorLedgerView: React.FC = () => {
   const [editPhone, setEditPhone] = useState('');
   const [editPhoneError, setEditPhoneError] = useState('');
   const [editAddress, setEditAddress] = useState('');
+  const [editSector, setEditSector] = useState<SectorType>('mustard');
   const [editNotes, setEditNotes] = useState('');
   const [submittingEdit, setSubmittingEdit] = useState(false);
 
@@ -121,17 +126,21 @@ export const CreditorLedgerView: React.FC = () => {
   const [deleteTargetCreditor, setDeleteTargetCreditor] = useState<Party | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  useEffect(() => {
+    setNewSector(activeSector !== 'all' ? activeSector : 'mustard');
+  }, [activeSector]);
+
   const fetchCreditors = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await dbService.parties.getAll('SUPPLIER');
+      const data = await dbService.parties.getAll('SUPPLIER', activeSector);
       setCreditors(data || []);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeSector]);
 
   useEffect(() => {
     fetchCreditors();
@@ -332,6 +341,7 @@ export const CreditorLedgerView: React.FC = () => {
         opening_balance: -Math.abs(openPayable), // Negative indicates shop owes them
         current_balance: -Math.abs(openPayable),
         notes: newNotes.trim(),
+        sector: newSector || (activeSector !== 'all' ? activeSector : 'mustard'),
       });
 
       setIsAddModalOpen(false);
@@ -360,6 +370,7 @@ export const CreditorLedgerView: React.FC = () => {
         phone: editPhone.trim(),
         address: editAddress.trim(),
         notes: editNotes.trim(),
+        sector: editSector,
       });
 
       setEditCreditor(null);
@@ -609,6 +620,9 @@ export const CreditorLedgerView: React.FC = () => {
                             <span className="font-bold text-slate-900 dark:text-white text-sm hover:text-amber-600 transition-colors block">
                               {party.name}
                             </span>
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                              {party.sector === 'jute' ? '🌿 পাট' : party.sector === 'maize' ? '🌽 ভুট্টা' : '🌼 সরিষা'}
+                            </span>
                             {party.notes && (
                               <span className="text-[10px] text-slate-400 block truncate max-w-xs">
                                 💬 {party.notes}
@@ -723,6 +737,7 @@ export const CreditorLedgerView: React.FC = () => {
                                     setEditPhone(party.phone || '');
                                     setEditAddress(party.address || '');
                                     setEditNotes(party.notes || '');
+                                    setEditSector((party.sector as SectorType) || 'mustard');
                                   }}
                                   className="w-full px-3 py-1.5 text-left text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"
                                 >
@@ -1236,6 +1251,19 @@ export const CreditorLedgerView: React.FC = () => {
               </div>
 
               <div>
+                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">সেক্টর নির্বাচন *</label>
+                <select
+                  value={newSector}
+                  onChange={(e) => setNewSector(e.target.value as SectorType)}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500 font-bold"
+                >
+                  <option value="mustard">🌼 সরিষা (Mustard)</option>
+                  <option value="jute">🌿 পাট (Jute)</option>
+                  <option value="maize">🌽 ভুট্টা (Maize)</option>
+                </select>
+              </div>
+
+              <div>
                 <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">মন্তব্য</label>
                 <input
                   type="text"
@@ -1314,6 +1342,19 @@ export const CreditorLedgerView: React.FC = () => {
                   onChange={(e) => setEditAddress(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">সেক্টর নির্বাচন *</label>
+                <select
+                  value={editSector}
+                  onChange={(e) => setEditSector(e.target.value as SectorType)}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 font-bold"
+                >
+                  <option value="mustard">🌼 সরিষা (Mustard)</option>
+                  <option value="jute">🌿 পাট (Jute)</option>
+                  <option value="maize">🌽 ভুট্টা (Maize)</option>
+                </select>
               </div>
 
               <div>

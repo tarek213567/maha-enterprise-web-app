@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { SecurityProvider } from './context/SecurityContext';
+import { SectorProvider } from './context/SectorContext';
+import { SectorSwitcherBar } from './components/layout/SectorSwitcherBar';
 import { PinLockOverlay } from './components/security/PinLockOverlay';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopHeader } from './components/layout/TopHeader';
@@ -173,6 +175,12 @@ const AppContent: React.FC = () => {
           {/* Module Content */}
           <ErrorBoundary fallbackTitle="মডিউল রেন্ডারার রিকভারি">
             <main className="flex-1 max-w-[1550px] w-full mx-auto p-3 sm:p-4 pb-24 sm:pb-8">
+              {['dashboard', 'purchases', 'sales', 'stock', 'ledgers', 'creditors', 'cashbook', 'expenses', 'reports'].includes(currentTab) && (
+                <div className="mb-3 sm:mb-4">
+                  <SectorSwitcherBar />
+                </div>
+              )}
+
               {currentTab === 'dashboard' && (
                 <DashboardView
                   onNavigate={setCurrentTab}
@@ -288,7 +296,9 @@ export const App: React.FC = () => {
     <ErrorBoundary fallbackTitle="মাহা এন্টারপ্রাইজ - ইন্টারফেস রিকভারি">
       <ThemeProvider>
         <SecurityProvider>
-          <AppContent />
+          <SectorProvider>
+            <AppContent />
+          </SectorProvider>
         </SecurityProvider>
       </ThemeProvider>
     </ErrorBoundary>

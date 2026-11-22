@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS commodities (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name_bn TEXT NOT NULL UNIQUE,
   name_en TEXT NOT NULL,
+  sector TEXT NOT NULL DEFAULT 'mustard',
   default_bag_weight_kg REAL NOT NULL DEFAULT 75.0,
   current_stock_kg REAL NOT NULL DEFAULT 0.0,
   current_stock_bags INTEGER NOT NULL DEFAULT 0,
@@ -21,6 +22,7 @@ CREATE TABLE IF NOT EXISTS commodities (
 );
 
 CREATE INDEX IF NOT EXISTS idx_commodities_name ON commodities(name_bn);
+CREATE INDEX IF NOT EXISTS idx_commodities_sector ON commodities(sector);
 
 -- Parties (বেপারী, চাষী, মিলার, আড়তদার, পাইকার)
 CREATE TABLE IF NOT EXISTS parties (
@@ -29,6 +31,7 @@ CREATE TABLE IF NOT EXISTS parties (
   phone TEXT,
   address TEXT NOT NULL,
   party_type TEXT NOT NULL CHECK(party_type IN ('SUPPLIER', 'BUYER', 'BOTH')),
+  sector TEXT NOT NULL DEFAULT 'mustard',
   opening_balance REAL NOT NULL DEFAULT 0.0, -- Positive = Party owes Maha Enterprise (Receivable). Negative = Maha Enterprise owes party (Payable).
   current_balance REAL NOT NULL DEFAULT 0.0,
   notes TEXT,
@@ -42,6 +45,7 @@ CREATE TABLE IF NOT EXISTS parties (
 CREATE INDEX IF NOT EXISTS idx_parties_name ON parties(name);
 CREATE INDEX IF NOT EXISTS idx_parties_phone ON parties(phone);
 CREATE INDEX IF NOT EXISTS idx_parties_type ON parties(party_type);
+CREATE INDEX IF NOT EXISTS idx_parties_sector ON parties(sector);
 CREATE INDEX IF NOT EXISTS idx_parties_pinned_updated ON parties(is_pinned, updated_at DESC);
 
 -- Purchases (ক্রয় / স্টক-ইন)
@@ -51,6 +55,11 @@ CREATE TABLE IF NOT EXISTS purchases (
   purchase_date TEXT NOT NULL,
   party_id INTEGER NOT NULL REFERENCES parties(id),
   commodity_id INTEGER NOT NULL REFERENCES commodities(id),
+  sector TEXT NOT NULL DEFAULT 'mustard',
+  purchase_scale_kg REAL NOT NULL DEFAULT 41.0,
+  billed_maund REAL NOT NULL DEFAULT 0.0,
+  actual_weight_kg REAL NOT NULL DEFAULT 0.0,
+  extra_weight_kg REAL NOT NULL DEFAULT 0.0,
   bags_count INTEGER NOT NULL DEFAULT 0,
   gross_weight_kg REAL NOT NULL,
   bag_deduction_kg REAL NOT NULL DEFAULT 0.0,
@@ -78,6 +87,7 @@ CREATE TABLE IF NOT EXISTS purchases (
 CREATE INDEX IF NOT EXISTS idx_purchases_date ON purchases(purchase_date);
 CREATE INDEX IF NOT EXISTS idx_purchases_party ON purchases(party_id);
 CREATE INDEX IF NOT EXISTS idx_purchases_commodity ON purchases(commodity_id);
+CREATE INDEX IF NOT EXISTS idx_purchases_sector ON purchases(sector);
 
 -- Sales (বিক্রয় ও চালান / স্টক-আউট)
 CREATE TABLE IF NOT EXISTS sales (
@@ -86,6 +96,7 @@ CREATE TABLE IF NOT EXISTS sales (
   sale_date TEXT NOT NULL,
   party_id INTEGER NOT NULL REFERENCES parties(id),
   commodity_id INTEGER NOT NULL REFERENCES commodities(id),
+  sector TEXT NOT NULL DEFAULT 'mustard',
   bags_count INTEGER NOT NULL DEFAULT 0,
   gross_weight_kg REAL NOT NULL,
   bag_deduction_kg REAL NOT NULL DEFAULT 0.0,
@@ -116,6 +127,7 @@ CREATE TABLE IF NOT EXISTS sales (
 CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(sale_date);
 CREATE INDEX IF NOT EXISTS idx_sales_party ON sales(party_id);
 CREATE INDEX IF NOT EXISTS idx_sales_commodity ON sales(commodity_id);
+CREATE INDEX IF NOT EXISTS idx_sales_sector ON sales(sector);
 
 -- Stock Adjustments (শুকতি ও আর্দ্রতা ঘাটতি / স্টক সমন্বয়)
 CREATE TABLE IF NOT EXISTS stock_adjustments (
@@ -141,6 +153,7 @@ CREATE TABLE IF NOT EXISTS party_ledger (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   entry_date TEXT NOT NULL,
   party_id INTEGER NOT NULL REFERENCES parties(id),
+  sector TEXT NOT NULL DEFAULT 'mustard',
   transaction_type TEXT NOT NULL CHECK(transaction_type IN ('PURCHASE', 'SALE', 'PAYMENT_RECEIVED', 'PAYMENT_GIVEN', 'ADJUSTMENT', 'OPENING')),
   reference_id INTEGER,
   reference_no TEXT,
@@ -153,6 +166,7 @@ CREATE TABLE IF NOT EXISTS party_ledger (
 );
 
 CREATE INDEX IF NOT EXISTS idx_ledger_party_date ON party_ledger(party_id, entry_date);
+CREATE INDEX IF NOT EXISTS idx_ledger_sector ON party_ledger(sector);
 
 -- Daily Cashbook (দৈনিক ক্যাশ বই)
 CREATE TABLE IF NOT EXISTS cashbook (
@@ -160,6 +174,7 @@ CREATE TABLE IF NOT EXISTS cashbook (
   entry_date TEXT NOT NULL,
   entry_type TEXT NOT NULL CHECK(entry_type IN ('INFLOW', 'OUTFLOW')),
   category TEXT NOT NULL,
+  sector TEXT NOT NULL DEFAULT 'mustard',
   amount REAL NOT NULL,
   payment_mode TEXT NOT NULL DEFAULT 'CASH' CHECK(payment_mode IN ('CASH', 'BANK')),
   reference_id INTEGER,
@@ -172,6 +187,7 @@ CREATE TABLE IF NOT EXISTS cashbook (
 
 CREATE INDEX IF NOT EXISTS idx_cashbook_date ON cashbook(entry_date);
 CREATE INDEX IF NOT EXISTS idx_cashbook_category ON cashbook(category);
+CREATE INDEX IF NOT EXISTS idx_cashbook_sector ON cashbook(sector);
 
 -- Cashbook Daily Overrides (প্রারম্ভিক ক্যাশ জের সমন্বয় ও তারিখভিত্তিক ওভাররাইড)
 CREATE TABLE IF NOT EXISTS cashbook_overrides (
@@ -186,6 +202,7 @@ CREATE TABLE IF NOT EXISTS expenses (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   expense_date TEXT NOT NULL,
   category TEXT NOT NULL CHECK(category IN ('RENT', 'ELECTRICITY', 'SALARY', 'LABOR', 'FOOD_ENTERTAINMENT', 'TRANSPORT', 'REPAIR', 'TAX_LEGAL', 'MISC')),
+  sector TEXT NOT NULL DEFAULT 'general',
   amount REAL NOT NULL,
   paid_to TEXT NOT NULL,
   payment_mode TEXT NOT NULL DEFAULT 'CASH' CHECK(payment_mode IN ('CASH', 'BANK')),
@@ -195,6 +212,7 @@ CREATE TABLE IF NOT EXISTS expenses (
 );
 
 CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expense_date);
+CREATE INDEX IF NOT EXISTS idx_expenses_sector ON expenses(sector);
 
 -- System Settings & App Configuration
 CREATE TABLE IF NOT EXISTS app_settings (

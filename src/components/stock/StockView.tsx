@@ -24,10 +24,13 @@ import { ENABLE_EXCEL_IMPORT, EXCEL_IMPORT_LOCKED_MESSAGE } from '../../config/f
 import { formatBanglaCurrency, formatDate, toBnDigits, toBengaliDigits, parseSmartNumber } from '../../utils/bengaliNumbers';
 import { totalKgToMonKg } from '../../utils/weightConverter';
 import { useTheme } from '../../context/ThemeContext';
+import { useSector } from '../../context/SectorContext';
+import { SectorType } from '../../../electron/types';
 
 export const StockView: React.FC = () => {
   const { digitMode } = useTheme();
   const isBn = digitMode === 'BN';
+  const { activeSector, isJute } = useSector();
 
   const [commodities, setCommodities] = useState<Commodity[]>([]);
   const [adjustments, setAdjustments] = useState<StockAdjustment[]>([]);
@@ -44,6 +47,7 @@ export const StockView: React.FC = () => {
   const [nameBn, setNameBn] = useState('');
   const [nameEn, setNameEn] = useState('');
   const [defaultBagWeight, setDefaultBagWeight] = useState('75');
+  const [newCommSector, setNewCommSector] = useState<SectorType>('mustard');
   const [commNotes, setCommNotes] = useState('');
 
   // Warehouse Stock Edit State
@@ -64,12 +68,16 @@ export const StockView: React.FC = () => {
 
   useEffect(() => {
     loadStockData();
-  }, []);
+  }, [activeSector]);
+
+  useEffect(() => {
+    setNewCommSector(activeSector !== 'all' ? activeSector : 'mustard');
+  }, [activeSector]);
 
   const loadStockData = async () => {
     try {
       const [comms, adjs] = await Promise.all([
-        dbService.commodities.getAll(),
+        dbService.commodities.getAll(activeSector),
         dbService.stockAdjustments.getAll(50),
       ]);
       setCommodities(comms);
@@ -108,6 +116,7 @@ export const StockView: React.FC = () => {
         name_en: nameEn.trim() || nameBn.trim(),
         default_bag_weight_kg: parseSmartNumber(defaultBagWeight) || 75,
         notes: commNotes.trim(),
+        sector: newCommSector || (activeSector !== 'all' ? activeSector : 'mustard'),
       });
       setNameBn('');
       setNameEn('');
@@ -365,10 +374,10 @@ export const StockView: React.FC = () => {
                 <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-lg">
                   <span className="text-slate-500 dark:text-slate-400">বস্তার সংখ্যা:</span>
                   <p className="font-bold text-slate-800 dark:text-slate-100 mt-0.5">
-                    {isBn ? toBnDigits(c.current_stock_bags) : c.current_stock_bags} বস্তা
+                    {isJute(c) ? <span className="text-emerald-500 font-semibold">— (ওজনভিত্তিক)</span> : `${isBn ? toBnDigits(c.current_stock_bags) : c.current_stock_bags} বস্তা`}
                   </p>
                   <p className="text-[10px] text-slate-400">
-                    প্রতি বস্তা ~{isBn ? toBnDigits(c.default_bag_weight_kg) : c.default_bag_weight_kg} কেজি
+                    {isJute(c) ? 'পাট বস্তাহীন সরাসরি ওজনভিত্তিক' : `প্রতি বস্তা ~${isBn ? toBnDigits(c.default_bag_weight_kg) : c.default_bag_weight_kg} কেজি`}
                   </p>
                 </div>
 
@@ -602,6 +611,21 @@ export const StockView: React.FC = () => {
                   placeholder="যেমন: Sesame"
                   className="w-full px-3 py-2 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-emerald-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  সেক্টর নির্বাচন <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={newCommSector}
+                  onChange={(e) => setNewCommSector(e.target.value as SectorType)}
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-emerald-500 font-bold"
+                >
+                  <option value="mustard">🌼 সরিষা (Mustard)</option>
+                  <option value="jute">🌿 পাট (Jute)</option>
+                  <option value="maize">🌽 ভুট্টা (Maize)</option>
+                </select>
               </div>
 
               <div>

@@ -19,6 +19,7 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ sale, onClos
     dbService.system.print();
   };
 
+  const isJuteItem = sale.sector === 'jute' || (sale.commodity_name && sale.commodity_name.includes('পাট'));
   const { mon: grossMonWhole, kg: grossKgRemainder } = totalKgToMonKg(sale.gross_weight_kg);
   const { mon: netMonWhole, kg: netKgRemainder } = totalKgToMonKg(sale.net_weight_kg);
 
@@ -227,7 +228,7 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ sale, onClos
                     {sale.commodity_name}
                   </td>
                   <td className="border border-slate-400 py-2 px-2 font-bold">
-                    {sale.bags_count > 0 ? `${sale.bags_count} বস্তা` : '০ বস্তা (খোলা/লুজ)'}
+                    {isJuteItem ? '— (ওজনভিত্তিক)' : (sale.bags_count > 0 ? `${sale.bags_count} বস্তা` : '০ বস্তা (খোলা/লুজ)')}
                   </td>
                   <td className="border border-slate-400 py-2 px-2">
                     {grossMonWhole} মন {grossKgRemainder} কেজি

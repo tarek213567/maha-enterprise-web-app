@@ -370,6 +370,50 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 9,
+    name: 'multi_sector_and_purchase_scale_41kg',
+    up: (db: Database.Database) => {
+      const addColIfNotExists = (tableName: string, colName: string, colDef: string) => {
+        const pragma = db.prepare(`PRAGMA table_info(${tableName})`).all() as any[];
+        const exists = pragma.some(c => c.name === colName);
+        if (!exists) {
+          db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${colName} ${colDef}`);
+        }
+      };
+
+      addColIfNotExists('commodities', 'sector', "TEXT DEFAULT 'mustard'");
+      addColIfNotExists('parties', 'sector', "TEXT DEFAULT 'mustard'");
+      addColIfNotExists('purchases', 'sector', "TEXT DEFAULT 'mustard'");
+      addColIfNotExists('purchases', 'purchase_scale_kg', 'REAL DEFAULT 41.0');
+      addColIfNotExists('purchases', 'billed_maund', 'REAL DEFAULT 0.0');
+      addColIfNotExists('purchases', 'actual_weight_kg', 'REAL DEFAULT 0.0');
+      addColIfNotExists('purchases', 'extra_weight_kg', 'REAL DEFAULT 0.0');
+      addColIfNotExists('sales', 'sector', "TEXT DEFAULT 'mustard'");
+      addColIfNotExists('party_ledger', 'sector', "TEXT DEFAULT 'mustard'");
+      addColIfNotExists('cashbook', 'sector', "TEXT DEFAULT 'mustard'");
+      addColIfNotExists('expenses', 'sector', "TEXT DEFAULT 'general'");
+
+      // Auto-categorize
+      db.exec(`
+        UPDATE commodities SET sector = 'jute' WHERE (name_bn LIKE '%পাট%' OR name_en LIKE '%jute%') AND (sector IS NULL OR sector = '' OR sector = 'mustard');
+        UPDATE commodities SET sector = 'maize' WHERE (name_bn LIKE '%ভুট্টা%' OR name_en LIKE '%maize%' OR name_en LIKE '%corn%') AND (sector IS NULL OR sector = '' OR sector = 'mustard');
+        UPDATE commodities SET sector = 'mustard' WHERE sector IS NULL OR sector = '';
+
+        INSERT OR IGNORE INTO commodities (name_bn, name_en, sector, default_bag_weight_kg) VALUES ('তোষা পাট', 'Toshas Jute', 'jute', 0.0);
+        INSERT OR IGNORE INTO commodities (name_bn, name_en, sector, default_bag_weight_kg) VALUES ('মেস্তা পাট', 'Mesta Jute', 'jute', 0.0);
+        INSERT OR IGNORE INTO commodities (name_bn, name_en, sector, default_bag_weight_kg) VALUES ('দেশি/বগি পাট', 'Deshi/Bogi Jute', 'jute', 0.0);
+        INSERT OR IGNORE INTO commodities (name_bn, name_en, sector, default_bag_weight_kg) VALUES ('শুকনা ভুট্টা', 'Dry Maize', 'maize', 75.0);
+        INSERT OR IGNORE INTO commodities (name_bn, name_en, sector, default_bag_weight_kg) VALUES ('কাঁচা/ভিজা ভুট্টা', 'Wet Maize', 'maize', 75.0);
+        INSERT OR IGNORE INTO commodities (name_bn, name_en, sector, default_bag_weight_kg) VALUES ('মাঘী সরিষা', 'Maghi Mustard', 'mustard', 80.0);
+        INSERT OR IGNORE INTO commodities (name_bn, name_en, sector, default_bag_weight_kg) VALUES ('টোরি-৭ সরিষা', 'Tori-7 Mustard', 'mustard', 80.0);
+        INSERT OR IGNORE INTO commodities (name_bn, name_en, sector, default_bag_weight_kg) VALUES ('রাই সরিষা', 'Rai Mustard', 'mustard', 80.0);
+
+        UPDATE purchases SET sector = (SELECT sector FROM commodities WHERE commodities.id = purchases.commodity_id) WHERE sector IS NULL OR sector = '' OR sector = 'mustard';
+        UPDATE sales SET sector = (SELECT sector FROM commodities WHERE commodities.id = sales.commodity_id) WHERE sector IS NULL OR sector = '' OR sector = 'mustard';
+      `);
+    },
+  },
 ];
 
 export function runMigrations(db: Database.Database): { appliedCount: number; currentVersion: number } {
