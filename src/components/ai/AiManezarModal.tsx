@@ -716,13 +716,13 @@ export const AiManezarModal: React.FC<AiManezarModalProps> = ({
                               value={editingTitle}
                               onChange={(e) => setEditingTitle(e.target.value)}
                               onKeyDown={(e) => e.key === 'Enter' && handleSaveRename(session.id, e)}
-                              className="w-full bg-white dark:bg-neutral-900 text-xs text-black dark:text-white px-2 py-1 rounded border border-black dark:border-white outline-none"
+                              className="w-full bg-slate-800 text-xs text-white px-2 py-1 rounded border border-amber-500 outline-none"
                               autoFocus
                             />
                             <button
                               type="button"
                               onClick={(e) => handleSaveRename(session.id, e)}
-                              className="text-black dark:text-white p-1 hover:opacity-80"
+                              className="text-emerald-400 p-1 hover:text-emerald-300"
                             >
                               <Check className="w-3.5 h-3.5" />
                             </button>
@@ -755,7 +755,7 @@ export const AiManezarModal: React.FC<AiManezarModalProps> = ({
                               </button>
                               <button
                                 type="button"
-                                className="ai-btn-action hover:opacity-80"
+                                className="ai-btn-action hover:text-rose-400"
                                 onClick={(e) => handleDeleteSession(session.id, e)}
                                 title="মুছে ফেলুন"
                               >
@@ -774,13 +774,13 @@ export const AiManezarModal: React.FC<AiManezarModalProps> = ({
               <div className="ai-sidebar-section">
                 <div className="ai-sidebar-section-header">
                   <span>🕒 সাম্প্রতিক আলোচনা</span>
-                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-mono font-normal">
+                  <span className="text-[10px] text-slate-400 font-mono font-normal">
                     ({recentSessions.length})
                   </span>
                 </div>
                 <div className="ai-session-list">
                   {recentSessions.length === 0 ? (
-                    <div className="text-xs text-neutral-500 dark:text-neutral-400 px-3 py-2 italic">
+                    <div className="text-xs text-slate-500 px-3 py-2 italic">
                       কোনো পূর্ববর্তী আলোচনা নেই
                     </div>
                   ) : (
@@ -797,13 +797,13 @@ export const AiManezarModal: React.FC<AiManezarModalProps> = ({
                               value={editingTitle}
                               onChange={(e) => setEditingTitle(e.target.value)}
                               onKeyDown={(e) => e.key === 'Enter' && handleSaveRename(session.id, e)}
-                              className="w-full bg-white dark:bg-neutral-900 text-xs text-black dark:text-white px-2 py-1 rounded border border-black dark:border-white outline-none"
+                              className="w-full bg-slate-800 text-xs text-white px-2 py-1 rounded border border-amber-500 outline-none"
                               autoFocus
                             />
                             <button
                               type="button"
                               onClick={(e) => handleSaveRename(session.id, e)}
-                              className="text-black dark:text-white p-1 hover:opacity-80"
+                              className="text-emerald-400 p-1 hover:text-emerald-300"
                             >
                               <Check className="w-3.5 h-3.5" />
                             </button>
@@ -820,7 +820,7 @@ export const AiManezarModal: React.FC<AiManezarModalProps> = ({
                                 onClick={(e) => handleTogglePin(session, e)}
                                 title="পিন করুন"
                               >
-                                <Pin className="w-3 h-3 text-neutral-500 dark:text-neutral-400 hover:text-black dark:hover:text-white" />
+                                <Pin className="w-3 h-3 text-slate-400 hover:text-amber-400" />
                               </button>
                               <button
                                 type="button"
@@ -836,7 +836,7 @@ export const AiManezarModal: React.FC<AiManezarModalProps> = ({
                               </button>
                               <button
                                 type="button"
-                                className="ai-btn-action hover:opacity-80"
+                                className="ai-btn-action hover:text-rose-400"
                                 onClick={(e) => handleDeleteSession(session.id, e)}
                                 title="মুছে ফেলুন"
                               >
@@ -859,7 +859,7 @@ export const AiManezarModal: React.FC<AiManezarModalProps> = ({
                 <div className="ai-footer-info">
                   <div className="ai-footer-name">মাহা এন্টারপ্রাইজ</div>
                   <div className="ai-footer-tier">
-                    <span className="w-2 h-2 rounded-full bg-black dark:bg-white inline-block animate-pulse" />
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse" />
                     <span>Gemini 3 Flash PRO</span>
                   </div>
                 </div>
@@ -881,14 +881,14 @@ export const AiManezarModal: React.FC<AiManezarModalProps> = ({
                 onClick={() => setIsSidebarCollapsed((prev) => !prev)}
                 title="মেনু"
               >
-                <Menu className="w-5 h-5 text-black dark:text-white" />
+                <Menu className="w-5 h-5 text-slate-300" />
               </button>
               <div className="flex items-center gap-2">
                 <h2 className="ai-header-title">
                   {sessions.find((s) => s.id === activeSessionId)?.title || 'Ai Manezar (Gemini 3 Flash)'}
                 </h2>
-                <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 text-black dark:text-white">
-                  <Sparkles className="w-3 h-3 text-black dark:text-white" />
+                <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-300">
+                  <Sparkles className="w-3 h-3 text-purple-300" />
                   <span>লাইভ শপ ইন্টেলিজেন্স</span>
                 </span>
               </div>
@@ -902,7 +902,7 @@ export const AiManezarModal: React.FC<AiManezarModalProps> = ({
                 onClick={handleMorningBriefing}
                 title="আজকের সকালের সার্বিক স্টক ও আর্থিক সংক্ষিপ্তসার শুনুন"
               >
-                <Sun className="w-3.5 h-3.5 text-black dark:text-white" />
+                <Sun className="w-3.5 h-3.5 text-amber-400" />
                 <span>সকালের ব্রিফিং</span>
               </button>
 
@@ -937,7 +937,7 @@ export const AiManezarModal: React.FC<AiManezarModalProps> = ({
               <div className="ai-welcome-hero">
                 <h1 className="ai-welcome-title">
                   শুভকামনা,{' '}
-                  <span className="text-black dark:text-white font-bold">
+                  <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-rose-400 bg-clip-text text-transparent">
                     মাহা এন্টারপ্রাইজ!
                   </span>
                 </h1>
@@ -1064,10 +1064,10 @@ export const AiManezarModal: React.FC<AiManezarModalProps> = ({
                                   <>
                                     <div className="ai-action-header">
                                       <span className="ai-action-title">
-                                        <Sparkles className="w-4 h-4 text-black dark:text-white" />
+                                        <Sparkles className="w-4 h-4 text-emerald-400" />
                                         <span>প্রস্তাবিত ডাটাবেস অ্যাকশন: {act.actionType}</span>
                                       </span>
-                                      <span className="text-[10px] font-mono text-black dark:text-white bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                      <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-1">
                                         <ShieldCheck className="w-3 h-3" />
                                         <span>৬০-দিনের রিস্টোর স্ন্যাপশট</span>
                                       </span>
@@ -1079,8 +1079,8 @@ export const AiManezarModal: React.FC<AiManezarModalProps> = ({
 
                                     {/* Action Data Preview Table */}
                                     {act.payload && (
-                                      <div className="bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg p-2.5 mb-3 text-xs font-mono text-neutral-800 dark:text-neutral-200 overflow-x-auto">
-                                        <div className="text-[11px] font-bold text-black dark:text-white mb-1">
+                                      <div className="bg-slate-950/70 border border-slate-800 rounded-lg p-2.5 mb-3 text-xs font-mono text-slate-300 overflow-x-auto">
+                                        <div className="text-[11px] font-bold text-amber-400 mb-1">
                                           প্রস্তাবিত পরিবর্তন প্রিভিউ:
                                         </div>
                                         <pre className="text-[11px] leading-tight">
@@ -1093,7 +1093,7 @@ export const AiManezarModal: React.FC<AiManezarModalProps> = ({
                                     <div className="ai-action-buttons">
                                       {msg.actionExecuted === 1 ? (
                                         <span className="ai-action-executed-badge">
-                                          <CheckCircle2 className="w-4 h-4 text-black dark:text-white" />
+                                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                                           <span>✓ সফলভাবে ডাটাবেজে সংরক্ষিত ও কার্যকর হয়েছে</span>
                                         </span>
                                       ) : (
@@ -1115,7 +1115,7 @@ export const AiManezarModal: React.FC<AiManezarModalProps> = ({
                                               </>
                                             )}
                                           </button>
-                                          <span className="text-[11px] text-neutral-500 dark:text-neutral-400 italic">
+                                          <span className="text-[11px] text-slate-400 italic">
                                             (রিসাইকেল বিন থেকে ১-ক্লিকে ফেরত আনা সম্ভব)
                                           </span>
                                         </>
@@ -1173,8 +1173,8 @@ export const AiManezarModal: React.FC<AiManezarModalProps> = ({
                 <div className="ai-msg-avatar model-avatar">
                   <span className="ai-sparkle-glyph">✨</span>
                 </div>
-                <div className="ai-msg-bubble flex items-center gap-2 text-neutral-500 dark:text-neutral-400 italic">
-                  <RotateCw className="w-4 h-4 animate-spin text-black dark:text-white" />
+                <div className="ai-msg-bubble flex items-center gap-2 text-slate-400 italic">
+                  <RotateCw className="w-4 h-4 animate-spin text-purple-400" />
                   <span>Gemini 3 Flash বিশ্লেষণ করছে...</span>
                 </div>
               </div>
@@ -1245,7 +1245,7 @@ export const AiManezarModal: React.FC<AiManezarModalProps> = ({
                       fileInputRef.current?.click();
                     }}
                   >
-                    <Camera className="ai-dropup-icon text-black dark:text-white w-4 h-4" />
+                    <Camera className="ai-dropup-icon text-amber-400 w-4 h-4" />
                     <span className="ai-dropup-label">📷 মেমো / রশিদ স্ক্যান (OCR)</span>
                   </button>
 
@@ -1256,7 +1256,7 @@ export const AiManezarModal: React.FC<AiManezarModalProps> = ({
                       fileInputRef.current?.click();
                     }}
                   >
-                    <Paperclip className="ai-dropup-icon text-black dark:text-white w-4 h-4" />
+                    <Paperclip className="ai-dropup-icon text-sky-400 w-4 h-4" />
                     <span className="ai-dropup-label">📁 ফাইল যুক্ত করুন</span>
                   </button>
 
@@ -1269,7 +1269,7 @@ export const AiManezarModal: React.FC<AiManezarModalProps> = ({
                       textareaRef.current?.focus();
                     }}
                   >
-                    <Sparkles className="ai-dropup-icon text-black dark:text-white w-4 h-4" />
+                    <Sparkles className="ai-dropup-icon text-purple-400 w-4 h-4" />
                     <span className="ai-dropup-label">⚡ কুইক প্রম্পট: ক্যাশ ও বকেয়া</span>
                   </button>
                 </div>

@@ -110,20 +110,20 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   };
 
   return (
-    <header className="print:hidden bg-white/95 dark:bg-black/95 backdrop-blur-md text-black dark:text-white border-b border-neutral-200 dark:border-neutral-800 pl-14 pr-4 md:px-5 py-3 sticky top-0 z-10 shadow-xs transition-colors duration-200">
+    <header className="print:hidden bg-[#0A251C]/90 backdrop-blur-md text-[#FFF9F0] border-b border-[#D4AF37]/25 pl-14 pr-4 md:px-5 py-3 sticky top-0 z-10 shadow-md transition-colors duration-200">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         {/* Left: Active Tab Title & Subtitle */}
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm sm:text-lg font-black text-black dark:text-white tracking-tight whitespace-nowrap truncate max-w-[140px] sm:max-w-none shrink-0 font-sans">
+            <h2 className="text-sm sm:text-lg font-black text-[#FFEFA6] tracking-tight whitespace-nowrap truncate max-w-[140px] sm:max-w-none shrink-0 font-sans">
               {currentInfo.title}
             </h2>
-            <span className="hidden lg:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 text-black dark:text-white">
-              <Sparkles className="w-3 h-3 text-black dark:text-white" />
+            <span className="hidden lg:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/35 text-[#FFEFA6]">
+              <Sparkles className="w-3 h-3 text-[#D4AF37]" />
               <span>সক্রিয় মডিউল</span>
             </span>
           </div>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate mt-0.5">
+          <p className="text-xs text-[#A7C2B2] truncate mt-0.5">
             {currentInfo.subtitle}
           </p>
         </div>
@@ -139,9 +139,9 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               onClick={handlePurgeDrafts}
               disabled={isPurging}
               title="সকল পরীক্ষামূলক টেস্ট ড্রাফট ডাটা ডাটাবেজ থেকে মুছে ফেলুন"
-              className="px-2 sm:px-3 py-1 sm:py-1.5 bg-neutral-200 hover:bg-neutral-300 text-black dark:bg-neutral-800 dark:hover:bg-neutral-700 dark:text-white border border-neutral-400 dark:border-neutral-600 font-black rounded-xl text-xs whitespace-nowrap shrink-0 flex items-center gap-1.5 shadow-xs transition-all duration-150 cursor-pointer"
+              className="px-2 sm:px-3 py-1 sm:py-1.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-black rounded-xl text-xs whitespace-nowrap shrink-0 flex items-center gap-1.5 shadow-md transition-all duration-150 cursor-pointer animate-pulse"
             >
-              <Trash2 className="w-3.5 h-3.5 text-black dark:text-white" />
+              <Trash2 className="w-3.5 h-3.5 text-white" />
               <span>{isPurging ? 'মুছে ফেলা হচ্ছে...' : '🗑️ সকল টেস্ট ড্রাফট ডাটা মুছুন'}</span>
             </button>
           )}
@@ -150,9 +150,9 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           <button
             onClick={() => window.dispatchEvent(new CustomEvent('open-ai-manezar'))}
             title="Ai Manezar (Gemini 3 Flash) আড়ত সহকারী খুলুন"
-            className="px-2.5 sm:px-3.5 py-1 sm:py-1.5 bg-neutral-100 hover:bg-neutral-200 text-black dark:bg-neutral-900 dark:hover:bg-neutral-800 dark:text-white border border-neutral-300 dark:border-neutral-700 active:scale-95 font-black rounded-xl text-xs whitespace-nowrap shrink-0 flex items-center gap-1.5 shadow-xs transition-all duration-150 cursor-pointer"
+            className="px-2.5 sm:px-3.5 py-1 sm:py-1.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 active:scale-95 text-white font-black rounded-xl text-xs whitespace-nowrap shrink-0 flex items-center gap-1.5 shadow-sm transition-all duration-150 cursor-pointer"
           >
-            <Sparkles className="w-3.5 h-3.5 text-black dark:text-white" />
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
             <span>✨ Ai Manezar</span>
           </button>
 
@@ -160,9 +160,9 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           <button
             onClick={onOpenQuickPurchase}
             title="নতুন শস্য ক্রয় চালান এন্ট্রি করুন (F2)"
-            className="px-2.5 sm:px-3.5 py-1 sm:py-1.5 bg-neutral-100 hover:bg-neutral-200 text-black dark:bg-neutral-900 dark:hover:bg-neutral-800 dark:text-white border border-neutral-300 dark:border-neutral-700 active:scale-95 font-black rounded-xl text-xs whitespace-nowrap shrink-0 flex items-center gap-1.5 shadow-xs transition-all duration-150 cursor-pointer"
+            className="px-2.5 sm:px-3.5 py-1 sm:py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-black rounded-xl text-xs whitespace-nowrap shrink-0 flex items-center gap-1.5 shadow-sm transition-all duration-150 cursor-pointer"
           >
-            <ShoppingCart className="w-4 h-4 text-black dark:text-white" />
+            <ShoppingCart className="w-4 h-4 text-slate-950" />
             <span>+ ক্রয় (F2)</span>
           </button>
 
@@ -170,9 +170,9 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           <button
             onClick={onOpenQuickSale}
             title="নতুন বিক্রয় ও মেমো চালান তৈরি করুন (F3)"
-            className="px-2.5 sm:px-3.5 py-1 sm:py-1.5 bg-black hover:bg-neutral-800 text-white dark:bg-white dark:hover:bg-neutral-200 dark:text-black border border-black dark:border-white active:scale-95 font-black rounded-xl text-xs whitespace-nowrap shrink-0 flex items-center gap-1.5 shadow-xs transition-all duration-150 cursor-pointer"
+            className="px-2.5 sm:px-3.5 py-1 sm:py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black rounded-xl text-xs whitespace-nowrap shrink-0 flex items-center gap-1.5 shadow-sm transition-all duration-150 cursor-pointer"
           >
-            <TrendingUp className="w-4 h-4" />
+            <TrendingUp className="w-4 h-4 text-emerald-100" />
             <span>+ বিক্রয় (F3)</span>
           </button>
         </div>

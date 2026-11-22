@@ -672,7 +672,7 @@ export const PnLView: React.FC = () => {
               <h1 className="text-xl font-black text-[var(--text-primary)] tracking-tight">
                 রিপোর্ট ও নিট লাভ-ক্ষতি বিশ্লেষণ
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-neutral-100 dark:bg-neutral-900 text-black dark:text-white border border-neutral-300 dark:border-neutral-700 shadow-xs">
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#D4AF37]/15 text-[#FFEFA6] border border-[#D4AF37]/40 shadow-xs">
                 {getSectorLabel(activeSector)}
               </span>
             </div>
@@ -729,7 +729,7 @@ export const PnLView: React.FC = () => {
               onClick={() => setActiveTab(tab.key as ReportTab)}
               className={`px-3.5 py-2 rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
                 isActive
-                  ? 'bg-black text-white dark:bg-white dark:text-black font-black shadow-sm border border-black dark:border-white'
+                  ? 'bg-gradient-to-r from-[#D4AF37] to-amber-500 text-slate-950 font-black shadow-md border border-[#FFEFA6]/50'
                   : 'text-[var(--text-secondary)] hover:bg-[var(--surface-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -763,7 +763,7 @@ export const PnLView: React.FC = () => {
             <span className="inline-block px-3 py-1 bg-[var(--surface-secondary)] border border-[var(--border-color)] rounded-lg text-xs font-bold text-amber-400">
               {currentDateText}
             </span>
-            <span className="inline-block px-3 py-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs font-bold text-black dark:text-white">
+            <span className="inline-block px-3 py-1 bg-[#D4AF37]/15 border border-[#D4AF37]/40 rounded-lg text-xs font-bold text-[#FFEFA6]">
               সেক্টর: {getSectorLabel(activeSector)}
             </span>
           </div>
@@ -1552,7 +1552,7 @@ export const PnLView: React.FC = () => {
                             <span className="text-[10px] font-normal text-[var(--text-muted)] block">{c.name_en}</span>
                           </td>
                           <td className="py-2.5 px-3 text-center">
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-neutral-100 dark:bg-neutral-900 text-black dark:text-white border border-neutral-300 dark:border-neutral-700">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#D4AF37]/15 text-[#FFEFA6] border border-[#D4AF37]/30">
                               {getSectorLabel(c.sector as any)}
                             </span>
                           </td>

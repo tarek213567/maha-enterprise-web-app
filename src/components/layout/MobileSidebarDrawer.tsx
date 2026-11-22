@@ -109,30 +109,30 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
       />
 
       {/* Slide-over Drawer Panel */}
-      <div className="relative w-[285px] max-w-[85vw] h-full bg-white dark:bg-black text-black dark:text-white border-r border-neutral-200 dark:border-neutral-800 flex flex-col p-3.5 shadow-2xl z-10 overflow-y-auto animate-in slide-in-from-left duration-300">
+      <div className="relative w-[285px] max-w-[85vw] h-full bg-gradient-to-b from-[#0A251C] to-[#04120D] text-[#FFF9F0] border-r border-[#D4AF37]/30 flex flex-col p-3.5 shadow-2xl z-10 overflow-y-auto animate-in slide-in-from-left duration-300">
         {/* Drawer Header: Emblem + Brand Title + Close Button */}
-        <div className="flex items-center justify-between pb-3 border-b border-neutral-200 dark:border-neutral-800 mb-2 px-1">
+        <div className="flex items-center justify-between pb-3 border-b border-[#D4AF37]/20 mb-2 px-1">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 flex items-center justify-center shrink-0">
-              <svg viewBox="0 0 32 32" className="w-5 h-5 text-black dark:text-white" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M8 26 Q14 16 22 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                <ellipse cx="21" cy="9" rx="3" ry="1.5" transform="rotate(-35 21 9)" fill="currentColor" />
-                <ellipse cx="18" cy="13" rx="3.5" ry="1.7" transform="rotate(-25 18 13)" fill="currentColor" />
-                <ellipse cx="15" cy="17" rx="3.5" ry="1.7" transform="rotate(-15 15 17)" fill="currentColor" />
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#103D2E] to-[#051C13] border border-[#D4AF37]/40 shadow-sm flex items-center justify-center shrink-0">
+              <svg viewBox="0 0 32 32" className="w-5 h-5" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M8 26 Q14 16 22 6" stroke="#D4AF37" strokeWidth="2" strokeLinecap="round" />
+                <ellipse cx="21" cy="9" rx="3" ry="1.5" transform="rotate(-35 21 9)" fill="#D4AF37" />
+                <ellipse cx="18" cy="13" rx="3.5" ry="1.7" transform="rotate(-25 18 13)" fill="#D4AF37" />
+                <ellipse cx="15" cy="17" rx="3.5" ry="1.7" transform="rotate(-15 15 17)" fill="#D4AF37" />
               </svg>
             </div>
             <div>
-              <span className="font-extrabold text-black dark:text-white text-sm tracking-wide block font-sans">
+              <span className="font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-[#FFEFA6] via-[#D4AF37] to-[#AA7C11] text-sm tracking-wide block font-sans">
                 মাহা এন্টারপ্রাইজ
               </span>
-              <span className="text-[10px] text-neutral-500 dark:text-neutral-400 block">চাচকৈড় বাজার, নাটোর</span>
+              <span className="text-[10px] text-[#A7C2B2] block">চাচকৈড় বাজার, নাটোর</span>
             </div>
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-black dark:text-white hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+            className="p-1.5 rounded-xl bg-[#03150F] border border-[#D4AF37]/30 text-[#FFEFA6] hover:text-white hover:bg-[#D4AF37]/20 transition-colors cursor-pointer"
             aria-label="বন্ধ করুন"
           >
             <X className="w-4 h-4" />
@@ -154,8 +154,8 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
                   }}
                   className={`text-xs font-semibold py-2 px-2.5 rounded-lg border flex items-center justify-center gap-1.5 transition-all select-none cursor-pointer active:scale-95 ${
                     isActive
-                      ? 'border-black bg-black text-white dark:border-white dark:bg-white dark:text-black font-bold shadow-xs'
-                      : 'border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/60 text-neutral-700 dark:text-neutral-300 hover:border-black dark:hover:border-white hover:text-black dark:hover:text-white'
+                      ? 'border-[#D4AF37] bg-[#D4AF37]/20 text-[#FFEFA6] shadow-[0_0_10px_rgba(212,175,55,0.25)] font-bold'
+                      : 'border-[#174233] bg-[#061D15] text-emerald-200/80 hover:border-[#D4AF37]/50 hover:text-[#FFEFA6]'
                   }`}
                   title={s.description}
                 >
@@ -168,7 +168,7 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
         </div>
 
         {/* Divider below Sector Grid */}
-        <div className="mb-2 border-t border-neutral-200 dark:border-neutral-800" />
+        <div className="mb-2 border-t border-[#D4AF37]/20" />
 
         {/* Menu Items */}
         <div className="flex-1 flex flex-col gap-1 overflow-y-auto pr-0.5 scrollbar-thin">
@@ -191,41 +191,39 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
                 }}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all text-left cursor-pointer ${
                   item.id === 'calculator'
-                    ? 'text-black dark:text-white hover:bg-neutral-100 dark:hover:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 bg-neutral-100/50 dark:bg-neutral-900/50'
+                    ? 'text-[#FFEFA6] hover:text-white hover:bg-[#D4AF37]/15 border border-[#D4AF37]/30 bg-[#0E3527]/40'
                     : isActive
-                    ? 'border border-black bg-black text-white dark:border-white dark:bg-white dark:text-black font-bold shadow-xs'
-                    : 'text-neutral-700 dark:text-neutral-300 hover:text-black dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-900 border border-transparent'
+                    ? 'border border-[#D4AF37]/60 bg-[#D4AF37]/15 text-[#FFEFA6] font-bold shadow-[0_0_12px_rgba(212,175,55,0.25)]'
+                    : 'text-[#E2C384] hover:text-white hover:bg-[#D4AF37]/10 border border-transparent'
                 }`}
               >
                 <div className="flex items-center gap-2.5 truncate">
                   <Icon
                     className={`w-4 h-4 shrink-0 ${
-                      isActive
-                        ? 'text-white dark:text-black'
-                        : 'text-neutral-500 dark:text-neutral-400'
+                      item.id === 'calculator'
+                        ? 'text-[#D4AF37]'
+                        : isActive
+                        ? 'text-[#FFEFA6]'
+                        : 'text-[#D4AF37]/80'
                     }`}
                   />
                   <span className="truncate">{item.name}</span>
                 </div>
 
                 {item.id === 'recycle_bin' && recycleCount > 0 ? (
-                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ml-1 border ${
-                    isActive ? 'bg-neutral-800 text-white border-neutral-600 dark:bg-neutral-200 dark:text-black' : 'bg-neutral-100 dark:bg-neutral-800 text-black dark:text-white border-neutral-300 dark:border-neutral-700'
-                  }`}>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ml-1 bg-rose-500/25 text-rose-300 border border-rose-500/40">
                     {toBnDigits(recycleCount)}
                   </span>
                 ) : item.id === 'creditors' && creditorCount > 0 ? (
-                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ml-1 border ${
-                    isActive ? 'bg-neutral-800 text-white border-neutral-600 dark:bg-neutral-200 dark:text-black' : 'bg-neutral-100 dark:bg-neutral-800 text-black dark:text-white border-neutral-300 dark:border-neutral-700'
-                  }`}>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ml-1 bg-[#D4AF37]/25 text-[#FFEFA6] border border-[#D4AF37]/40">
                     ({toBnDigits(creditorCount)})
                   </span>
                 ) : item.shortcut ? (
                   <span
-                    className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ml-1 border ${
+                    className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ml-1 ${
                       isActive
-                        ? 'bg-neutral-800 text-white border-neutral-700 dark:bg-neutral-200 dark:text-black dark:border-neutral-300'
-                        : 'bg-neutral-100 dark:bg-neutral-900 text-neutral-500 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800'
+                        ? 'bg-[#D4AF37]/25 text-[#FFEFA6] border border-[#D4AF37]/40'
+                        : 'bg-[#03150F] text-[#A7C2B2] border border-[#D4AF37]/20'
                     }`}
                   >
                     {item.shortcut}
@@ -237,7 +235,7 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
         </div>
 
         {/* Divider directly below menu */}
-        <div className="my-2 border-t border-neutral-200 dark:border-neutral-800" />
+        <div className="my-2 border-t border-[#D4AF37]/20" />
 
         {/* Controls Panel (Theme Toggle, Lock, Instant Backup) */}
         <div className="flex flex-col gap-1.5 pt-1 shrink-0">
@@ -246,7 +244,7 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
             <button
               type="button"
               onClick={toggleTheme}
-              className="flex items-center justify-center gap-1.5 py-2 px-1.5 rounded-xl text-xs font-bold border border-neutral-300 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-black dark:text-white active:scale-95 transition-all cursor-pointer shadow-xs"
+              className="flex items-center justify-center gap-1.5 py-2 px-1.5 rounded-xl text-xs font-bold border border-[#D4AF37]/35 bg-[#061E16] hover:bg-[#D4AF37]/20 text-[#FFEFA6] active:scale-95 transition-all cursor-pointer shadow-sm"
               title={isDark ? 'লাইট মোড চালু করুন' : 'ডার্ক মোড চালু করুন'}
             >
               <span>{isDark ? '☀️' : '🌙'}</span>
@@ -256,7 +254,7 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
             <button
               type="button"
               onClick={handleLock}
-              className="flex items-center justify-center gap-1.5 py-2 px-1.5 rounded-xl text-xs font-bold border border-neutral-300 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-black dark:text-white active:scale-95 transition-all cursor-pointer shadow-xs"
+              className="flex items-center justify-center gap-1.5 py-2 px-1.5 rounded-xl text-xs font-bold border border-rose-500/40 bg-[#2A0808] hover:bg-rose-900/40 text-rose-300 active:scale-95 transition-all cursor-pointer shadow-sm"
               title="সফটওয়্যার স্ক্রিন লক করুন"
             >
               <span>🔒</span>
@@ -269,10 +267,10 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
             type="button"
             onClick={handleBackup}
             disabled={isBackingUp}
-            className="w-full flex items-center justify-center gap-2 py-2 px-2.5 rounded-xl text-xs font-bold border border-black bg-black text-white hover:bg-neutral-800 dark:border-white dark:bg-white dark:text-black dark:hover:bg-neutral-200 active:scale-95 transition-all cursor-pointer disabled:opacity-50 shadow-xs"
+            className="w-full flex items-center justify-center gap-2 py-2 px-2.5 rounded-xl text-xs font-bold border border-[#D4AF37]/45 bg-gradient-to-r from-[#0E3A2B] to-[#0A261C] hover:border-[#D4AF37] text-[#FFEFA6] active:scale-95 transition-all cursor-pointer disabled:opacity-50 shadow-md"
             title="ডাটাবেজ ও রয়্যাল এক্সেল (.xlsx) ব্যাকআপ ডাউনলোড করুন"
           >
-            <Download className={`w-3.5 h-3.5 shrink-0 ${isBackingUp ? 'animate-spin' : ''}`} />
+            <Download className={`w-3.5 h-3.5 text-[#D4AF37] shrink-0 ${isBackingUp ? 'animate-spin' : ''}`} />
             <span className="truncate">{isBackingUp ? 'ব্যাকআপ হচ্ছে...' : 'তাৎক্ষণিক ব্যাকআপ'}</span>
           </button>
         </div>

@@ -105,11 +105,11 @@ export const PinLockOverlay: React.FC = () => {
   if (!isLocked) return null;
 
   return (
-    <div className="fixed inset-0 z-[99999] bg-black/80 dark:bg-black/95 backdrop-blur-md flex items-center justify-center p-4 select-none animate-fade-in transition-all">
-      <div className="w-full max-w-sm bg-white dark:bg-[#0A0A0A] border-2 border-black dark:border-neutral-800 rounded-3xl p-6 sm:p-8 shadow-[0_20px_60px_rgba(0,0,0,0.85)] flex flex-col items-center text-center">
+    <div className="fixed inset-0 z-[99999] bg-[#070b14]/95 backdrop-blur-md flex items-center justify-center p-4 select-none animate-fade-in transition-all">
+      <div className="w-full max-w-sm bg-gradient-to-b from-[#131d2e] to-[#0b101b] border border-amber-500/30 rounded-3xl p-6 sm:p-8 shadow-[0_20px_60px_rgba(0,0,0,0.85)] flex flex-col items-center text-center">
         {/* App Logo & Header */}
-        <div className="w-20 h-20 rounded-2xl bg-black dark:bg-white p-0.5 shadow-xl mb-3 flex items-center justify-center">
-          <div className="w-full h-full bg-white dark:bg-black rounded-2xl overflow-hidden flex items-center justify-center p-1.5">
+        <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-amber-600 via-amber-400 to-amber-600 p-0.5 shadow-xl shadow-amber-500/20 mb-3 flex items-center justify-center">
+          <div className="w-full h-full bg-[#0F172A] rounded-2xl overflow-hidden flex items-center justify-center p-1.5">
             <img
               src="/icon.png"
               alt="মাহা এন্টারপ্রাইজ লোগো"
@@ -128,11 +128,11 @@ export const PinLockOverlay: React.FC = () => {
           </div>
         </div>
 
-        <h2 className="text-xl font-black text-black dark:text-white tracking-wide">
+        <h2 className="text-xl font-black text-white tracking-wide">
           {APP_CONFIG.name}
         </h2>
-        <p className="text-xs text-neutral-600 dark:text-neutral-400 font-medium mt-1 flex items-center justify-center gap-1.5">
-          <Lock className="w-3.5 h-3.5 text-black dark:text-white" />
+        <p className="text-xs text-amber-400/90 font-medium mt-1 flex items-center justify-center gap-1.5">
+          <Lock className="w-3.5 h-3.5" />
           নিরাপত্তা স্ক্রিন লক • পিন কোড দিন
         </p>
 
@@ -148,9 +148,11 @@ export const PinLockOverlay: React.FC = () => {
               <div
                 key={index}
                 className={`w-4 h-4 rounded-full border-2 transition-all duration-200 flex items-center justify-center ${
-                  unlockedSuccess || isFilled
-                    ? 'border-black bg-black dark:border-white dark:bg-white scale-110'
-                    : 'border-neutral-400 bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-900'
+                  unlockedSuccess
+                    ? 'border-emerald-400 bg-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.8)] scale-110'
+                    : isFilled
+                    ? 'border-amber-400 bg-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.8)] scale-110'
+                    : 'border-slate-600 bg-slate-800/80'
                 }`}
               />
             );
@@ -160,7 +162,7 @@ export const PinLockOverlay: React.FC = () => {
         {/* Error message */}
         <div className="h-6 mb-2 flex items-center justify-center">
           {errorMessage && (
-            <p className="text-xs text-black dark:text-white font-bold flex items-center justify-center gap-1 animate-pulse">
+            <p className="text-xs text-rose-400 font-bold flex items-center justify-center gap-1 animate-pulse">
               <AlertCircle className="w-3.5 h-3.5" />
               {errorMessage}
             </p>
@@ -174,7 +176,7 @@ export const PinLockOverlay: React.FC = () => {
               key={digit}
               type="button"
               onClick={() => handleDigit(digit)}
-              className="h-14 rounded-2xl bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 dark:bg-neutral-900 dark:hover:bg-neutral-800 dark:active:bg-neutral-700 active:scale-95 border border-neutral-300 dark:border-neutral-700 text-black dark:text-white font-mono font-bold text-2xl transition-all shadow-sm focus:outline-none cursor-pointer flex items-center justify-center"
+              className="h-14 rounded-2xl bg-[#1E293B]/80 hover:bg-amber-500/20 active:scale-95 active:bg-amber-500/40 border border-slate-700/60 hover:border-amber-500/50 text-white font-mono font-bold text-2xl transition-all shadow-sm focus:outline-none cursor-pointer flex items-center justify-center"
             >
               {digit}
             </button>
@@ -184,7 +186,7 @@ export const PinLockOverlay: React.FC = () => {
           <button
             type="button"
             onClick={handleClear}
-            className="h-14 rounded-2xl bg-neutral-200 hover:bg-neutral-300 active:scale-95 dark:bg-neutral-800 dark:hover:bg-neutral-700 border border-neutral-300 dark:border-neutral-700 text-black dark:text-white font-bold text-xs transition-all focus:outline-none cursor-pointer flex items-center justify-center"
+            className="h-14 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 border border-rose-500/30 text-rose-300 font-bold text-xs transition-all focus:outline-none cursor-pointer flex items-center justify-center"
             title="মুছুন"
           >
             ক্লিয়ার
@@ -193,7 +195,7 @@ export const PinLockOverlay: React.FC = () => {
           <button
             type="button"
             onClick={() => handleDigit('0')}
-            className="h-14 rounded-2xl bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 dark:bg-neutral-900 dark:hover:bg-neutral-800 dark:active:bg-neutral-700 active:scale-95 border border-neutral-300 dark:border-neutral-700 text-black dark:text-white font-mono font-bold text-2xl transition-all shadow-sm focus:outline-none cursor-pointer flex items-center justify-center"
+            className="h-14 rounded-2xl bg-[#1E293B]/80 hover:bg-amber-500/20 active:scale-95 active:bg-amber-500/40 border border-slate-700/60 hover:border-amber-500/50 text-white font-mono font-bold text-2xl transition-all shadow-sm focus:outline-none cursor-pointer flex items-center justify-center"
           >
             0
           </button>
@@ -201,7 +203,7 @@ export const PinLockOverlay: React.FC = () => {
           <button
             type="button"
             onClick={handleBackspace}
-            className="h-14 rounded-2xl bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 dark:bg-neutral-900 dark:hover:bg-neutral-800 dark:active:bg-neutral-700 active:scale-95 border border-neutral-300 dark:border-neutral-700 text-black dark:text-white transition-all shadow-sm focus:outline-none cursor-pointer flex items-center justify-center"
+            className="h-14 rounded-2xl bg-[#1E293B]/80 hover:bg-amber-500/20 active:scale-95 active:bg-amber-500/40 border border-slate-700/60 hover:border-amber-500/50 text-slate-300 hover:text-white transition-all shadow-sm focus:outline-none cursor-pointer flex items-center justify-center"
             title="একটি সংখ্যা মুছুন"
           >
             <Delete className="w-5 h-5" />
@@ -209,12 +211,12 @@ export const PinLockOverlay: React.FC = () => {
         </div>
 
         {/* Security Footer */}
-        <div className="mt-6 pt-4 border-t border-neutral-200 dark:border-neutral-800 w-full flex items-center justify-between text-[11px] text-neutral-500 dark:text-neutral-400">
+        <div className="mt-6 pt-4 border-t border-slate-800/80 w-full flex items-center justify-between text-[11px] text-slate-500">
           <span className="flex items-center gap-1">
-            <Shield className="w-3.5 h-3.5 text-black dark:text-white" />
+            <Shield className="w-3.5 h-3.5 text-emerald-400" />
             ৩০ মিনিট নিষ্ক্রিয়তায় অটো-লক
           </span>
-          <span className="font-mono text-black dark:text-white font-bold">{APP_CONFIG.version} Enterprise</span>
+          <span className="font-mono text-amber-400 font-bold">{APP_CONFIG.version} Enterprise</span>
         </div>
       </div>
     </div>

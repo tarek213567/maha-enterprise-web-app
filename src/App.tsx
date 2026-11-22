@@ -139,11 +139,15 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-screen bg-white text-black dark:bg-black dark:text-white flex flex-col font-sans selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black transition-colors duration-200 overflow-hidden select-none relative">
-      {/* Fixed Subtle Watermarked Backdrop Overlay */}
+    <div className="h-screen w-screen bg-[#04110A] text-[#FFF9F0] flex flex-col font-sans selection:bg-[#D4AF37] selection:text-[#04110A] transition-colors duration-200 overflow-hidden select-none relative">
+      {/* Fixed Subtle Watermarked Rice Grain Backdrop Overlay */}
       <div
-        className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center opacity-[0.03] dark:opacity-10 grayscale mix-blend-multiply dark:mix-blend-screen transition-opacity"
+        className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center opacity-15 mix-blend-screen transition-opacity"
         style={{ backgroundImage: `url('/bg-rice-grains.jpg')` }}
+      />
+      {/* Deep Emerald Ambient Glow Overlay */}
+      <div
+        className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(ellipse_at_top,_rgba(10,37,28,0.75)_0%,_rgba(4,17,10,0.98)_75%)]"
       />
 
       {/* Main Application Workspace: Sidebar (Left) + Viewport (Right) - Flush with Top Edge */}
@@ -218,13 +222,13 @@ const AppContent: React.FC = () => {
       <button
         type="button"
         onClick={() => setIsMobileDrawerOpen(true)}
-        className="fixed bottom-5 left-4 z-50 md:hidden w-12 h-12 rounded-2xl bg-black text-white border-2 border-black dark:bg-white dark:text-black dark:border-white shadow-[0_6px_20px_rgba(0,0,0,0.4)] flex flex-col items-center justify-center gap-1.5 active:scale-95 transition-transform cursor-pointer select-none"
+        className="fixed bottom-5 left-4 z-50 md:hidden w-12 h-12 rounded-2xl bg-gradient-to-b from-[#0D3326] to-[#04150F] border-2 border-[#D4AF37] shadow-[0_6px_20px_rgba(0,0,0,0.75)] flex flex-col items-center justify-center gap-1.5 active:scale-95 transition-transform cursor-pointer select-none"
         title="মেনু ড্রয়ার খুলুন"
         aria-label="মেনু ড্রয়ার খুলুন"
       >
-        <span className="w-5 h-[2.5px] bg-white dark:bg-black rounded-full block" />
-        <span className="w-5 h-[2.5px] bg-white dark:bg-black rounded-full block" />
-        <span className="w-5 h-[2.5px] bg-white dark:bg-black rounded-full block" />
+        <span className="w-5 h-[2.5px] bg-white rounded-full block" />
+        <span className="w-5 h-[2.5px] bg-white rounded-full block" />
+        <span className="w-5 h-[2.5px] bg-white rounded-full block" />
       </button>
 
       {/* Slide-over Full Mobile Sidebar Drawer */}
@@ -246,11 +250,17 @@ const AppContent: React.FC = () => {
       {/* Floating Toast Notification */}
       {toast && (
         <div className="fixed bottom-10 right-6 z-50 animate-in slide-in-from-bottom duration-200">
-          <div className="px-4 py-3 rounded-xl shadow-2xl border-2 flex items-center gap-2.5 text-xs font-bold bg-black text-white border-neutral-700 dark:bg-white dark:text-black dark:border-neutral-300">
+          <div
+            className={`px-4 py-3 rounded-xl shadow-2xl border flex items-center gap-2.5 text-xs font-bold ${
+              toast.type === 'success'
+                ? 'bg-emerald-950 text-white border-emerald-700'
+                : 'bg-rose-950 text-white border-rose-700'
+            }`}
+          >
             {toast.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-white dark:text-black" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
             ) : (
-              <AlertCircle className="w-4 h-4 text-white dark:text-black" />
+              <AlertCircle className="w-4 h-4 text-rose-400" />
             )}
             <span>{toast.message}</span>
           </div>
