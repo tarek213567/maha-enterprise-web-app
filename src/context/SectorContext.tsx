@@ -25,11 +25,15 @@ export function getSectorLabel(sector?: SectorType | SectorFilter | null): strin
   return sector;
 }
 
-export function isJute(item?: { sector?: string; name_bn?: string; commodity_name?: string } | null): boolean {
+export function isJute(item?: any): boolean {
   if (!item) return false;
+  if (typeof item === 'string') {
+    return item === 'jute' || item.includes('পাট');
+  }
   if (item.sector === 'jute') return true;
-  if (item.name_bn && item.name_bn.includes('পাট')) return true;
-  if (item.commodity_name && item.commodity_name.includes('পাট')) return true;
+  if (item.name && typeof item.name === 'string' && item.name.includes('পাট')) return true;
+  if (item.name_bn && typeof item.name_bn === 'string' && item.name_bn.includes('পাট')) return true;
+  if (item.commodity_name && typeof item.commodity_name === 'string' && item.commodity_name.includes('পাট')) return true;
   return false;
 }
 
@@ -38,7 +42,7 @@ interface SectorContextValue {
   setActiveSector: (s: SectorFilter) => void;
   sectors: SectorItem[];
   getSectorLabel: (sector?: SectorType | SectorFilter | null) => string;
-  isJute: (item?: { sector?: string; name_bn?: string; commodity_name?: string } | null) => boolean;
+  isJute: (item?: any) => boolean;
 }
 
 const SectorContext = createContext<SectorContextValue>({

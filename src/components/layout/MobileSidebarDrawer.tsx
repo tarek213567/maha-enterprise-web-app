@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
+import { useSector, SECTORS } from '../../context/SectorContext';
 import { dbService } from '../../services/api';
 import { toBnDigits } from '../../utils/bengaliNumbers';
 
@@ -58,6 +59,7 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
   const [isBackingUp, setIsBackingUp] = useState(false);
   const { isDark, toggleTheme } = useTheme();
   const { lockApp } = useSecurity();
+  const { activeSector, setActiveSector } = useSector();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -136,6 +138,47 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Dedicated 2x2 Sector Selector Grid */}
+        <div className="mb-3 px-1 pt-1">
+          <div className="flex items-center justify-between mb-1.5 px-0.5">
+            <span className="text-[11px] font-extrabold text-[#D4AF37] tracking-wider uppercase flex items-center gap-1.5">
+              <span>🌾</span>
+              <span>সেক্টর নির্বাচন করুন</span>
+            </span>
+            <span className="text-[10px] text-[#A7C2B2] font-semibold bg-[#03150F] px-1.5 py-0.5 rounded border border-[#D4AF37]/20">
+              {activeSector === 'all' ? 'সব সেক্টর' : activeSector === 'jute' ? 'পাট' : activeSector === 'maize' ? 'ভুট্টা' : 'সরিষা'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-1.5">
+            {SECTORS.map((s) => {
+              const isActive = activeSector === s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveSector(s.id);
+                    onClose();
+                  }}
+                  className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer active:scale-95 select-none ${
+                    isActive
+                      ? 'border-2 border-[#D4AF37] bg-[#D4AF37]/20 text-[#FFEFA6] shadow-[0_0_12px_rgba(212,175,55,0.3)]'
+                      : 'bg-[#062016]/80 hover:bg-[#0A2E20] border border-[#D4AF37]/20 text-[#C4D9CC] hover:text-[#FFEFA6]'
+                  }`}
+                  title={s.description}
+                >
+                  <span className="text-sm leading-none">{s.icon}</span>
+                  <span className="truncate">{s.shortLabel}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Divider below Sector Grid */}
+        <div className="mb-2 border-t border-[#D4AF37]/20" />
 
         {/* Menu Items */}
         <div className="flex-1 flex flex-col gap-1 overflow-y-auto pr-0.5 scrollbar-thin">

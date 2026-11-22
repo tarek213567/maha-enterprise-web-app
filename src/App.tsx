@@ -174,9 +174,9 @@ const AppContent: React.FC = () => {
 
           {/* Module Content */}
           <ErrorBoundary fallbackTitle="মডিউল রেন্ডারার রিকভারি">
-            <main className="flex-1 max-w-[1550px] w-full mx-auto p-3 sm:p-4 pb-24 sm:pb-8">
+            <main className="flex-1 max-w-[1550px] w-full mx-auto p-3 sm:p-4 pb-24 md:pb-6">
               {['dashboard', 'purchases', 'sales', 'stock', 'ledgers', 'creditors', 'cashbook', 'expenses', 'reports'].includes(currentTab) && (
-                <div className="mb-3 sm:mb-4">
+                <div className="hidden md:block mb-3 sm:mb-4">
                   <SectorSwitcherBar />
                 </div>
               )}
@@ -225,15 +225,17 @@ const AppContent: React.FC = () => {
         onOpenMenu={() => setIsMobileDrawerOpen(true)}
       />
 
-      {/* Mobile Floating Three-Dot (⋮) Menu Button on Left Side */}
+      {/* Mobile Floating Tall Vertical Three-Dot (⋮) Pill Button at Bottom-Left (Aligned with AI Manezar Orb) */}
       <button
         type="button"
         onClick={() => setIsMobileDrawerOpen(true)}
-        className="fixed top-3 left-3 z-40 md:hidden flex items-center justify-center w-10 h-10 rounded-full border border-[#D4AF37]/50 bg-[#0A251C]/90 backdrop-blur-md text-[#FFEFA6] hover:text-white shadow-[0_0_15px_rgba(212,175,55,0.3)] active:scale-95 transition-all cursor-pointer"
-        title="মেনু ড্রয়ার খুলুন"
+        className="fixed bottom-5 left-4 z-50 md:hidden w-11 h-14 rounded-2xl bg-gradient-to-b from-[#0D3326] via-[#082219] to-[#04150F] border-2 border-[#D4AF37] shadow-[0_6px_20px_rgba(0,0,0,0.75),0_0_15px_rgba(212,175,55,0.35)] flex flex-col items-center justify-center gap-1.5 active:scale-95 transition-transform cursor-pointer group select-none"
+        title="মেনু ড্রয়ার খুলুন (থ্রি ডট মেনু)"
         aria-label="মেনু ড্রয়ার খুলুন"
       >
-        <MoreVertical className="w-5 h-5 text-[#D4AF37]" />
+        <span className="w-1.5 h-1.5 rounded-full bg-[#FFE48F] shadow-[0_0_6px_#FFE48F] transition-transform group-hover:scale-125" />
+        <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] shadow-[0_0_6px_#D4AF37] transition-transform group-hover:scale-125" />
+        <span className="w-1.5 h-1.5 rounded-full bg-[#FFE48F] shadow-[0_0_6px_#FFE48F] transition-transform group-hover:scale-125" />
       </button>
 
       {/* Slide-over Full Mobile Sidebar Drawer */}

@@ -11,7 +11,7 @@ export const SectorSwitcherBar: React.FC<SectorSwitcherBarProps> = ({ className 
 
   return (
     <div
-      className={`w-full bg-[#03150F]/90 backdrop-blur-md rounded-xl sm:rounded-2xl border border-[#D4AF37]/30 p-1.5 sm:p-2 shadow-[0_4px_20px_rgba(0,0,0,0.35)] transition-all ${className}`}
+      className={`hidden md:block w-full bg-[#03150F]/90 backdrop-blur-md rounded-xl sm:rounded-2xl border border-[#D4AF37]/30 p-1.5 sm:p-2 shadow-[0_4px_20px_rgba(0,0,0,0.35)] transition-all ${className}`}
       role="tablist"
       aria-label="সেক্টর নির্বাচন বার"
     >

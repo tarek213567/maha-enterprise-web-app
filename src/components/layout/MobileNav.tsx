@@ -26,7 +26,7 @@ const mobileItems = [
 
 export const MobileNav: React.FC<MobileNavProps> = ({ currentTab, onTabChange, onOpenMenu }) => {
   return (
-    <nav className="md:hidden flex items-center justify-around bg-gradient-to-r from-[#0A251C]/95 via-[#04120D]/95 to-[#0A251C]/95 backdrop-blur-lg border-t border-[#D4AF37]/30 py-1.5 px-2 shrink-0 z-50 text-[11px] font-bold select-none pb-[calc(env(safe-area-inset-bottom,4px)+6px)] shadow-2xl">
+    <nav className="hidden items-center justify-around bg-gradient-to-r from-[#0A251C]/95 via-[#04120D]/95 to-[#0A251C]/95 backdrop-blur-lg border-t border-[#D4AF37]/30 py-1.5 px-2 shrink-0 z-50 text-[11px] font-bold select-none pb-[calc(env(safe-area-inset-bottom,4px)+6px)] shadow-2xl">
       {mobileItems.map((item) => {
         const isActive = currentTab === item.id;
         const Icon = item.icon;

@@ -227,23 +227,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* ========================================================================= */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         {/* Card 1: আজকের মোট বিক্রয় (Teal-Green #025D34) */}
-        <div className="bg-gradient-to-br from-[#025D34] to-[#013D22] border border-emerald-400/30 text-white rounded-2xl p-3.5 sm:p-4 shadow-lg flex items-center justify-between relative overflow-hidden backdrop-blur-md">
-          <div className="flex items-center gap-3 z-10 min-w-0">
-            <div className="p-2.5 sm:p-3 bg-white/15 rounded-xl backdrop-blur-xs flex items-center justify-center shrink-0 shadow-inner">
+        <div className="bg-gradient-to-br from-[#025D34] to-[#013D22] border border-emerald-400/30 text-white rounded-2xl p-3 sm:p-4 shadow-lg flex items-center justify-between relative overflow-hidden backdrop-blur-md">
+          <div className="flex items-center gap-2.5 sm:gap-3 z-10 min-w-0 flex-1">
+            <div className="p-2 sm:p-3 bg-white/15 rounded-xl backdrop-blur-xs flex items-center justify-center shrink-0 shadow-inner">
               <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <span className="text-[11px] sm:text-xs font-semibold text-emerald-100 block truncate">আজকের মোট বিক্রয়</span>
-              <div className="text-lg sm:text-2xl font-black tracking-tight font-sans mt-0.5 truncate text-white">
+              <div className="text-base sm:text-xl md:text-2xl font-black tracking-tight font-sans mt-0.5 whitespace-nowrap text-white">
                 {formatTakaBn(todayTotalSale, true)}
               </div>
-              <span className="text-[10px] sm:text-[11px] font-bold text-emerald-300 flex items-center gap-0.5 mt-0.5">
+              <span className="text-[9px] sm:text-[11px] font-bold text-emerald-300 flex items-center gap-0.5 mt-0.5 whitespace-nowrap">
                 ▲ গতদিনের চেয়ে +১২.৫%
               </span>
             </div>
           </div>
           {/* Right mini bar watermark */}
-          <div className="flex items-end gap-1 h-9 opacity-25 pr-1 select-none pointer-events-none shrink-0">
+          <div className="hidden xs:flex items-end gap-1 h-9 opacity-25 pr-1 select-none pointer-events-none shrink-0">
             <div className="w-1.5 bg-white h-4 rounded-xs"></div>
             <div className="w-1.5 bg-white h-6 rounded-xs"></div>
             <div className="w-1.5 bg-white h-9 rounded-xs"></div>
@@ -251,20 +251,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Card 2: নগদ বিক্রয় (Vibrant Sapphire Blue #0F4C81) */}
-        <div className="bg-gradient-to-br from-[#0A66C2] to-[#0F4C81] border border-sky-400/30 text-white rounded-2xl p-3.5 sm:p-4 shadow-lg flex items-center justify-between relative overflow-hidden backdrop-blur-md">
-          <div className="flex items-center gap-3 z-10 min-w-0">
-            <div className="p-2.5 sm:p-3 bg-white/15 rounded-xl backdrop-blur-xs flex items-center justify-center shrink-0 shadow-inner">
+        <div className="bg-gradient-to-br from-[#0A66C2] to-[#0F4C81] border border-sky-400/30 text-white rounded-2xl p-3 sm:p-4 shadow-lg flex items-center justify-between relative overflow-hidden backdrop-blur-md">
+          <div className="flex items-center gap-2.5 sm:gap-3 z-10 min-w-0 flex-1">
+            <div className="p-2 sm:p-3 bg-white/15 rounded-xl backdrop-blur-xs flex items-center justify-center shrink-0 shadow-inner">
               <Users className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <span className="text-[11px] sm:text-xs font-semibold text-sky-100 block truncate">নগদ বিক্রয়</span>
-              <div className="text-lg sm:text-2xl font-black tracking-tight font-sans mt-0.5 truncate text-white">
+              <div className="text-base sm:text-xl md:text-2xl font-black tracking-tight font-sans mt-0.5 whitespace-nowrap text-white">
                 {formatTakaBn(todayCashSale, true)}
               </div>
             </div>
           </div>
           {/* Cash banknotes 3D watermark */}
-          <div className="opacity-25 pr-1 select-none pointer-events-none shrink-0">
+          <div className="hidden xs:block opacity-25 pr-1 select-none pointer-events-none shrink-0">
             <svg viewBox="0 0 36 24" className="w-9 h-6" fill="currentColor">
               <rect x="2" y="2" width="32" height="20" rx="3" fill="none" stroke="currentColor" strokeWidth="2" />
               <circle cx="18" cy="12" r="5" fill="none" stroke="currentColor" strokeWidth="2" />
@@ -273,39 +273,39 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Card 3: বাকি বিক্রয় (Bronze-Orange #7E4A10) */}
-        <div className="bg-gradient-to-br from-[#D35400] to-[#7E4A10] border border-amber-400/30 text-white rounded-2xl p-3.5 sm:p-4 shadow-lg flex items-center justify-between relative overflow-hidden backdrop-blur-md">
-          <div className="flex items-center gap-3 z-10 min-w-0">
-            <div className="p-2.5 sm:p-3 bg-white/15 rounded-xl backdrop-blur-xs flex items-center justify-center shrink-0 shadow-inner">
+        <div className="bg-gradient-to-br from-[#D35400] to-[#7E4A10] border border-amber-400/30 text-white rounded-2xl p-3 sm:p-4 shadow-lg flex items-center justify-between relative overflow-hidden backdrop-blur-md">
+          <div className="flex items-center gap-2.5 sm:gap-3 z-10 min-w-0 flex-1">
+            <div className="p-2 sm:p-3 bg-white/15 rounded-xl backdrop-blur-xs flex items-center justify-center shrink-0 shadow-inner">
               <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <span className="text-[11px] sm:text-xs font-semibold text-amber-100 block truncate">বাকি বিক্রয়</span>
-              <div className="text-lg sm:text-2xl font-black tracking-tight font-sans mt-0.5 truncate text-white">
+              <div className="text-base sm:text-xl md:text-2xl font-black tracking-tight font-sans mt-0.5 whitespace-nowrap text-white">
                 {formatTakaBn(todayDueSale, true)}
               </div>
             </div>
           </div>
           {/* Document watermark */}
-          <div className="opacity-25 pr-1 select-none pointer-events-none shrink-0">
+          <div className="hidden xs:block opacity-25 pr-1 select-none pointer-events-none shrink-0">
             <FileText className="w-8 h-8 text-white" />
           </div>
         </div>
 
         {/* Card 4: আজকের ক্রয় (Crimson-Rose #5C0632) */}
-        <div className="bg-gradient-to-br from-[#7D1A8D] to-[#5C0632] border border-fuchsia-400/30 text-white rounded-2xl p-3.5 sm:p-4 shadow-lg flex items-center justify-between relative overflow-hidden backdrop-blur-md">
-          <div className="flex items-center gap-3 z-10 min-w-0">
-            <div className="p-2.5 sm:p-3 bg-white/15 rounded-xl backdrop-blur-xs flex items-center justify-center shrink-0 shadow-inner">
+        <div className="bg-gradient-to-br from-[#7D1A8D] to-[#5C0632] border border-fuchsia-400/30 text-white rounded-2xl p-3 sm:p-4 shadow-lg flex items-center justify-between relative overflow-hidden backdrop-blur-md">
+          <div className="flex items-center gap-2.5 sm:gap-3 z-10 min-w-0 flex-1">
+            <div className="p-2 sm:p-3 bg-white/15 rounded-xl backdrop-blur-xs flex items-center justify-center shrink-0 shadow-inner">
               <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <span className="text-[11px] sm:text-xs font-semibold text-fuchsia-100 block truncate">আজকের ক্রয়</span>
-              <div className="text-lg sm:text-2xl font-black tracking-tight font-sans mt-0.5 truncate text-white">
+              <div className="text-base sm:text-xl md:text-2xl font-black tracking-tight font-sans mt-0.5 whitespace-nowrap text-white">
                 {formatTakaBn(todayPurchase, true)}
               </div>
             </div>
           </div>
           {/* Cart watermark */}
-          <div className="opacity-25 pr-1 select-none pointer-events-none shrink-0">
+          <div className="hidden xs:block opacity-25 pr-1 select-none pointer-events-none shrink-0">
             <ShoppingCart className="w-8 h-8 text-white" />
           </div>
         </div>
