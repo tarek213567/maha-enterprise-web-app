@@ -161,110 +161,97 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <HeroWheatBanner />
 
       {/* ========================================================================= */}
-      {/* 2. ADVANCED "AI MANEZAR" GLASSMORPHIC HERO BAR (TASK 4 - Matching image_18.png) */}
+      {/* 2. ADVANCED "AI MANEZAR" GLASSMORPHIC HERO BAR                             */}
       {/* ========================================================================= */}
-      <div className="bg-gradient-to-r from-[#033E2B]/90 via-[#0A251C]/95 to-[#033E2B]/90 border-y-2 border-r-2 border-l-8 border-l-[#D4AF37] border-y-[#D4AF37]/35 border-r-[#D4AF37]/35 rounded-2xl p-3.5 sm:p-4 shadow-[0_8px_20px_rgba(0,0,0,0.6)] flex flex-col md:flex-row items-center justify-between gap-3.5 md:gap-6 backdrop-blur-md transition-all">
-        {/* Left: Friendly 3D Robot Mascot + Message */}
+      <div className="bg-white dark:bg-[#0A0A0A] border-2 border-black dark:border-neutral-800 rounded-2xl p-3.5 sm:p-4 shadow-sm flex flex-col md:flex-row items-center justify-between gap-3.5 md:gap-6 transition-all text-black dark:text-white">
+        {/* Left: Friendly Robot Mascot + Message */}
         <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
-          {/* Animated 3D Cyberpunk / Green Glowing Golden Robot Face Avatar */}
           <div className="relative shrink-0">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-[#104732] to-[#041C12] border-2 border-[#D4AF37] shadow-[0_0_16px_rgba(212,175,55,0.45)] flex items-center justify-center relative overflow-hidden">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-neutral-100 dark:bg-neutral-900 border-2 border-black dark:border-white flex items-center justify-center relative overflow-hidden text-black dark:text-white">
               <svg viewBox="0 0 48 48" className="w-9 h-9" fill="none" xmlns="http://www.w3.org/2000/svg">
-                {/* Sprout on head */}
-                <path d="M24 10 Q24 4 19 4 Q19 10 24 10" fill="#34d399" stroke="#059669" strokeWidth="1" />
-                <path d="M24 10 Q24 4 29 4 Q29 10 24 10" fill="#10b981" stroke="#047857" strokeWidth="1" />
-                {/* Robot Head Chassis */}
-                <rect x="8" y="10" width="32" height="26" rx="8" fill="#F1F5F9" stroke="#D4AF37" strokeWidth="1.5" />
-                {/* Face Visor */}
-                <rect x="12" y="15" width="24" height="15" rx="5" fill="#041E15" />
-                {/* Glowing Green Robot Eyes */}
-                <circle cx="18" cy="22" r="3.2" fill="#34D399" className="animate-pulse" />
-                <circle cx="18" cy="22" r="1.5" fill="#FFFFFF" />
-                <circle cx="30" cy="22" r="3.2" fill="#34D399" className="animate-pulse" />
-                <circle cx="30" cy="22" r="1.5" fill="#FFFFFF" />
-                {/* Smiling mouth curve */}
-                <path d="M21 26 Q24 28 27 26" stroke="#34D399" strokeWidth="1.5" strokeLinecap="round" />
-                {/* Cheerful Golden Ear Antennas */}
-                <rect x="4" y="19" width="4" height="8" rx="2" fill="#D4AF37" />
-                <rect x="40" y="19" width="4" height="8" rx="2" fill="#D4AF37" />
+                <path d="M24 10 Q24 4 19 4 Q19 10 24 10" fill="currentColor" stroke="currentColor" strokeWidth="1" />
+                <path d="M24 10 Q24 4 29 4 Q29 10 24 10" fill="currentColor" stroke="currentColor" strokeWidth="1" />
+                <rect x="8" y="10" width="32" height="26" rx="8" fill="transparent" stroke="currentColor" strokeWidth="1.5" />
+                <rect x="12" y="15" width="24" height="15" rx="5" fill="currentColor" opacity="0.15" />
+                <circle cx="18" cy="22" r="3" fill="currentColor" />
+                <circle cx="30" cy="22" r="3" fill="currentColor" />
+                <path d="M21 26 Q24 28 27 26" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <rect x="4" y="19" width="4" height="8" rx="2" fill="currentColor" />
+                <rect x="40" y="19" width="4" height="8" rx="2" fill="currentColor" />
               </svg>
             </div>
-            {/* Online Green Pulsing Indicator */}
-            <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-[#0A251C] animate-ping" />
-            <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-[#0A251C]" />
+            <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-black dark:bg-white border-2 border-white dark:border-black" />
           </div>
 
           {/* AI Banner Text Content */}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm sm:text-base font-extrabold text-[#FFEFA6] tracking-tight font-sans">
+              <span className="text-sm sm:text-base font-extrabold text-black dark:text-white tracking-tight font-sans">
                 Ai Manezar — আজকের স্মার্ট ব্যবসায়িক বিশ্লেষণ
               </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#D4AF37]/15 border border-[#D4AF37]/40 text-[#FFEFA6] shadow-xs">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 text-black dark:text-white shadow-xs">
                 Gemini High
               </span>
             </div>
-            <p className="text-xs sm:text-[13px] text-[#E2C384] font-medium mt-1 leading-relaxed line-clamp-2">
+            <p className="text-xs sm:text-[13px] text-neutral-600 dark:text-neutral-400 font-medium mt-1 leading-relaxed line-clamp-2">
               {greeting} আজকের ব্যবসায় আজ পর্যন্ত {topComm ? topComm.name_bn : 'সরিষা'}-র স্টক রয়েছে ({toBnDigits(topMon)} মণ) । বাকি বিক্রয় ৳{formatTakaBn(todayDueSale, false)}{creditorTotal > 0 ? ` এবং মোট পাওনাদার দেনা ৳${formatTakaBn(creditorTotal, false)}` : ' এবং কোনো বকেয়া পাওনাদার দেনা নেই'}। ⚠️ ১টি চালানের স্টক কম আছে।
             </p>
           </div>
         </div>
 
-        {/* Right: Golden Glowing Interactive Button */}
+        {/* Right: Monochrome Interactive Button */}
         <button
           type="button"
           onClick={() => window.dispatchEvent(new CustomEvent('open-ai-manezar'))}
-          className="bg-gradient-to-r from-[#E2B743] via-[#D4AF37] to-[#B38728] hover:from-[#F3C854] hover:to-[#C49839] active:scale-95 text-slate-950 font-black px-4 sm:px-5 py-2.5 rounded-full shadow-[0_4px_16px_rgba(212,175,55,0.45)] transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer text-xs sm:text-sm tracking-wide self-stretch md:self-auto hover:scale-105"
+          className="bg-black hover:bg-neutral-800 text-white dark:bg-white dark:hover:bg-neutral-200 dark:text-black font-black px-4 sm:px-5 py-2.5 rounded-full shadow-sm transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer text-xs sm:text-sm tracking-wide self-stretch md:self-auto border border-black dark:border-white"
           title="Ai Manezar (Gemini 3 Flash) খুলুন"
         >
-          <BarChart3 className="w-4 h-4 text-slate-950" />
+          <BarChart3 className="w-4 h-4" />
           <span>ম্যানেজারের সাথে কথা বলুন ᐳ</span>
         </button>
       </div>
 
       {/* ========================================================================= */}
-      {/* 3. FOUR HIGH-CONTRAST 3D KPI CARDS ROW (Matching image_18.png)             */}
+      {/* 3. FOUR HIGH-CONTRAST MONOCHROME KPI CARDS ROW                             */}
       {/* ========================================================================= */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-        {/* Card 1: আজকের মোট বিক্রয় (Teal-Green #025D34) */}
-        <div className="bg-gradient-to-br from-[#025D34] to-[#013D22] border border-emerald-400/30 text-white rounded-2xl p-3 sm:p-4 shadow-lg flex items-center justify-between relative overflow-hidden backdrop-blur-md">
+        {/* Card 1: আজকের মোট বিক্রয় */}
+        <div className="bg-white dark:bg-[#0A0A0A] border-2 border-neutral-200 dark:border-neutral-800 text-black dark:text-white rounded-2xl p-3 sm:p-4 shadow-sm flex items-center justify-between relative overflow-hidden">
           <div className="flex items-center gap-2.5 sm:gap-3 z-10 min-w-0 flex-1">
-            <div className="p-2 sm:p-3 bg-white/15 rounded-xl backdrop-blur-xs flex items-center justify-center shrink-0 shadow-inner">
-              <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+            <div className="p-2 sm:p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl flex items-center justify-center shrink-0">
+              <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 text-black dark:text-white" />
             </div>
             <div className="min-w-0 flex-1">
-              <span className="text-[11px] sm:text-xs font-semibold text-emerald-100 block truncate">আজকের মোট বিক্রয়</span>
-              <div className="text-base sm:text-xl md:text-2xl font-black tracking-tight font-sans mt-0.5 whitespace-nowrap text-white">
+              <span className="text-[11px] sm:text-xs font-semibold text-neutral-600 dark:text-neutral-400 block truncate">আজকের মোট বিক্রয়</span>
+              <div className="text-base sm:text-xl md:text-2xl font-black tracking-tight font-sans mt-0.5 whitespace-nowrap text-black dark:text-white">
                 {formatTakaBn(todayTotalSale, true)}
               </div>
-              <span className="text-[9px] sm:text-[11px] font-bold text-emerald-300 flex items-center gap-0.5 mt-0.5 whitespace-nowrap">
+              <span className="text-[9px] sm:text-[11px] font-bold text-neutral-500 dark:text-neutral-400 flex items-center gap-0.5 mt-0.5 whitespace-nowrap">
                 ▲ গতদিনের চেয়ে +১২.৫%
               </span>
             </div>
           </div>
-          {/* Right mini bar watermark */}
-          <div className="hidden xs:flex items-end gap-1 h-9 opacity-25 pr-1 select-none pointer-events-none shrink-0">
-            <div className="w-1.5 bg-white h-4 rounded-xs"></div>
-            <div className="w-1.5 bg-white h-6 rounded-xs"></div>
-            <div className="w-1.5 bg-white h-9 rounded-xs"></div>
+          <div className="hidden xs:flex items-end gap-1 h-9 opacity-15 pr-1 select-none pointer-events-none shrink-0 text-black dark:text-white">
+            <div className="w-1.5 bg-current h-4 rounded-xs"></div>
+            <div className="w-1.5 bg-current h-6 rounded-xs"></div>
+            <div className="w-1.5 bg-current h-9 rounded-xs"></div>
           </div>
         </div>
 
-        {/* Card 2: নগদ বিক্রয় (Vibrant Sapphire Blue #0F4C81) */}
-        <div className="bg-gradient-to-br from-[#0A66C2] to-[#0F4C81] border border-sky-400/30 text-white rounded-2xl p-3 sm:p-4 shadow-lg flex items-center justify-between relative overflow-hidden backdrop-blur-md">
+        {/* Card 2: নগদ বিক্রয় */}
+        <div className="bg-white dark:bg-[#0A0A0A] border-2 border-neutral-200 dark:border-neutral-800 text-black dark:text-white rounded-2xl p-3 sm:p-4 shadow-sm flex items-center justify-between relative overflow-hidden">
           <div className="flex items-center gap-2.5 sm:gap-3 z-10 min-w-0 flex-1">
-            <div className="p-2 sm:p-3 bg-white/15 rounded-xl backdrop-blur-xs flex items-center justify-center shrink-0 shadow-inner">
-              <Users className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+            <div className="p-2 sm:p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl flex items-center justify-center shrink-0">
+              <Users className="w-5 h-5 sm:w-6 sm:h-6 text-black dark:text-white" />
             </div>
             <div className="min-w-0 flex-1">
-              <span className="text-[11px] sm:text-xs font-semibold text-sky-100 block truncate">নগদ বিক্রয়</span>
-              <div className="text-base sm:text-xl md:text-2xl font-black tracking-tight font-sans mt-0.5 whitespace-nowrap text-white">
+              <span className="text-[11px] sm:text-xs font-semibold text-neutral-600 dark:text-neutral-400 block truncate">নগদ বিক্রয়</span>
+              <div className="text-base sm:text-xl md:text-2xl font-black tracking-tight font-sans mt-0.5 whitespace-nowrap text-black dark:text-white">
                 {formatTakaBn(todayCashSale, true)}
               </div>
             </div>
           </div>
-          {/* Cash banknotes 3D watermark */}
-          <div className="hidden xs:block opacity-25 pr-1 select-none pointer-events-none shrink-0">
+          <div className="hidden xs:block opacity-15 pr-1 select-none pointer-events-none shrink-0 text-black dark:text-white">
             <svg viewBox="0 0 36 24" className="w-9 h-6" fill="currentColor">
               <rect x="2" y="2" width="32" height="20" rx="3" fill="none" stroke="currentColor" strokeWidth="2" />
               <circle cx="18" cy="12" r="5" fill="none" stroke="currentColor" strokeWidth="2" />
@@ -272,41 +259,39 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        {/* Card 3: বাকি বিক্রয় (Bronze-Orange #7E4A10) */}
-        <div className="bg-gradient-to-br from-[#D35400] to-[#7E4A10] border border-amber-400/30 text-white rounded-2xl p-3 sm:p-4 shadow-lg flex items-center justify-between relative overflow-hidden backdrop-blur-md">
+        {/* Card 3: বাকি বিক্রয় */}
+        <div className="bg-white dark:bg-[#0A0A0A] border-2 border-neutral-200 dark:border-neutral-800 text-black dark:text-white rounded-2xl p-3 sm:p-4 shadow-sm flex items-center justify-between relative overflow-hidden">
           <div className="flex items-center gap-2.5 sm:gap-3 z-10 min-w-0 flex-1">
-            <div className="p-2 sm:p-3 bg-white/15 rounded-xl backdrop-blur-xs flex items-center justify-center shrink-0 shadow-inner">
-              <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+            <div className="p-2 sm:p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl flex items-center justify-center shrink-0">
+              <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-black dark:text-white" />
             </div>
             <div className="min-w-0 flex-1">
-              <span className="text-[11px] sm:text-xs font-semibold text-amber-100 block truncate">বাকি বিক্রয়</span>
-              <div className="text-base sm:text-xl md:text-2xl font-black tracking-tight font-sans mt-0.5 whitespace-nowrap text-white">
+              <span className="text-[11px] sm:text-xs font-semibold text-neutral-600 dark:text-neutral-400 block truncate">বাকি বিক্রয়</span>
+              <div className="text-base sm:text-xl md:text-2xl font-black tracking-tight font-sans mt-0.5 whitespace-nowrap text-black dark:text-white">
                 {formatTakaBn(todayDueSale, true)}
               </div>
             </div>
           </div>
-          {/* Document watermark */}
-          <div className="hidden xs:block opacity-25 pr-1 select-none pointer-events-none shrink-0">
-            <FileText className="w-8 h-8 text-white" />
+          <div className="hidden xs:block opacity-15 pr-1 select-none pointer-events-none shrink-0 text-black dark:text-white">
+            <FileText className="w-8 h-8" />
           </div>
         </div>
 
-        {/* Card 4: আজকের ক্রয় (Crimson-Rose #5C0632) */}
-        <div className="bg-gradient-to-br from-[#7D1A8D] to-[#5C0632] border border-fuchsia-400/30 text-white rounded-2xl p-3 sm:p-4 shadow-lg flex items-center justify-between relative overflow-hidden backdrop-blur-md">
+        {/* Card 4: আজকের ক্রয় */}
+        <div className="bg-white dark:bg-[#0A0A0A] border-2 border-neutral-200 dark:border-neutral-800 text-black dark:text-white rounded-2xl p-3 sm:p-4 shadow-sm flex items-center justify-between relative overflow-hidden">
           <div className="flex items-center gap-2.5 sm:gap-3 z-10 min-w-0 flex-1">
-            <div className="p-2 sm:p-3 bg-white/15 rounded-xl backdrop-blur-xs flex items-center justify-center shrink-0 shadow-inner">
-              <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+            <div className="p-2 sm:p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl flex items-center justify-center shrink-0">
+              <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 text-black dark:text-white" />
             </div>
             <div className="min-w-0 flex-1">
-              <span className="text-[11px] sm:text-xs font-semibold text-fuchsia-100 block truncate">আজকের ক্রয়</span>
-              <div className="text-base sm:text-xl md:text-2xl font-black tracking-tight font-sans mt-0.5 whitespace-nowrap text-white">
+              <span className="text-[11px] sm:text-xs font-semibold text-neutral-600 dark:text-neutral-400 block truncate">আজকের ক্রয়</span>
+              <div className="text-base sm:text-xl md:text-2xl font-black tracking-tight font-sans mt-0.5 whitespace-nowrap text-black dark:text-white">
                 {formatTakaBn(todayPurchase, true)}
               </div>
             </div>
           </div>
-          {/* Cart watermark */}
-          <div className="hidden xs:block opacity-25 pr-1 select-none pointer-events-none shrink-0">
-            <ShoppingCart className="w-8 h-8 text-white" />
+          <div className="hidden xs:block opacity-15 pr-1 select-none pointer-events-none shrink-0 text-black dark:text-white">
+            <ShoppingCart className="w-8 h-8" />
           </div>
         </div>
       </div>
@@ -318,11 +303,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* ======================================================================= */}
         {/* A. LEFT CARD: বর্তমান শস্যের স্টক (বস্তা ও ওজন) (8 cols)                 */}
         {/* ======================================================================= */}
-        <div className="lg:col-span-8 bg-[#03150F]/90 backdrop-blur-lg rounded-2xl border border-[#D4AF37]/25 p-4 sm:p-5 flex flex-col justify-between shadow-xl min-h-[460px]">
+        <div className="lg:col-span-8 bg-white dark:bg-[#0A0A0A] rounded-2xl border border-neutral-200 dark:border-neutral-800 p-4 sm:p-5 flex flex-col justify-between shadow-sm min-h-[460px] text-black dark:text-white">
           <div>
             {/* Header: Title + Inline Actions (+ নতুন শস্য যোগ, 📉 ঘাটতি সমন্বয়) */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#D4AF37]/20">
-              <h2 className="text-base sm:text-lg font-extrabold text-[#FFEFA6] tracking-tight font-sans">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-neutral-200 dark:border-neutral-800">
+              <h2 className="text-base sm:text-lg font-extrabold text-black dark:text-white tracking-tight font-sans">
                 বর্তমান শস্যের স্টক (বস্তা ও ওজন)
               </h2>
 
@@ -330,20 +315,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <button
                   type="button"
                   onClick={() => onNavigate('stock')}
-                  className="bg-[#0A261C] hover:bg-[#D4AF37]/20 border border-[#D4AF37]/50 text-[#FFEFA6] text-xs font-bold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-sm active:scale-95"
+                  className="bg-black hover:bg-neutral-800 text-white dark:bg-white dark:hover:bg-neutral-200 dark:text-black border border-black dark:border-white text-xs font-bold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
                   title="নতুন শস্য গুদামে যোগ করুন"
                 >
-                  <Plus className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  <Plus className="w-3.5 h-3.5" />
                   <span>+ নতুন শস্য যোগ</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => onNavigate('stock')}
-                  className="bg-[#7E4A10]/70 hover:bg-[#7E4A10] border border-[#D4AF37]/40 text-amber-200 text-xs font-bold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-sm active:scale-95"
+                  className="bg-neutral-100 hover:bg-neutral-200 text-black dark:bg-neutral-900 dark:hover:bg-neutral-800 dark:text-white border border-neutral-300 dark:border-neutral-700 text-xs font-bold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
                   title="শুকতি বা অপচয় ঘাটতি সমন্বয় করুন"
                 >
-                  <TrendingDown className="w-3.5 h-3.5 text-amber-300" />
+                  <TrendingDown className="w-3.5 h-3.5" />
                   <span>📉 ঘাটতি সমন্বয়</span>
                 </button>
               </div>
@@ -353,7 +338,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="overflow-x-auto mt-3 scrollbar-thin">
               <table className="w-full text-left border-collapse text-xs min-w-[560px]">
                 <thead>
-                  <tr className="bg-[#062016] text-[#D4AF37] font-bold border-b border-[#D4AF37]/25">
+                  <tr className="bg-neutral-100 dark:bg-neutral-900 text-black dark:text-white font-bold border-b border-neutral-200 dark:border-neutral-800">
                     <th className="py-2.5 px-3 text-center w-12">ক্রম</th>
                     <th className="py-2.5 px-3">শস্যের নাম</th>
                     <th className="py-2.5 px-3 text-center">বর্তমান মজুদ</th>
@@ -362,10 +347,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <th className="py-2.5 px-3 text-center w-28">স্ট্যাটাস</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#D4AF37]/15">
+                <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
                   {loading && commodities.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="text-center py-10 text-[#A7C2B2] font-semibold">
+                      <td colSpan={6} className="text-center py-10 text-neutral-500 dark:text-neutral-400 font-semibold">
                         স্টক তথ্য লোড হচ্ছে...
                       </td>
                     </tr>
@@ -378,36 +363,36 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       const isJuteCrop = isJute(c);
 
                       return (
-                        <tr key={c.id} className="hover:bg-[#D4AF37]/5 transition-colors text-[#FFF9F0]">
-                          <td className="py-3 px-3 text-center font-bold text-[#E2C384] font-mono">
+                        <tr key={c.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors text-black dark:text-white">
+                          <td className="py-3 px-3 text-center font-bold text-neutral-500 dark:text-neutral-400 font-mono">
                             {toBnDigits(rowNum)}
                           </td>
                           <td className="py-3 px-3">
-                            <span className="font-bold text-white block text-xs">{c.name_bn}</span>
+                            <span className="font-bold text-black dark:text-white block text-xs">{c.name_bn}</span>
                             {c.name_en && (
-                              <span className="text-[11px] text-[#A7C2B2] block">({c.name_en})</span>
+                              <span className="text-[11px] text-neutral-500 dark:text-neutral-400 block">({c.name_en})</span>
                             )}
                           </td>
-                          <td className="py-3 px-3 text-center font-bold text-slate-100 font-mono">
+                          <td className="py-3 px-3 text-center font-bold text-black dark:text-white font-mono">
                             {toBnDigits(mon)} মণ {toBnDigits(kg.toFixed(1))} কেজি
                           </td>
                           <td className="py-3 px-3 text-center">
-                            <span className="bg-[#0A261C] text-[#FFEFA6] border border-[#D4AF37]/30 px-2.5 py-0.5 rounded font-bold text-xs font-mono">
+                            <span className="bg-neutral-100 dark:bg-neutral-900 text-black dark:text-white border border-neutral-300 dark:border-neutral-700 px-2.5 py-0.5 rounded font-bold text-xs font-mono">
                               {isJuteCrop ? '— (ওজনভিত্তিক)' : `${toBnDigits(c.current_stock_bags || 0)} বস্তা`}
                             </span>
                           </td>
-                          <td className="py-3 px-3 text-center font-bold text-slate-100 font-mono">
+                          <td className="py-3 px-3 text-center font-bold text-black dark:text-white font-mono">
                             {formatTakaBn(c.current_wac_per_mon || 0, true)} /মণ
                           </td>
                           <td className="py-3 px-3 text-center">
                             {isOutOfStock ? (
-                              <span className="bg-rose-950/70 text-rose-300 border border-rose-500/40 px-2.5 py-0.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 shadow-xs">
-                                <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                              <span className="bg-neutral-200 dark:bg-neutral-800 text-black dark:text-white border border-neutral-400 dark:border-neutral-600 px-2.5 py-0.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 shadow-xs">
+                                <span className="w-2 h-2 rounded-full bg-neutral-500"></span>
                                 <span>স্টক নেই</span>
                               </span>
                             ) : (
-                              <span className="bg-emerald-950/70 text-emerald-300 border border-emerald-500/40 px-2.5 py-0.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 shadow-xs">
-                                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                              <span className="bg-black dark:bg-white text-white dark:text-black border border-black dark:border-white px-2.5 py-0.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 shadow-xs">
+                                <span className="w-2 h-2 rounded-full bg-white dark:bg-black"></span>
                                 <span>পর্যাপ্ত</span>
                               </span>
                             )}
@@ -422,7 +407,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           {/* Table Footer: Total Count + Pagination */}
-          <div className="border-t border-[#D4AF37]/20 pt-3.5 mt-4 flex items-center justify-between text-xs text-[#E2C384]">
+          <div className="border-t border-neutral-200 dark:border-neutral-800 pt-3.5 mt-4 flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
             <span className="font-bold">
               মোট {toBnDigits(totalCommodities)}টি শস্য
             </span>
@@ -432,13 +417,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 type="button"
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage <= 1}
-                className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#D4AF37]/30 bg-[#0A261C] text-[#FFEFA6] hover:bg-[#D4AF37]/20 disabled:opacity-40 cursor-pointer font-bold"
+                className="w-7 h-7 flex items-center justify-center rounded-lg border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 text-black dark:text-white hover:bg-neutral-200 dark:hover:bg-neutral-800 disabled:opacity-40 cursor-pointer font-bold"
               >
                 &lt;
               </button>
               <button
                 type="button"
-                className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#D4AF37] text-slate-950 font-black cursor-default shadow-sm"
+                className="w-7 h-7 flex items-center justify-center rounded-lg bg-black dark:bg-white text-white dark:text-black font-black cursor-default shadow-xs"
               >
                 {toBnDigits(currentPage)}
               </button>
@@ -446,7 +431,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 type="button"
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage >= totalPages}
-                className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#D4AF37]/30 bg-[#0A261C] text-[#FFEFA6] hover:bg-[#D4AF37]/20 disabled:opacity-40 cursor-pointer font-bold"
+                className="w-7 h-7 flex items-center justify-center rounded-lg border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 text-black dark:text-white hover:bg-neutral-200 dark:hover:bg-neutral-800 disabled:opacity-40 cursor-pointer font-bold"
               >
                 &gt;
               </button>
@@ -455,40 +440,41 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* ======================================================================= */}
-        {/* B. RIGHT CARD: আজকের বিক্রয়ের হিসাব (Graphical Panel - Matching image_18.png) */}
+        {/* B. RIGHT CARD: আজকের বিক্রয়ের হিসাব (Graphical Panel)                      */}
         {/* ======================================================================= */}
-        <div className="lg:col-span-4 bg-[#FFF9F0] text-slate-900 rounded-2xl border border-[#D4AF37]/40 shadow-xl p-4 sm:p-5 flex flex-col justify-between min-h-[460px]">
+        <div className="lg:col-span-4 bg-white dark:bg-[#0A0A0A] text-black dark:text-white rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm p-4 sm:p-5 flex flex-col justify-between min-h-[460px]">
           <div>
-            <div className="pb-3 border-b border-[#D4AF37]/25">
-              <h3 className="font-extrabold text-slate-900 text-base font-sans">
+            <div className="pb-3 border-b border-neutral-200 dark:border-neutral-800">
+              <h3 className="font-extrabold text-black dark:text-white text-base font-sans">
                 আজকের বিক্রয়ের হিসাব
               </h3>
             </div>
 
-            {/* Visual Wheat Graph Art (Bar chart + Area line spline matching image_18.png) */}
+            {/* Visual Monochrome Graph Art */}
             <div className="py-4 space-y-4">
-              <div className="grid grid-cols-2 gap-3 items-end h-44 bg-amber-50/60 rounded-xl p-3 border border-[#D4AF37]/20 relative overflow-hidden">
+              <div className="grid grid-cols-2 gap-3 items-end h-44 bg-neutral-50 dark:bg-neutral-900/60 rounded-xl p-3 border border-neutral-200 dark:border-neutral-800 relative overflow-hidden">
                 {/* Left: Bar Chart Graphic */}
-                <div className="h-full flex items-end justify-around gap-1.5 border-r border-[#D4AF37]/20 pr-2">
-                  <div className="w-3 bg-[#D4AF37]/60 rounded-t-sm h-[50%] transition-all" title="বার ১" />
-                  <div className="w-3 bg-[#D4AF37]/80 rounded-t-sm h-[80%] transition-all" title="বার ২" />
-                  <div className="w-3 bg-[#10b981]/70 rounded-t-sm h-[65%] transition-all" title="বার ৩" />
-                  <div className="w-3 bg-[#059669] rounded-t-sm h-[90%] transition-all" title="বার ৪" />
-                  <div className="w-3 bg-[#D4AF37] rounded-t-sm h-[40%] transition-all" title="বার ৫" />
+                <div className="h-full flex items-end justify-around gap-1.5 border-r border-neutral-200 dark:border-neutral-800 pr-2">
+                  <div className="w-3 bg-neutral-400 dark:bg-neutral-600 rounded-t-xs h-[50%]" />
+                  <div className="w-3 bg-neutral-600 dark:bg-neutral-400 rounded-t-xs h-[80%]" />
+                  <div className="w-3 bg-neutral-500 dark:bg-neutral-500 rounded-t-xs h-[65%]" />
+                  <div className="w-3 bg-black dark:bg-white rounded-t-xs h-[90%]" />
+                  <div className="w-3 bg-neutral-300 dark:bg-neutral-700 rounded-t-xs h-[40%]" />
                 </div>
 
                 {/* Right: Spline / Wave Chart Graphic */}
                 <div className="h-full flex items-center justify-center pl-1 relative">
-                  <svg viewBox="0 0 100 60" className="w-full h-28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <svg viewBox="0 0 100 60" className="w-full h-28 text-black dark:text-white" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path
                       d="M 5 45 Q 25 15 45 35 T 85 20 T 95 38"
-                      stroke="#059669"
+                      stroke="currentColor"
                       strokeWidth="2.5"
                       strokeLinecap="round"
+                      opacity="0.5"
                     />
                     <path
                       d="M 5 50 Q 30 30 55 45 T 95 30"
-                      stroke="#D4AF37"
+                      stroke="currentColor"
                       strokeWidth="2.5"
                       strokeLinecap="round"
                     />
@@ -498,19 +484,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          {/* Bottom Card Strip: পাওনাদার ও মহাজন হিসাব (Matching image_18.png) */}
+          {/* Bottom Card Strip: পাওনাদার ও মহাজন হিসাব */}
           <button
             type="button"
             onClick={() => onNavigate('creditors')}
-            className="w-full mt-2 p-3 rounded-xl bg-white border border-[#D4AF37]/35 shadow-xs hover:border-[#D4AF37] hover:bg-amber-50/40 transition-all flex items-center justify-between text-xs font-bold text-slate-800 cursor-pointer active:scale-95"
+            className="w-full mt-2 p-3 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 shadow-xs hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all flex items-center justify-between text-xs font-bold text-black dark:text-white cursor-pointer active:scale-95"
           >
             <div className="flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-[#D4AF37]" />
+              <CreditCard className="w-4 h-4 text-black dark:text-white" />
               <span>পাওনাদার ও মহাজন হিসাব</span>
             </div>
-            <div className="flex items-center gap-1 text-[#8C650A] font-mono">
+            <div className="flex items-center gap-1 font-mono text-black dark:text-white">
               <span>{formatTakaBn(creditorTotal, true)}</span>
-              <ChevronRight className="w-4 h-4 text-[#D4AF37]" />
+              <ChevronRight className="w-4 h-4 text-black dark:text-white" />
             </div>
           </button>
         </div>

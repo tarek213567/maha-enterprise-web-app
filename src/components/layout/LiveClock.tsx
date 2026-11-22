@@ -44,12 +44,12 @@ export const LiveClock: React.FC = memo(() => {
   return (
     <div className="hidden xl:flex items-center gap-3 bg-[var(--surface-secondary)] px-3 py-1.5 rounded-xl border border-[var(--border-color)] text-xs text-[var(--text-secondary)] font-medium">
       <div className="flex items-center gap-1 text-[var(--text-muted)] text-[11px]">
-        <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+        <MapPin className="w-3.5 h-3.5 text-black dark:text-white" />
         <span>চাচকৈড় বাজার, নাটোর</span>
       </div>
       <span className="text-[var(--border-color)]">|</span>
       <div className="flex items-center gap-1.5 font-bold text-[var(--text-primary)] text-xs">
-        <Calendar className="w-3.5 h-3.5 text-amber-400" />
+        <Calendar className="w-3.5 h-3.5 text-black dark:text-white" />
         <span>{formattedDate}</span>
       </div>
     </div>

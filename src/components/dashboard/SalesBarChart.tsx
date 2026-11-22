@@ -37,25 +37,25 @@ export const SalesBarChart: React.FC<Props> = ({ cashAmount, dueAmount }) => {
             ))}
           </div>
 
-          {/* Bar 1: নগদ (Blue) */}
+          {/* Bar 1: নগদ (Monochrome Solid) */}
           <div className="relative z-10 flex flex-col items-center group w-14">
-            <span className="text-[11px] font-black text-[var(--text-primary)] font-sans mb-1 transition-transform group-hover:scale-110">
+            <span className="text-[11px] font-black text-black dark:text-white font-sans mb-1 transition-transform group-hover:scale-110">
               {toBnDigits(cashAmount)}
             </span>
             <div
-              className="w-12 bg-[#0080ff] hover:bg-blue-600 rounded-t-sm shadow-2xs transition-all duration-500"
+              className="w-12 bg-black dark:bg-white hover:opacity-80 rounded-t-sm shadow-2xs transition-all duration-500"
               style={{ height: `${cashHeight}px` }}
               title={`নগদ: ৳ ${toBnDigits(cashAmount)}`}
             ></div>
           </div>
 
-          {/* Bar 2: বাকি (Orange) */}
+          {/* Bar 2: বাকি (Monochrome Secondary Neutral) */}
           <div className="relative z-10 flex flex-col items-center group w-14">
-            <span className="text-[11px] font-black text-[var(--text-primary)] font-sans mb-1 transition-transform group-hover:scale-110">
+            <span className="text-[11px] font-black text-black dark:text-white font-sans mb-1 transition-transform group-hover:scale-110">
               {toBnDigits(dueAmount)}
             </span>
             <div
-              className="w-12 bg-[#ff8400] hover:bg-orange-600 rounded-t-sm shadow-2xs transition-all duration-500"
+              className="w-12 bg-neutral-400 dark:bg-neutral-600 hover:opacity-80 rounded-t-sm shadow-2xs transition-all duration-500 border border-neutral-500 dark:border-neutral-500"
               style={{ height: `${dueHeight}px` }}
               title={`বাকি: ৳ ${toBnDigits(dueAmount)}`}
             ></div>

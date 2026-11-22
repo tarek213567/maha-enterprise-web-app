@@ -70,34 +70,34 @@ export const WindowTitleBar: React.FC<WindowTitleBarProps> = ({ onQuickBackup })
     <header
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
       onDoubleClick={handleMaximize}
-      className="window-titlebar hidden md:flex h-11 bg-[#061126] text-white px-4 items-center justify-between text-xs select-none transition-colors duration-200 z-50 shrink-0 border-b border-[#0f1d38]"
+      className="window-titlebar hidden md:flex h-11 bg-white dark:bg-black text-black dark:text-white px-4 items-center justify-between text-xs select-none transition-colors duration-200 z-50 shrink-0 border-b border-neutral-200 dark:border-neutral-800"
     >
-      {/* Left: Golden-green wheat/leaf emblem icon + vertical divider | + bold white text "মাহা এন্টারপ্রাইজ" */}
+      {/* Left: Wheat/leaf emblem icon + vertical divider | + bold text "মাহা এন্টারপ্রাইজ" */}
       <div
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         className="flex items-center gap-2.5 cursor-default"
       >
-        {/* Golden-green wheat/leaf emblem SVG */}
-        <div className="w-6 h-6 flex items-center justify-center shrink-0">
+        {/* Wheat/leaf emblem SVG */}
+        <div className="w-6 h-6 flex items-center justify-center shrink-0 text-black dark:text-white">
           <svg viewBox="0 0 32 32" className="w-6 h-6" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M16 28C16 28 16 13 22 7" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" />
-            <path d="M16 28C16 28 16 11 10 5" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" />
-            <circle cx="10" cy="5" r="3" fill="#f59e0b" />
-            <circle cx="15.5" cy="8.5" r="2.5" fill="#f59e0b" />
-            <circle cx="22" cy="7" r="3" fill="#10b981" />
-            <circle cx="18" cy="13.5" r="2.5" fill="#10b981" />
-            <circle cx="13" cy="15.5" r="2.5" fill="#d97706" />
+            <path d="M16 28C16 28 16 13 22 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+            <path d="M16 28C16 28 16 11 10 5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+            <circle cx="10" cy="5" r="3" fill="currentColor" />
+            <circle cx="15.5" cy="8.5" r="2.5" fill="currentColor" />
+            <circle cx="22" cy="7" r="3" fill="currentColor" />
+            <circle cx="18" cy="13.5" r="2.5" fill="currentColor" />
+            <circle cx="13" cy="15.5" r="2.5" fill="currentColor" />
           </svg>
         </div>
 
-        <span className="text-slate-500 font-light text-sm">|</span>
+        <span className="text-neutral-400 dark:text-neutral-600 font-light text-sm">|</span>
 
-        <span className="font-bold text-white tracking-wide text-sm">
+        <span className="font-bold text-black dark:text-white tracking-wide text-sm">
           মাহা এন্টারপ্রাইজ
         </span>
       </div>
 
-      {/* Right Controls: Desktop Quick Action Buttons (shown on large screens) + Window Controls */}
+      {/* Right Controls: Desktop Quick Action Buttons + Window Controls */}
       <div
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         className="flex items-center gap-2"
@@ -108,8 +108,8 @@ export const WindowTitleBar: React.FC<WindowTitleBarProps> = ({ onQuickBackup })
           <button
             onClick={handleBackup}
             disabled={isBackingUp}
-            className="border border-amber-500/50 bg-amber-950/30 hover:bg-amber-900/50 text-amber-300 rounded-lg px-2.5 py-1 text-xs flex items-center gap-1.5 font-bold cursor-pointer transition-all active:scale-95 disabled:opacity-50"
-            title="ডাটাবেজ ও রয়্যাল এক্সেল (.xlsx) ব্যাকআপ ডাউনলোড করুন"
+            className="border border-neutral-300 dark:border-neutral-700 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 text-black dark:text-white rounded-lg px-2.5 py-1 text-xs flex items-center gap-1.5 font-bold cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+            title="ডাটাবেজ ও এক্সেল (.xlsx) ব্যাকআপ ডাউনলোড করুন"
           >
             <span>💾</span>
             <span>{isBackingUp ? '...' : 'ব্যাকআপ'}</span>
@@ -118,7 +118,7 @@ export const WindowTitleBar: React.FC<WindowTitleBarProps> = ({ onQuickBackup })
           {/* 2. 🌙 ডার্ক / ☀️ লাইট */}
           <button
             onClick={toggleTheme}
-            className="border border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-200 rounded-lg px-2.5 py-1 text-xs flex items-center gap-1.5 font-bold cursor-pointer transition-all active:scale-95"
+            className="border border-neutral-300 dark:border-neutral-700 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 text-black dark:text-white rounded-lg px-2.5 py-1 text-xs flex items-center gap-1.5 font-bold cursor-pointer transition-all active:scale-95"
             title={isDark ? 'লাইট মোড চালু করুন' : 'ডার্ক মোড চালু করুন'}
           >
             <span>{isDark ? '☀️' : '🌙'}</span>
@@ -128,7 +128,7 @@ export const WindowTitleBar: React.FC<WindowTitleBarProps> = ({ onQuickBackup })
           {/* 3. 🔒 লক */}
           <button
             onClick={lockApp}
-            className="border border-rose-500/40 bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 rounded-lg px-2.5 py-1 text-xs flex items-center gap-1.5 font-bold cursor-pointer transition-all active:scale-95"
+            className="border border-neutral-300 dark:border-neutral-700 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 text-black dark:text-white rounded-lg px-2.5 py-1 text-xs flex items-center gap-1.5 font-bold cursor-pointer transition-all active:scale-95"
             title="সফটওয়্যার স্ক্রিন লক করুন"
           >
             <span>🔒</span>
@@ -137,10 +137,10 @@ export const WindowTitleBar: React.FC<WindowTitleBarProps> = ({ onQuickBackup })
         </div>
 
         {/* Window Controls: —, ❐, ✕ */}
-        <div className="flex items-center gap-1 ml-1 text-slate-400">
+        <div className="flex items-center gap-1 ml-1 text-neutral-600 dark:text-neutral-400">
           <button
             onClick={handleMinimize}
-            className="w-7 h-7 flex items-center justify-center rounded hover:bg-white/10 hover:text-white transition-colors cursor-pointer text-sm font-bold"
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-neutral-200 dark:hover:bg-neutral-800 hover:text-black dark:hover:text-white transition-colors cursor-pointer text-sm font-bold"
             title="Minimize"
             aria-label="Minimize"
           >
@@ -148,7 +148,7 @@ export const WindowTitleBar: React.FC<WindowTitleBarProps> = ({ onQuickBackup })
           </button>
           <button
             onClick={handleMaximize}
-            className="w-7 h-7 flex items-center justify-center rounded hover:bg-white/10 hover:text-white transition-colors cursor-pointer text-sm"
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-neutral-200 dark:hover:bg-neutral-800 hover:text-black dark:hover:text-white transition-colors cursor-pointer text-sm"
             title="Maximize"
             aria-label="Maximize"
           >
@@ -156,7 +156,7 @@ export const WindowTitleBar: React.FC<WindowTitleBarProps> = ({ onQuickBackup })
           </button>
           <button
             onClick={handleClose}
-            className="w-7 h-7 flex items-center justify-center rounded hover:bg-rose-600 hover:text-white transition-colors cursor-pointer text-sm font-bold"
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-colors cursor-pointer text-sm font-bold"
             title="Close"
             aria-label="Close"
           >

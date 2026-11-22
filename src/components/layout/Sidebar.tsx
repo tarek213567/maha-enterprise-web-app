@@ -147,32 +147,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <aside className="hidden md:flex w-60 bg-gradient-to-b from-[#0A251C] to-[#04120D] text-[#FFF9F0] border-r border-[#D4AF37]/20 flex-col py-3 px-2.5 gap-1 shrink-0 select-none overflow-y-auto h-full scrollbar-thin shadow-[0_0_20px_rgba(11,48,34,0.4)] relative">
-      {/* Top Header Brand (Matching image_18.png) */}
-      <div className="flex items-center gap-3 px-1.5 py-2.5 border-b border-[#D4AF37]/20 mb-1.5 shrink-0">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#103D2E] to-[#051C13] border border-[#D4AF37]/40 shadow-[0_0_12px_rgba(212,175,55,0.3)] flex items-center justify-center shrink-0">
-          <svg viewBox="0 0 40 40" className="w-7 h-7" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <linearGradient id="goldEmblem" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#FFEFA6" />
-                <stop offset="50%" stopColor="#D4AF37" />
-                <stop offset="100%" stopColor="#8C650A" />
-              </linearGradient>
-            </defs>
-            <path d="M10 34 Q18 20 28 8" stroke="url(#goldEmblem)" strokeWidth="2.5" strokeLinecap="round" />
-            <ellipse cx="27" cy="11" rx="4" ry="2" transform="rotate(-35 27 11)" fill="url(#goldEmblem)" />
-            <ellipse cx="23" cy="15" rx="4" ry="2" transform="rotate(-25 23 15)" fill="url(#goldEmblem)" />
-            <ellipse cx="20" cy="20" rx="4.5" ry="2.2" transform="rotate(-20 20 20)" fill="url(#goldEmblem)" />
-            <ellipse cx="17" cy="25" rx="4.5" ry="2.2" transform="rotate(-15 17 25)" fill="url(#goldEmblem)" />
-            <ellipse cx="14" cy="30" rx="4.5" ry="2.2" transform="rotate(-10 14 30)" fill="url(#goldEmblem)" />
-            <path d="M8 32 C12 36 24 36 28 32" stroke="url(#goldEmblem)" strokeWidth="2" strokeLinecap="round" />
+    <aside className="hidden md:flex w-60 bg-white dark:bg-black text-black dark:text-white border-r border-neutral-200 dark:border-neutral-800 flex-col py-3 px-2.5 gap-1 shrink-0 select-none overflow-y-auto h-full scrollbar-thin shadow-xs relative">
+      {/* Top Header Brand */}
+      <div className="flex items-center gap-3 px-1.5 py-2.5 border-b border-neutral-200 dark:border-neutral-800 mb-1.5 shrink-0">
+        <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 flex items-center justify-center shrink-0">
+          <svg viewBox="0 0 40 40" className="w-7 h-7 text-black dark:text-white" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M10 34 Q18 20 28 8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+            <ellipse cx="27" cy="11" rx="4" ry="2" transform="rotate(-35 27 11)" fill="currentColor" />
+            <ellipse cx="23" cy="15" rx="4" ry="2" transform="rotate(-25 23 15)" fill="currentColor" />
+            <ellipse cx="20" cy="20" rx="4.5" ry="2.2" transform="rotate(-20 20 20)" fill="currentColor" />
+            <ellipse cx="17" cy="25" rx="4.5" ry="2.2" transform="rotate(-15 17 25)" fill="currentColor" />
+            <ellipse cx="14" cy="30" rx="4.5" ry="2.2" transform="rotate(-10 14 30)" fill="currentColor" />
+            <path d="M8 32 C12 36 24 36 28 32" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
         </div>
         <div className="min-w-0 flex-1">
-          <h1 className="text-base font-extrabold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-[#FFEFA6] via-[#D4AF37] to-[#AA7C11] truncate drop-shadow-sm font-sans">
+          <h1 className="text-base font-extrabold tracking-wide text-black dark:text-white truncate font-sans">
             মাহা এন্টারপ্রাইজ
           </h1>
-          <p className="text-[10px] text-[#A7C2B2] truncate font-medium flex items-center gap-1 mt-0.5">
+          <p className="text-[10px] text-neutral-500 dark:text-neutral-400 truncate font-medium flex items-center gap-1 mt-0.5">
             <span>🌾</span>
             <span>চাচকৈড় বাজার, নাটোর</span>
           </p>
@@ -191,8 +184,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => setActiveSector(s.id)}
                 className={`text-xs font-semibold py-2 px-2.5 rounded-lg border flex items-center justify-center gap-1.5 transition-all select-none cursor-pointer ${
                   isActive
-                    ? 'border-[#D4AF37] bg-[#D4AF37]/20 text-[#FFEFA6] shadow-[0_0_10px_rgba(212,175,55,0.25)] font-bold'
-                    : 'border-[#174233] bg-[#061D15] text-emerald-200/80 hover:border-[#D4AF37]/50 hover:text-[#FFEFA6]'
+                    ? 'border-black bg-black text-white dark:border-white dark:bg-white dark:text-black font-bold shadow-xs'
+                    : 'border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/60 text-neutral-700 dark:text-neutral-300 hover:border-black dark:hover:border-white hover:text-black dark:hover:text-white'
                 }`}
                 title={s.description}
               >
@@ -222,39 +215,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left cursor-pointer ${
                 item.id === 'calculator'
-                  ? 'text-[#FFEFA6] hover:text-white hover:bg-[#D4AF37]/15 border border-[#D4AF37]/30 bg-[#0E3527]/40'
+                  ? 'text-black dark:text-white hover:bg-neutral-100 dark:hover:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 bg-neutral-100/50 dark:bg-neutral-900/50'
                   : isActive
-                  ? 'border border-[#D4AF37]/60 bg-[#D4AF37]/15 text-[#FFEFA6] font-bold shadow-[0_0_14px_rgba(212,175,55,0.22)]'
-                  : 'text-[#E2C384] hover:text-white hover:bg-[#D4AF37]/10 border border-transparent'
+                  ? 'border border-black bg-black text-white dark:border-white dark:bg-white dark:text-black font-bold shadow-xs'
+                  : 'text-neutral-700 dark:text-neutral-300 hover:text-black dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-900 border border-transparent'
               }`}
             >
               <div className="flex items-center gap-2.5 truncate">
                 <Icon
                   className={`w-4 h-4 shrink-0 ${
-                    item.id === 'calculator'
-                      ? 'text-[#D4AF37]'
-                      : isActive
-                      ? 'text-[#FFEFA6]'
-                      : 'text-[#D4AF37]/80'
+                    isActive
+                      ? 'text-white dark:text-black'
+                      : 'text-neutral-500 dark:text-neutral-400'
                   }`}
                 />
                 <span className="truncate">{item.name}</span>
               </div>
 
               {item.id === 'recycle_bin' && recycleCount > 0 ? (
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ml-1 bg-rose-500/25 text-rose-300 border border-rose-500/40">
+                <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ml-1 border ${
+                  isActive ? 'bg-neutral-800 text-white border-neutral-600 dark:bg-neutral-200 dark:text-black' : 'bg-neutral-100 dark:bg-neutral-800 text-black dark:text-white border-neutral-300 dark:border-neutral-700'
+                }`}>
                   {toBnDigits(recycleCount)}
                 </span>
               ) : item.id === 'creditors' && creditorCount > 0 ? (
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ml-1 bg-[#D4AF37]/25 text-[#FFEFA6] border border-[#D4AF37]/40">
+                <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ml-1 border ${
+                  isActive ? 'bg-neutral-800 text-white border-neutral-600 dark:bg-neutral-200 dark:text-black' : 'bg-neutral-100 dark:bg-neutral-800 text-black dark:text-white border-neutral-300 dark:border-neutral-700'
+                }`}>
                   ({toBnDigits(creditorCount)})
                 </span>
               ) : item.shortcut ? (
                 <span
-                  className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ml-1 ${
+                  className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ml-1 border ${
                     isActive
-                      ? 'bg-[#D4AF37]/25 text-[#FFEFA6] border border-[#D4AF37]/40'
-                      : 'bg-[#03150F] text-[#A7C2B2] border border-[#D4AF37]/20'
+                      ? 'bg-neutral-800 text-white border-neutral-700 dark:bg-neutral-200 dark:text-black dark:border-neutral-300'
+                      : 'bg-neutral-100 dark:bg-neutral-900 text-neutral-500 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800'
                   }`}
                 >
                   {item.shortcut}
@@ -266,7 +261,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Dedicated Divider directly below menu */}
-      <div className="my-1.5 border-t border-[#D4AF37]/20 shrink-0" />
+      <div className="my-1.5 border-t border-neutral-200 dark:border-neutral-800 shrink-0" />
 
       {/* Dedicated Quick Action Controls Panel */}
       <div className="flex flex-col gap-1.5 pt-0.5 shrink-0 relative z-10">
@@ -275,7 +270,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             type="button"
             onClick={toggleTheme}
-            className="flex items-center justify-center gap-1.5 py-2 px-1.5 rounded-xl text-xs font-bold border border-[#D4AF37]/35 bg-[#061E16] hover:bg-[#D4AF37]/20 text-[#FFEFA6] active:scale-95 transition-all cursor-pointer shadow-sm"
+            className="flex items-center justify-center gap-1.5 py-2 px-1.5 rounded-xl text-xs font-bold border border-neutral-300 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-black dark:text-white active:scale-95 transition-all cursor-pointer shadow-xs"
             title={isDark ? 'লাইট মোড চালু করুন' : 'ডার্ক মোড চালু করুন'}
           >
             <span>{isDark ? '☀️' : '🌙'}</span>
@@ -285,7 +280,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             type="button"
             onClick={lockApp}
-            className="flex items-center justify-center gap-1.5 py-2 px-1.5 rounded-xl text-xs font-bold border border-rose-500/40 bg-[#2A0808] hover:bg-rose-900/40 text-rose-300 active:scale-95 transition-all cursor-pointer shadow-sm"
+            className="flex items-center justify-center gap-1.5 py-2 px-1.5 rounded-xl text-xs font-bold border border-neutral-300 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-black dark:text-white active:scale-95 transition-all cursor-pointer shadow-xs"
             title="সফটওয়্যার স্ক্রিন লক করুন"
           >
             <span>🔒</span>
@@ -298,22 +293,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
           type="button"
           onClick={handleBackup}
           disabled={isBackingUp}
-          className="w-full flex items-center justify-center gap-2 py-2 px-2.5 rounded-xl text-xs font-bold border border-[#D4AF37]/45 bg-gradient-to-r from-[#0E3A2B] to-[#0A261C] hover:border-[#D4AF37] text-[#FFEFA6] active:scale-95 transition-all cursor-pointer disabled:opacity-50 shadow-md"
+          className="w-full flex items-center justify-center gap-2 py-2 px-2.5 rounded-xl text-xs font-bold border border-black bg-black text-white hover:bg-neutral-800 dark:border-white dark:bg-white dark:text-black dark:hover:bg-neutral-200 active:scale-95 transition-all cursor-pointer disabled:opacity-50 shadow-xs"
           title="ডাটাবেজ ও রয়্যাল এক্সেল (.xlsx) ব্যাকআপ ডাউনলোড করুন"
         >
-          <Download className={`w-3.5 h-3.5 text-[#D4AF37] shrink-0 ${isBackingUp ? 'animate-spin' : ''}`} />
+          <Download className={`w-3.5 h-3.5 shrink-0 ${isBackingUp ? 'animate-spin' : ''}`} />
           <span className="truncate">{isBackingUp ? 'তৈরি হচ্ছে...' : 'তাৎক্ষণিক ব্যাকআপ'}</span>
         </button>
       </div>
 
-      {/* Subtle Wheat Watermark in corner */}
-      <div className="absolute right-0 bottom-0 pointer-events-none opacity-10 select-none overflow-hidden">
+      {/* Subtle Monochrome Watermark */}
+      <div className="absolute right-0 bottom-0 pointer-events-none opacity-[0.04] dark:opacity-[0.06] select-none overflow-hidden text-black dark:text-white">
         <svg viewBox="0 0 100 120" className="w-24 h-28 transform rotate-12" fill="none">
-          <path d="M20 120 Q50 60 80 10" stroke="#D4AF37" strokeWidth="2" />
-          <ellipse cx="75" cy="20" rx="8" ry="4" fill="#D4AF37" />
-          <ellipse cx="68" cy="35" rx="8" ry="4" fill="#D4AF37" />
-          <ellipse cx="60" cy="50" rx="8" ry="4" fill="#D4AF37" />
-          <ellipse cx="50" cy="70" rx="8" ry="4" fill="#D4AF37" />
+          <path d="M20 120 Q50 60 80 10" stroke="currentColor" strokeWidth="2" />
+          <ellipse cx="75" cy="20" rx="8" ry="4" fill="currentColor" />
+          <ellipse cx="68" cy="35" rx="8" ry="4" fill="currentColor" />
+          <ellipse cx="60" cy="50" rx="8" ry="4" fill="currentColor" />
+          <ellipse cx="50" cy="70" rx="8" ry="4" fill="currentColor" />
         </svg>
       </div>
     </aside>

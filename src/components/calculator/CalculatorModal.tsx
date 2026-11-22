@@ -240,29 +240,29 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({ isOpen, onClos
       />
 
       {/* Floating Calculator Window */}
-      <div className="relative w-full max-w-[340px] sm:max-w-[360px] bg-[#071929] text-white border-2 border-amber-500/40 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] z-10 overflow-hidden flex flex-col p-4 animate-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-[340px] sm:max-w-[360px] bg-white dark:bg-[#0A0A0A] text-black dark:text-white border-2 border-black dark:border-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] z-10 overflow-hidden flex flex-col p-4 animate-in zoom-in-95 duration-200">
         {/* Header Bar */}
-        <div className="flex items-center justify-between pb-3 mb-3 border-b border-teal-900/60">
+        <div className="flex items-center justify-between pb-3 mb-3 border-b border-neutral-200 dark:border-neutral-800">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300">
-              <Calculator className="w-4 h-4 text-amber-300" />
+            <div className="p-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 text-black dark:text-white">
+              <Calculator className="w-4 h-4 text-black dark:text-white" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-white tracking-wide flex items-center gap-1.5">
+              <h3 className="text-sm font-black text-black dark:text-white tracking-wide flex items-center gap-1.5">
                 <span>ডিজিটাল ক্যালকুলেটর</span>
               </h3>
-              <p className="text-[10px] text-amber-300/80 font-medium">শস্য ক্রয়-বিক্রয় ও নগদ হিসাব</p>
+              <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">শস্য ক্রয়-বিক্রয় ও নগদ হিসাব</p>
             </div>
           </div>
 
           <div className="flex items-center gap-1.5">
-            <span className="hidden sm:inline-block text-[10px] font-mono px-1.5 py-0.5 rounded font-bold bg-slate-800 text-slate-400 border border-slate-700">
+            <span className="hidden sm:inline-block text-[10px] font-mono px-1.5 py-0.5 rounded font-bold bg-neutral-100 dark:bg-neutral-900 text-black dark:text-white border border-neutral-300 dark:border-neutral-700">
               F8
             </span>
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              className="p-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-black dark:text-white transition-colors cursor-pointer"
               title="বন্ধ করুন (Esc)"
               aria-label="বন্ধ করুন"
             >
@@ -272,20 +272,20 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({ isOpen, onClos
         </div>
 
         {/* Display Screen */}
-        <div className="bg-[#030d17] border border-slate-700/80 rounded-2xl p-3.5 shadow-inner mb-3.5 flex flex-col justify-between min-h-[95px]">
+        <div className="bg-neutral-50 dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-2xl p-3.5 shadow-inner mb-3.5 flex flex-col justify-between min-h-[95px]">
           {/* Top Line: Running History */}
-          <div className="text-right text-xs font-mono text-slate-400 h-5 overflow-hidden text-ellipsis whitespace-nowrap">
+          <div className="text-right text-xs font-mono text-neutral-500 dark:text-neutral-400 h-5 overflow-hidden text-ellipsis whitespace-nowrap">
             {historyBn || <span className="opacity-0">0</span>}
           </div>
 
           {/* Main Line: Current Value / Result */}
-          <div className="text-right text-3xl sm:text-4xl font-black text-amber-300 font-mono tracking-tight leading-tight truncate">
+          <div className="text-right text-3xl sm:text-4xl font-black text-black dark:text-white font-mono tracking-tight leading-tight truncate">
             {formattedBn}
           </div>
 
           {/* Bottom sub-line: English Raw Number + Copy Button */}
-          <div className="flex items-center justify-between pt-1 border-t border-slate-800/80 mt-1">
-            <span className="text-[11px] font-mono text-slate-500 truncate max-w-[170px]">
+          <div className="flex items-center justify-between pt-1 border-t border-neutral-200 dark:border-neutral-800 mt-1">
+            <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400 truncate max-w-[170px]">
               {display !== 'Error' ? display : ''}
             </span>
 
@@ -293,17 +293,17 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({ isOpen, onClos
               type="button"
               onClick={handleCopyResult}
               disabled={display === 'Error'}
-              className="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 transition-all active:scale-95 cursor-pointer disabled:opacity-40"
+              className="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-black dark:text-white transition-all active:scale-95 cursor-pointer disabled:opacity-40"
               title="ফলাফল কপি করুন"
             >
               {copied ? (
                 <>
-                  <Check className="w-3 h-3 text-emerald-400" />
-                  <span className="text-emerald-400">কপি হয়েছে!</span>
+                  <Check className="w-3 h-3 text-black dark:text-white" />
+                  <span className="text-black dark:text-white">কপি হয়েছে!</span>
                 </>
               ) : (
                 <>
-                  <Copy className="w-3 h-3 text-amber-300" />
+                  <Copy className="w-3 h-3 text-black dark:text-white" />
                   <span>কপি</span>
                 </>
               )}
@@ -317,7 +317,7 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({ isOpen, onClos
           <button
             type="button"
             onClick={clearAll}
-            className="h-11 sm:h-12 rounded-xl text-sm font-black bg-rose-950/50 hover:bg-rose-900/60 border border-rose-500/40 text-rose-300 active:scale-95 transition-all cursor-pointer shadow-xs"
+            className="h-11 sm:h-12 rounded-xl text-sm font-black bg-neutral-200 hover:bg-neutral-300 dark:bg-neutral-800 dark:hover:bg-neutral-700 border border-neutral-300 dark:border-neutral-700 text-black dark:text-white active:scale-95 transition-all cursor-pointer shadow-xs"
             title="সব মুছুন (C / Delete)"
           >
             C
@@ -325,15 +325,15 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({ isOpen, onClos
           <button
             type="button"
             onClick={inputBackspace}
-            className="h-11 sm:h-12 rounded-xl text-sm font-bold bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-slate-200 active:scale-95 transition-all flex items-center justify-center cursor-pointer shadow-xs"
+            className="h-11 sm:h-12 rounded-xl text-sm font-bold bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-black dark:text-white active:scale-95 transition-all flex items-center justify-center cursor-pointer shadow-xs"
             title="মুছুন (Backspace)"
           >
-            <Delete className="w-4 h-4 text-slate-300" />
+            <Delete className="w-4 h-4 text-black dark:text-white" />
           </button>
           <button
             type="button"
             onClick={inputPercent}
-            className="h-11 sm:h-12 rounded-xl text-sm font-black bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-amber-300 active:scale-95 transition-all cursor-pointer shadow-xs"
+            className="h-11 sm:h-12 rounded-xl text-sm font-black bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-black dark:text-white active:scale-95 transition-all cursor-pointer shadow-xs"
             title="শতকরা (%)"
           >
             %
@@ -343,8 +343,8 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({ isOpen, onClos
             onClick={() => performOperation('÷')}
             className={`h-11 sm:h-12 rounded-xl text-lg font-black border active:scale-95 transition-all cursor-pointer shadow-xs ${
               operator === '÷'
-                ? 'bg-amber-500 text-slate-950 border-amber-400'
-                : 'bg-amber-950/40 hover:bg-amber-900/50 border-amber-500/40 text-amber-300'
+                ? 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white'
+                : 'bg-neutral-200 hover:bg-neutral-300 dark:bg-neutral-800 dark:hover:bg-neutral-700 border-neutral-300 dark:border-neutral-700 text-black dark:text-white'
             }`}
             title="ভাগ (/)"
           >
@@ -355,31 +355,31 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({ isOpen, onClos
           <button
             type="button"
             onClick={() => inputDigit('7')}
-            className="h-11 sm:h-12 rounded-xl text-base font-bold bg-[#0d223a] hover:bg-[#122e4e] border border-slate-700/70 text-white active:scale-95 transition-all cursor-pointer shadow-xs"
+            className="h-11 sm:h-12 rounded-xl text-base font-bold bg-white hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 text-black dark:text-white active:scale-95 transition-all cursor-pointer shadow-xs"
           >
-            ৭ <span className="text-[10px] text-slate-400 font-mono">(7)</span>
+            ৭ <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-mono">(7)</span>
           </button>
           <button
             type="button"
             onClick={() => inputDigit('8')}
-            className="h-11 sm:h-12 rounded-xl text-base font-bold bg-[#0d223a] hover:bg-[#122e4e] border border-slate-700/70 text-white active:scale-95 transition-all cursor-pointer shadow-xs"
+            className="h-11 sm:h-12 rounded-xl text-base font-bold bg-white hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 text-black dark:text-white active:scale-95 transition-all cursor-pointer shadow-xs"
           >
-            ৮ <span className="text-[10px] text-slate-400 font-mono">(8)</span>
+            ৮ <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-mono">(8)</span>
           </button>
           <button
             type="button"
             onClick={() => inputDigit('9')}
-            className="h-11 sm:h-12 rounded-xl text-base font-bold bg-[#0d223a] hover:bg-[#122e4e] border border-slate-700/70 text-white active:scale-95 transition-all cursor-pointer shadow-xs"
+            className="h-11 sm:h-12 rounded-xl text-base font-bold bg-white hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 text-black dark:text-white active:scale-95 transition-all cursor-pointer shadow-xs"
           >
-            ৯ <span className="text-[10px] text-slate-400 font-mono">(9)</span>
+            ৯ <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-mono">(9)</span>
           </button>
           <button
             type="button"
             onClick={() => performOperation('×')}
             className={`h-11 sm:h-12 rounded-xl text-lg font-black border active:scale-95 transition-all cursor-pointer shadow-xs ${
               operator === '×'
-                ? 'bg-amber-500 text-slate-950 border-amber-400'
-                : 'bg-amber-950/40 hover:bg-amber-900/50 border-amber-500/40 text-amber-300'
+                ? 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white'
+                : 'bg-neutral-200 hover:bg-neutral-300 dark:bg-neutral-800 dark:hover:bg-neutral-700 border-neutral-300 dark:border-neutral-700 text-black dark:text-white'
             }`}
             title="গুণ (*)"
           >
@@ -390,31 +390,31 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({ isOpen, onClos
           <button
             type="button"
             onClick={() => inputDigit('4')}
-            className="h-11 sm:h-12 rounded-xl text-base font-bold bg-[#0d223a] hover:bg-[#122e4e] border border-slate-700/70 text-white active:scale-95 transition-all cursor-pointer shadow-xs"
+            className="h-11 sm:h-12 rounded-xl text-base font-bold bg-white hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 text-black dark:text-white active:scale-95 transition-all cursor-pointer shadow-xs"
           >
-            ৪ <span className="text-[10px] text-slate-400 font-mono">(4)</span>
+            ৪ <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-mono">(4)</span>
           </button>
           <button
             type="button"
             onClick={() => inputDigit('5')}
-            className="h-11 sm:h-12 rounded-xl text-base font-bold bg-[#0d223a] hover:bg-[#122e4e] border border-slate-700/70 text-white active:scale-95 transition-all cursor-pointer shadow-xs"
+            className="h-11 sm:h-12 rounded-xl text-base font-bold bg-white hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 text-black dark:text-white active:scale-95 transition-all cursor-pointer shadow-xs"
           >
-            ৫ <span className="text-[10px] text-slate-400 font-mono">(5)</span>
+            ৫ <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-mono">(5)</span>
           </button>
           <button
             type="button"
             onClick={() => inputDigit('6')}
-            className="h-11 sm:h-12 rounded-xl text-base font-bold bg-[#0d223a] hover:bg-[#122e4e] border border-slate-700/70 text-white active:scale-95 transition-all cursor-pointer shadow-xs"
+            className="h-11 sm:h-12 rounded-xl text-base font-bold bg-white hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 text-black dark:text-white active:scale-95 transition-all cursor-pointer shadow-xs"
           >
-            ৬ <span className="text-[10px] text-slate-400 font-mono">(6)</span>
+            ৬ <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-mono">(6)</span>
           </button>
           <button
             type="button"
             onClick={() => performOperation('-')}
             className={`h-11 sm:h-12 rounded-xl text-lg font-black border active:scale-95 transition-all cursor-pointer shadow-xs ${
               operator === '-'
-                ? 'bg-amber-500 text-slate-950 border-amber-400'
-                : 'bg-amber-950/40 hover:bg-amber-900/50 border-amber-500/40 text-amber-300'
+                ? 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white'
+                : 'bg-neutral-200 hover:bg-neutral-300 dark:bg-neutral-800 dark:hover:bg-neutral-700 border-neutral-300 dark:border-neutral-700 text-black dark:text-white'
             }`}
             title="বিয়োগ (-)"
           >
@@ -425,31 +425,31 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({ isOpen, onClos
           <button
             type="button"
             onClick={() => inputDigit('1')}
-            className="h-11 sm:h-12 rounded-xl text-base font-bold bg-[#0d223a] hover:bg-[#122e4e] border border-slate-700/70 text-white active:scale-95 transition-all cursor-pointer shadow-xs"
+            className="h-11 sm:h-12 rounded-xl text-base font-bold bg-white hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 text-black dark:text-white active:scale-95 transition-all cursor-pointer shadow-xs"
           >
-            ১ <span className="text-[10px] text-slate-400 font-mono">(1)</span>
+            ১ <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-mono">(1)</span>
           </button>
           <button
             type="button"
             onClick={() => inputDigit('2')}
-            className="h-11 sm:h-12 rounded-xl text-base font-bold bg-[#0d223a] hover:bg-[#122e4e] border border-slate-700/70 text-white active:scale-95 transition-all cursor-pointer shadow-xs"
+            className="h-11 sm:h-12 rounded-xl text-base font-bold bg-white hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 text-black dark:text-white active:scale-95 transition-all cursor-pointer shadow-xs"
           >
-            ২ <span className="text-[10px] text-slate-400 font-mono">(2)</span>
+            ২ <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-mono">(2)</span>
           </button>
           <button
             type="button"
             onClick={() => inputDigit('3')}
-            className="h-11 sm:h-12 rounded-xl text-base font-bold bg-[#0d223a] hover:bg-[#122e4e] border border-slate-700/70 text-white active:scale-95 transition-all cursor-pointer shadow-xs"
+            className="h-11 sm:h-12 rounded-xl text-base font-bold bg-white hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 text-black dark:text-white active:scale-95 transition-all cursor-pointer shadow-xs"
           >
-            ৩ <span className="text-[10px] text-slate-400 font-mono">(3)</span>
+            ৩ <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-mono">(3)</span>
           </button>
           <button
             type="button"
             onClick={() => performOperation('+')}
             className={`h-11 sm:h-12 rounded-xl text-lg font-black border active:scale-95 transition-all cursor-pointer shadow-xs ${
               operator === '+'
-                ? 'bg-amber-500 text-slate-950 border-amber-400'
-                : 'bg-amber-950/40 hover:bg-amber-900/50 border-amber-500/40 text-amber-300'
+                ? 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white'
+                : 'bg-neutral-200 hover:bg-neutral-300 dark:bg-neutral-800 dark:hover:bg-neutral-700 border-neutral-300 dark:border-neutral-700 text-black dark:text-white'
             }`}
             title="যোগ (+)"
           >
@@ -460,7 +460,7 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({ isOpen, onClos
           <button
             type="button"
             onClick={() => inputDigit('00')}
-            className="h-11 sm:h-12 rounded-xl text-sm font-bold bg-[#0d223a] hover:bg-[#122e4e] border border-slate-700/70 text-white active:scale-95 transition-all cursor-pointer shadow-xs"
+            className="h-11 sm:h-12 rounded-xl text-sm font-bold bg-white hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 text-black dark:text-white active:scale-95 transition-all cursor-pointer shadow-xs"
             title="ডাবল শূন্য (00)"
           >
             ০০
@@ -468,14 +468,14 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({ isOpen, onClos
           <button
             type="button"
             onClick={() => inputDigit('0')}
-            className="h-11 sm:h-12 rounded-xl text-base font-bold bg-[#0d223a] hover:bg-[#122e4e] border border-slate-700/70 text-white active:scale-95 transition-all cursor-pointer shadow-xs"
+            className="h-11 sm:h-12 rounded-xl text-base font-bold bg-white hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 text-black dark:text-white active:scale-95 transition-all cursor-pointer shadow-xs"
           >
-            ০ <span className="text-[10px] text-slate-400 font-mono">(0)</span>
+            ০ <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-mono">(0)</span>
           </button>
           <button
             type="button"
             onClick={inputDot}
-            className="h-11 sm:h-12 rounded-xl text-lg font-black bg-[#0d223a] hover:bg-[#122e4e] border border-slate-700/70 text-white active:scale-95 transition-all cursor-pointer shadow-xs"
+            className="h-11 sm:h-12 rounded-xl text-lg font-black bg-white hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 text-black dark:text-white active:scale-95 transition-all cursor-pointer shadow-xs"
             title="দশমিক (.)"
           >
             .
@@ -483,7 +483,7 @@ export const CalculatorModal: React.FC<CalculatorModalProps> = ({ isOpen, onClos
           <button
             type="button"
             onClick={calculateEquals}
-            className="h-11 sm:h-12 rounded-xl text-xl font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-400/60 shadow-[0_0_15px_rgba(16,185,129,0.35)] active:scale-95 transition-all cursor-pointer flex items-center justify-center"
+            className="h-11 sm:h-12 rounded-xl text-xl font-black bg-black text-white border border-black hover:bg-neutral-800 dark:bg-white dark:text-black dark:border-white dark:hover:bg-neutral-200 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
             title="ফলাফল হিসাব করুন (= / Enter)"
           >
             =
