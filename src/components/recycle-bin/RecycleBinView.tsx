@@ -29,6 +29,8 @@ const MODULE_OPTIONS = [
   { id: 'sale', label: 'বিক্রয় চালান', icon: ShoppingCart },
   { id: 'purchase', label: 'ক্রয় চালান', icon: TrendingDown },
   { id: 'crop', label: 'শস্য / ফসল', icon: Wheat },
+  { id: 'customer', label: 'বাকি খাতা / ক্রেতা', icon: Users },
+  { id: 'creditor', label: 'পাওনাদার / মহাজন', icon: Users },
   { id: 'party', label: 'পার্টি / গ্রাহক', icon: Users },
   { id: 'cashbook', label: 'দৈনিক ক্যাশ বই', icon: Wallet },
   { id: 'expense', label: 'পরিচালন খরচ', icon: Calculator },
@@ -133,10 +135,16 @@ export const RecycleBinView: React.FC = () => {
       case 'purchase':
         return 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30';
       case 'crop':
+      case 'commodity':
+        return 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30';
+      case 'customer':
+        return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30';
+      case 'creditor':
         return 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30';
       case 'party':
         return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30';
       case 'cashbook':
+      case 'cash':
         return 'bg-teal-500/15 text-teal-700 dark:text-teal-300 border-teal-500/30';
       case 'expense':
         return 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30';
@@ -350,8 +358,13 @@ export const RecycleBinView: React.FC = () => {
 
                       {/* 3. শিরোনাম */}
                       <td className="py-3 px-4">
-                        <div className="font-bold text-slate-900 dark:text-white text-xs">
-                          {item.title}
+                        <div className="font-bold text-slate-900 dark:text-white text-xs flex items-center gap-1.5 flex-wrap">
+                          {item.sector && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
+                              {item.sector === 'mustard' ? '🌼 সরিষা' : item.sector === 'jute' ? '🌿 পাট' : item.sector === 'maize' ? '🌽 ভুট্টা' : 'সাধারণ'}
+                            </span>
+                          )}
+                          <span>{item.title}</span>
                         </div>
                         <div className="text-[10px] text-slate-500 font-mono mt-0.5">
                           ID: {item.original_id}

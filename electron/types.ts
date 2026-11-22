@@ -197,11 +197,12 @@ export interface LedgerEntry {
 
 export interface RecycleBinItem {
   id: string;
-  module_type: 'purchase' | 'sale' | 'crop' | 'party' | 'cashbook' | 'expense' | 'shrinkage' | 'note' | 'ledger';
+  module_type: 'purchase' | 'sale' | 'crop' | 'commodity' | 'party' | 'customer' | 'creditor' | 'cashbook' | 'cash' | 'expense' | 'shrinkage' | 'note' | 'ledger' | string;
   module_label: string;
   original_id: string;
   title: string;
   amount: number;
+  sector?: string;
   payload_json: string;
   deleted_at: string;
   expires_at: string;

@@ -513,13 +513,15 @@ export const PartyLedgerView: React.FC = () => {
     if (!deleteTargetCustomer) return;
 
     setDeleting(true);
+    const targetId = deleteTargetCustomer.id;
     try {
-      const res = await dbService.parties.delete(deleteTargetCustomer.id);
-      alert(res.message);
+      const res = await dbService.deleteCustomer(targetId);
       setDeleteTargetCustomer(null);
-      if (statementCustomer?.id === deleteTargetCustomer.id) {
+      setDues((prev) => prev.filter((p) => p.id !== targetId));
+      if (statementCustomer?.id === targetId) {
         setStatementCustomer(null);
       }
+      alert(res.message || 'গ্রাহক সফলভাবে রিসাইকেল বিনে সরানো হয়েছে');
       await fetchParties();
     } catch (err: any) {
       alert(`ত্রুটি: ${err.message}`);
@@ -532,6 +534,7 @@ export const PartyLedgerView: React.FC = () => {
   const totalOutstanding = dues.reduce((sum, d) => sum + (Number(d.current_balance) || 0), 0);
 
   const filteredDues = dues.filter((d) => {
+    if (activeSector !== 'all' && d.sector && d.sector !== activeSector) return false;
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase().trim();
     return (

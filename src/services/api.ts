@@ -223,6 +223,24 @@ export const dbService = {
         return { success: true, message: 'পার্টি সফলভাবে মুছে ফেলা হয়েছে (মক)' };
       }
     },
+    deleteCustomer: async (id: number): Promise<{ success: boolean; message: string }> => {
+      if (window.api?.deleteCustomer) return window.api.deleteCustomer(id);
+      if (window.api?.parties?.delete) return window.api.parties.delete(id);
+      try {
+        return await apiFetch<{ success: boolean; message: string }>(`/api/customers/${id}`, { method: 'DELETE' });
+      } catch {
+        return await apiFetch<{ success: boolean; message: string }>(`/api/parties/${id}`, { method: 'DELETE' });
+      }
+    },
+    deleteCreditor: async (id: number): Promise<{ success: boolean; message: string }> => {
+      if (window.api?.deleteCreditor) return window.api.deleteCreditor(id);
+      if (window.api?.parties?.delete) return window.api.parties.delete(id);
+      try {
+        return await apiFetch<{ success: boolean; message: string }>(`/api/creditors/${id}`, { method: 'DELETE' });
+      } catch {
+        return await apiFetch<{ success: boolean; message: string }>(`/api/parties/${id}`, { method: 'DELETE' });
+      }
+    },
     adjustDue: async (data: any): Promise<{ success: boolean; newBalance: number }> => {
       if (window.api?.parties?.adjustDue) return window.api.parties.adjustDue(data);
       try {
@@ -266,6 +284,54 @@ export const dbService = {
         '/api/parties/import-legacy-excel',
         { method: 'POST', body: JSON.stringify(payload) }
       );
+    },
+  },
+
+  deleteCustomer: async (id: number): Promise<{ success: boolean; message: string }> => {
+    return dbService.parties.deleteCustomer(id);
+  },
+
+  deleteCreditor: async (id: number): Promise<{ success: boolean; message: string }> => {
+    return dbService.parties.deleteCreditor(id);
+  },
+
+  deleteParty: async (id: number): Promise<{ success: boolean; message: string }> => {
+    return dbService.parties.delete(id);
+  },
+
+  customers: {
+    getAll: async (sector?: SectorFilter): Promise<Party[]> => {
+      return dbService.parties.getAll('BUYER', sector);
+    },
+    getById: async (id: number): Promise<Party | undefined> => {
+      return dbService.parties.getById(id);
+    },
+    create: async (data: any): Promise<Party> => {
+      return dbService.parties.create({ ...data, party_type: data.party_type || 'BUYER' });
+    },
+    update: async (id: number, data: any): Promise<Party> => {
+      return dbService.parties.update(id, data);
+    },
+    delete: async (id: number): Promise<{ success: boolean; message: string }> => {
+      return dbService.deleteCustomer(id);
+    },
+  },
+
+  creditors: {
+    getAll: async (sector?: SectorFilter): Promise<Party[]> => {
+      return dbService.parties.getAll('SUPPLIER', sector);
+    },
+    getById: async (id: number): Promise<Party | undefined> => {
+      return dbService.parties.getById(id);
+    },
+    create: async (data: any): Promise<Party> => {
+      return dbService.parties.create({ ...data, party_type: data.party_type || 'SUPPLIER' });
+    },
+    update: async (id: number, data: any): Promise<Party> => {
+      return dbService.parties.update(id, data);
+    },
+    delete: async (id: number): Promise<{ success: boolean; message: string }> => {
+      return dbService.deleteCreditor(id);
     },
   },
 

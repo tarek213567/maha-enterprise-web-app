@@ -185,7 +185,7 @@ export class AppDatabase {
       SELECT p.*,
         (SELECT credit FROM party_ledger WHERE party_id = p.id AND credit > 0 ORDER BY datetime(entry_date) DESC, id DESC LIMIT 1) as last_payment
       FROM parties p
-      WHERE p.is_active = 1
+      WHERE p.is_active = 1 AND COALESCE(p.is_deleted, 0) = 0
     `;
     const params: any[] = [];
     if (type) {
@@ -289,25 +289,26 @@ export class AppDatabase {
     const party = this.getPartyById(id);
     if (party) {
       this.putInRecycleBin({
-        module_type: 'party',
-        module_label: 'পার্টি / কাস্টমার',
+        module_type: party.party_type === 'SUPPLIER' ? 'creditor' : 'customer',
+        module_label: party.party_type === 'SUPPLIER' ? 'পাওনাদার / মহাজন' : 'বাকি খাতা / ক্রেতা',
         original_id: String(id),
         title: `${party.name} (${party.phone || 'ফোন নেই'})`,
         amount: Math.abs(party.current_balance || 0),
+        sector: party.sector || 'mustard',
         payload: party,
       });
     }
 
-    const salesCount = (this.db.prepare('SELECT COUNT(*) as c FROM sales WHERE party_id = ?').get(id) as any)?.c || 0;
-    const purchasesCount = (this.db.prepare('SELECT COUNT(*) as c FROM purchases WHERE party_id = ?').get(id) as any)?.c || 0;
-    if (salesCount > 0 || purchasesCount > 0) {
-      this.db.prepare("UPDATE parties SET is_active = 0, updated_at = datetime('now', 'localtime') WHERE id = ?").run(id);
-      return { success: true, message: 'পার্টির পূর্বের লেনদেন রেকর্ড থাকায় অ্যাকাউন্টটি নিষ্ক্রিয় (Archived) করা হয়েছে।' };
-    } else {
-      this.db.prepare('DELETE FROM party_ledger WHERE party_id = ?').run(id);
-      this.db.prepare('DELETE FROM parties WHERE id = ?').run(id);
-      return { success: true, message: 'পার্টি সফলভাবে মুছে ফেলা হয়েছে।' };
-    }
+    this.db.prepare("UPDATE parties SET is_active = 0, is_deleted = 1, deleted_at = datetime('now', 'localtime'), updated_at = datetime('now', 'localtime') WHERE id = ?").run(id);
+    return { success: true, message: 'হিসাবটি সফলভাবে রিসাইকেল বিনে সরানো হয়েছে।' };
+  }
+
+  public deleteCustomer(id: number): { success: boolean; message: string } {
+    return this.deleteParty(id);
+  }
+
+  public deleteCreditor(id: number): { success: boolean; message: string } {
+    return this.deleteParty(id);
   }
 
   public importLegacyExcel(partiesToImport: any[]): { success: boolean; importedCount: number; totalEntriesCount: number; message: string } {
@@ -2410,19 +2411,20 @@ export class AppDatabase {
 
   // ==================== 60-DAY RECYCLE BIN ====================
   public putInRecycleBin(item: {
-    module_type: 'purchase' | 'sale' | 'crop' | 'party' | 'cashbook' | 'expense' | 'shrinkage' | 'note' | 'ledger';
+    module_type: 'purchase' | 'sale' | 'crop' | 'commodity' | 'party' | 'customer' | 'creditor' | 'cashbook' | 'cash' | 'expense' | 'shrinkage' | 'note' | 'ledger' | string;
     module_label: string;
     original_id: string;
     title: string;
     amount?: number;
+    sector?: string;
     payload: any;
   }) {
     const id = `rec_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const expiresAt = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
     try {
       this.db.prepare(`
-        INSERT INTO recycle_bin (id, module_type, module_label, original_id, title, amount, payload_json, deleted_at, expires_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'), ?)
+        INSERT INTO recycle_bin (id, module_type, module_label, original_id, title, amount, sector, payload_json, deleted_at, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'), ?)
       `).run(
         id,
         item.module_type,
@@ -2430,6 +2432,7 @@ export class AppDatabase {
         String(item.original_id),
         item.title || 'রেকর্ড',
         roundMoney(item.amount || 0),
+        item.sector || 'general',
         JSON.stringify(item.payload),
         expiresAt
       );

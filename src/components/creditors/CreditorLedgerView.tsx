@@ -386,9 +386,15 @@ export const CreditorLedgerView: React.FC = () => {
   const handleDeleteCreditor = async () => {
     if (!deleteTargetCreditor) return;
     setDeleting(true);
+    const targetId = deleteTargetCreditor.id;
     try {
-      await dbService.parties.delete(deleteTargetCreditor.id);
+      const res = await dbService.deleteCreditor(targetId);
       setDeleteTargetCreditor(null);
+      setCreditors((prev) => prev.filter((c) => c.id !== targetId));
+      if (statementCreditor?.id === targetId) {
+        setStatementCreditor(null);
+      }
+      alert(res.message || 'পাওনাদার সফলভাবে রিসাইকেল বিনে সরানো হয়েছে');
       await fetchCreditors();
     } catch (err: any) {
       alert(`মুছতে ব্যর্থ হয়েছে: ${err.message}`);
@@ -413,6 +419,7 @@ export const CreditorLedgerView: React.FC = () => {
 
   // Filtered Creditors List
   const filteredCreditors = creditors.filter((p) => {
+    if (activeSector !== 'all' && p.sector && p.sector !== activeSector) return false;
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return (

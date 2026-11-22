@@ -74,11 +74,11 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null, se
     const commSql = isSectorScoped
       ? `SELECT id, name_bn, name_en, sector, default_bag_weight_kg, current_stock_kg, current_stock_bags, current_wac_per_kg, current_wac_per_mon
          FROM commodities
-         WHERE is_active = 1 AND sector = ?
+         WHERE is_active = 1 AND COALESCE(is_deleted, 0) = 0 AND sector = ?
          ORDER BY id ASC`
       : `SELECT id, name_bn, name_en, sector, default_bag_weight_kg, current_stock_kg, current_stock_bags, current_wac_per_kg, current_wac_per_mon
          FROM commodities
-         WHERE is_active = 1
+         WHERE is_active = 1 AND COALESCE(is_deleted, 0) = 0
          ORDER BY id ASC`;
     const commStmt = isSectorScoped ? db.prepare(commSql).bind(sector) : db.prepare(commSql);
     const { results: rawComms } = await commStmt.all().catch(() => ({ results: [] }));
@@ -137,11 +137,11 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null, se
     const partySql = isSectorScoped
       ? `SELECT id, name, phone, address, party_type, sector, opening_balance, current_balance, is_pinned
          FROM parties
-         WHERE is_active = 1 AND COALESCE(is_test_draft, 0) = 0 AND (sector = ? OR sector IS NULL)
+         WHERE is_active = 1 AND COALESCE(is_deleted, 0) = 0 AND COALESCE(is_test_draft, 0) = 0 AND sector = ?
          ORDER BY is_pinned DESC, ABS(current_balance) DESC, id ASC`
       : `SELECT id, name, phone, address, party_type, sector, opening_balance, current_balance, is_pinned
          FROM parties
-         WHERE is_active = 1 AND COALESCE(is_test_draft, 0) = 0
+         WHERE is_active = 1 AND COALESCE(is_deleted, 0) = 0 AND COALESCE(is_test_draft, 0) = 0
          ORDER BY is_pinned DESC, ABS(current_balance) DESC, id ASC`;
     const partyStmt = isSectorScoped ? db.prepare(partySql).bind(sector) : db.prepare(partySql);
     const { results: allParties } = await partyStmt.all().catch(() => ({ results: [] }));
@@ -218,6 +218,7 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null, se
          LEFT JOIN parties p ON s.party_id = p.id
          LEFT JOIN commodities c ON s.commodity_id = c.id
          WHERE COALESCE(s.is_test_draft, 0) = 0
+           AND COALESCE(s.is_deleted, 0) = 0
            AND (s.sale_date = ? OR s.sale_date LIKE ?)
            AND (s.sector = ? OR (s.sector IS NULL AND c.sector = ?))
          ORDER BY s.id DESC`
@@ -226,6 +227,7 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null, se
          LEFT JOIN parties p ON s.party_id = p.id
          LEFT JOIN commodities c ON s.commodity_id = c.id
          WHERE COALESCE(s.is_test_draft, 0) = 0
+           AND COALESCE(s.is_deleted, 0) = 0
            AND (s.sale_date = ? OR s.sale_date LIKE ?)
          ORDER BY s.id DESC`;
     const salesStmt = isSectorScoped
@@ -294,6 +296,7 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null, se
          LEFT JOIN parties p ON pr.party_id = p.id
          LEFT JOIN commodities c ON pr.commodity_id = c.id
          WHERE COALESCE(pr.is_test_draft, 0) = 0
+           AND COALESCE(pr.is_deleted, 0) = 0
            AND (pr.purchase_date = ? OR pr.purchase_date LIKE ?)
            AND (pr.sector = ? OR (pr.sector IS NULL AND c.sector = ?))
          ORDER BY pr.id DESC`
@@ -302,6 +305,7 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null, se
          LEFT JOIN parties p ON pr.party_id = p.id
          LEFT JOIN commodities c ON pr.commodity_id = c.id
          WHERE COALESCE(pr.is_test_draft, 0) = 0
+           AND COALESCE(pr.is_deleted, 0) = 0
            AND (pr.purchase_date = ? OR pr.purchase_date LIKE ?)
          ORDER BY pr.id DESC`;
     const purStmt = isSectorScoped
@@ -367,11 +371,13 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null, se
     const expSql = isSectorScoped
       ? `SELECT * FROM expenses
          WHERE COALESCE(is_test_draft, 0) = 0
+           AND COALESCE(is_deleted, 0) = 0
            AND (expense_date = ? OR expense_date LIKE ?)
            AND (sector = ? OR sector = 'general' OR sector IS NULL)
          ORDER BY id DESC`
       : `SELECT * FROM expenses
          WHERE COALESCE(is_test_draft, 0) = 0
+           AND COALESCE(is_deleted, 0) = 0
            AND (expense_date = ? OR expense_date LIKE ?)
          ORDER BY id DESC`;
     const expStmt = isSectorScoped
@@ -430,13 +436,13 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null, se
              COALESCE(SUM(CASE WHEN entry_type = 'INFLOW' THEN amount ELSE 0 END), 0) as inf,
              COALESCE(SUM(CASE WHEN entry_type = 'OUTFLOW' THEN amount ELSE 0 END), 0) as outf
            FROM cashbook
-           WHERE entry_date < ? AND COALESCE(is_test_draft, 0) = 0
+           WHERE entry_date < ? AND COALESCE(is_test_draft, 0) = 0 AND COALESCE(is_deleted, 0) = 0
              AND (sector = ? OR sector = 'general' OR sector IS NULL)`
         : `SELECT
              COALESCE(SUM(CASE WHEN entry_type = 'INFLOW' THEN amount ELSE 0 END), 0) as inf,
              COALESCE(SUM(CASE WHEN entry_type = 'OUTFLOW' THEN amount ELSE 0 END), 0) as outf
            FROM cashbook
-           WHERE entry_date < ? AND COALESCE(is_test_draft, 0) = 0`;
+           WHERE entry_date < ? AND COALESCE(is_test_draft, 0) = 0 AND COALESCE(is_deleted, 0) = 0`;
       const priorStmt = isSectorScoped ? db.prepare(priorSql).bind(bstDate, sector) : db.prepare(priorSql).bind(bstDate);
       const prior = await priorStmt.first().catch(() => ({ inf: 0, outf: 0 }));
       openingBalance = roundMoney((prior?.inf || 0) - (prior?.outf || 0));
@@ -447,13 +453,13 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null, se
            COALESCE(SUM(CASE WHEN entry_type = 'INFLOW' THEN amount ELSE 0 END), 0) as today_in,
            COALESCE(SUM(CASE WHEN entry_type = 'OUTFLOW' THEN amount ELSE 0 END), 0) as today_out
          FROM cashbook
-         WHERE entry_date = ? AND COALESCE(is_test_draft, 0) = 0
+         WHERE entry_date = ? AND COALESCE(is_test_draft, 0) = 0 AND COALESCE(is_deleted, 0) = 0
            AND (sector = ? OR sector = 'general' OR sector IS NULL)`
       : `SELECT
            COALESCE(SUM(CASE WHEN entry_type = 'INFLOW' THEN amount ELSE 0 END), 0) as today_in,
            COALESCE(SUM(CASE WHEN entry_type = 'OUTFLOW' THEN amount ELSE 0 END), 0) as today_out
          FROM cashbook
-         WHERE entry_date = ? AND COALESCE(is_test_draft, 0) = 0`;
+         WHERE entry_date = ? AND COALESCE(is_test_draft, 0) = 0 AND COALESCE(is_deleted, 0) = 0`;
     const todayCashStmt = isSectorScoped ? db.prepare(todayCashSql).bind(bstDate, sector) : db.prepare(todayCashSql).bind(bstDate);
     const todayCashbook = await todayCashStmt.first().catch(() => ({ today_in: 0, today_out: 0 }));
 
@@ -495,7 +501,7 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null, se
   let totalWeightKg = 0;
   let totalValuation = 0;
 
-  const varieties = comms.filter((c) => c.is_active !== 0).map((c) => {
+  const varieties = comms.filter((c) => c.is_active !== 0 && !c.is_deleted).map((c) => {
     const kg = Number(c.current_stock_kg) || 0;
     const isJute = c.sector === 'jute' || (c.name_bn && c.name_bn.includes('পাট'));
     const bags = isJute ? 0 : (Number(c.current_stock_bags) || 0);
@@ -535,7 +541,7 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null, se
 
   let parties = mem.parties || [];
   if (isSectorScoped) {
-    parties = parties.filter(p => !p.sector || p.sector === sector);
+    parties = parties.filter(p => p.sector === sector);
   }
 
   let totalReceivable = 0;
@@ -548,7 +554,7 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null, se
   let suppliersWithPayableCount = 0;
   const allActiveSupplierPayables = [];
 
-  parties.filter((p) => p.is_active !== 0 && !p.is_test_draft).forEach((p) => {
+  parties.filter((p) => p.is_active !== 0 && !p.is_deleted && !p.is_test_draft).forEach((p) => {
     const isBuyer = p.party_type === 'BUYER' || p.party_type === 'BOTH';
     const isSupplier = p.party_type === 'SUPPLIER' || p.party_type === 'BOTH';
     const bal = Number(p.current_balance || 0);
@@ -603,9 +609,9 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null, se
     allActiveSupplierPayables,
   };
 
-  let sales = (mem.sales || []).filter((s) => !s.is_test_draft && isSameBstDate(s.sale_date, bstDate));
+  let sales = (mem.sales || []).filter((s) => !s.is_test_draft && !s.is_deleted && isSameBstDate(s.sale_date, bstDate));
   if (isSectorScoped) {
-    sales = sales.filter((s) => !s.sector || s.sector === sector);
+    sales = sales.filter((s) => s.sector === sector);
   }
   let saleTotal = 0;
   let saleCash = 0;
@@ -661,9 +667,9 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null, se
     invoices: formattedSales,
   };
 
-  let purchases = (mem.purchases || []).filter((p) => !p.is_test_draft && isSameBstDate(p.purchase_date, bstDate));
+  let purchases = (mem.purchases || []).filter((p) => !p.is_test_draft && !p.is_deleted && isSameBstDate(p.purchase_date, bstDate));
   if (isSectorScoped) {
-    purchases = purchases.filter((p) => !p.sector || p.sector === sector);
+    purchases = purchases.filter((p) => p.sector === sector);
   }
   let purTotal = 0;
   let purPaid = 0;
@@ -719,9 +725,9 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null, se
     purchases: formattedPurchases,
   };
 
-  let expenses = (mem.expenses || []).filter((e) => !e.is_test_draft && isSameBstDate(e.expense_date, bstDate));
+  let expenses = (mem.expenses || []).filter((e) => !e.is_test_draft && !e.is_deleted && isSameBstDate(e.expense_date, bstDate));
   if (isSectorScoped) {
-    expenses = expenses.filter((e) => !e.sector || e.sector === sector || e.sector === 'general');
+    expenses = expenses.filter((e) => e.sector === sector || e.sector === 'general');
   }
   let expTotal = 0;
   const formattedExpenses = expenses.map((e) => {
@@ -745,7 +751,7 @@ export async function computeVerifiedBusinessLedger(db, inMemoryStore = null, se
   };
 
   let openingBalance = 0;
-  (mem.cashbook || []).filter((c) => !c.is_test_draft && (!isSectorScoped || !c.sector || c.sector === sector || c.sector === 'general')).forEach((c) => {
+  (mem.cashbook || []).filter((c) => !c.is_test_draft && !c.is_deleted && (!isSectorScoped || c.sector === sector || c.sector === 'general')).forEach((c) => {
     if (c.entry_date < bstDate) {
       if (c.entry_type === 'INFLOW') openingBalance += Number(c.amount || 0);
       else if (c.entry_type === 'OUTFLOW') openingBalance -= Number(c.amount || 0);

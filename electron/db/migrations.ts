@@ -414,6 +414,30 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 9,
+    name: '009_universal_soft_delete_and_recycle_bin',
+    up: (db: Database.Database) => {
+      const addColIfNotExists = (tableName: string, colName: string, colDef: string) => {
+        try {
+          const cols = db.prepare(`PRAGMA table_info(${tableName})`).all() as { name: string }[];
+          const exists = cols.some((c) => c.name.toLowerCase() === colName.toLowerCase());
+          if (!exists) {
+            db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${colName} ${colDef}`);
+          }
+        } catch {
+          // table might not exist in older setups
+        }
+      };
+
+      const tables = ['parties', 'purchases', 'sales', 'cashbook', 'expenses', 'commodities', 'notes', 'stock_adjustments', 'party_ledger'];
+      for (const t of tables) {
+        addColIfNotExists(t, 'is_deleted', 'INTEGER DEFAULT 0');
+        addColIfNotExists(t, 'deleted_at', 'TEXT');
+      }
+      addColIfNotExists('recycle_bin', 'sector', "TEXT DEFAULT 'general'");
+    },
+  },
 ];
 
 export function runMigrations(db: Database.Database): { appliedCount: number; currentVersion: number } {
