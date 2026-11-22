@@ -139,9 +139,11 @@ export interface Sale {
   due_amount: number;
   remaining_due?: number; // customer due after this invoice (= grand_total - paid_amount)
   vehicle_no?: string;
+  truck_no?: string;
   driver_name?: string;
   driver_phone?: string;
   destination?: string;
+  transport_info?: string;
   cogs_amount: number;
   realized_profit: number;
   is_test_draft?: number;

@@ -105,6 +105,8 @@ CREATE TABLE IF NOT EXISTS sales (
   driver_name TEXT,
   driver_phone TEXT,
   destination TEXT,
+  truck_no TEXT,
+  transport_info TEXT,
   cogs_amount REAL NOT NULL DEFAULT 0.0,
   realized_profit REAL NOT NULL DEFAULT 0.0,
   is_test_draft INTEGER NOT NULL DEFAULT 0,

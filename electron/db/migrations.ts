@@ -346,6 +346,8 @@ export const MIGRATIONS: Migration[] = [
 
       addColIfNotExists('sales', 'previous_due', 'REAL NOT NULL DEFAULT 0.0');
       addColIfNotExists('sales', 'remaining_due', 'REAL NOT NULL DEFAULT 0.0');
+      addColIfNotExists('sales', 'truck_no', 'TEXT');
+      addColIfNotExists('sales', 'transport_info', 'TEXT');
       addColIfNotExists('party_ledger', 'notes', 'TEXT');
 
       db.exec(`

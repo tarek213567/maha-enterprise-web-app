@@ -869,7 +869,7 @@ export class AppDatabase {
 
       // 3. Deduct Stock safely
       const remainingStockKg = roundWeight(subWeight(commodity.current_stock_kg, net_weight_kg));
-      const remainingBags = Math.max(0, commodity.current_stock_bags - data.bags_count);
+      const remainingBags = data.bags_count > 0 ? Math.max(0, commodity.current_stock_bags - data.bags_count) : commodity.current_stock_bags;
 
       this.db.prepare(`
         UPDATE commodities SET
@@ -1001,9 +1001,9 @@ export class AppDatabase {
       // Precompute grandTotalBill for POS formula
       let grandTotalBill = 0;
       for (const it of data.items) {
-        const bags = Math.max(1, Number(it.bags_count) || 1);
+        const bags = Math.max(0, Number(it.bags_count) || 0);
         const comm = this.getCommodityById(it.commodity_id);
-        const mon = it.net_weight_mon ? Number(it.net_weight_mon) : (bags * (comm?.default_bag_weight_kg || 80)) / 40;
+        const mon = it.net_weight_mon ? Number(it.net_weight_mon) : (bags > 0 ? (bags * (comm?.default_bag_weight_kg || 80)) / 40 : 0);
         grandTotalBill = addMoney(grandTotalBill, roundMoney(mon * roundMoney(it.rate_per_mon)));
       }
 
@@ -1012,6 +1012,11 @@ export class AppDatabase {
       const grandTotal = roundMoney(grandTotalBill + previousDue);
       const remainingDue = roundMoney(grandTotal - totalPaid);
       const newPartyBalance = remainingDue;
+
+      const truckNo = ((data as any).truck_no || (data as any).vehicle_no || '').trim();
+      const driverName = ((data as any).driver_name || '').trim();
+      const driverPhone = ((data as any).driver_phone || '').trim();
+      const transportInfo = ((data as any).transport_info || (data as any).destination || '').trim();
 
       const createdSaleIds: number[] = [];
       const itemSummaries: string[] = [];
@@ -1022,8 +1027,8 @@ export class AppDatabase {
         if (!commodity) throw new Error(`শস্যের আইডি ${item.commodity_id} পাওয়া যায়নি`);
 
         // Compute weights
-        const bagsCount = Math.max(1, Number(item.bags_count) || 1);
-        let netMon = item.net_weight_mon ? Number(item.net_weight_mon) : (bagsCount * (commodity.default_bag_weight_kg || 80)) / 40;
+        const bagsCount = Math.max(0, Number(item.bags_count) || 0);
+        let netMon = item.net_weight_mon ? Number(item.net_weight_mon) : (bagsCount > 0 ? (bagsCount * (commodity.default_bag_weight_kg || 80)) / 40 : 0);
         let netKg = roundWeight(netMon * 40);
         let grossKg = item.gross_weight_kg ? Number(item.gross_weight_kg) : netKg;
         let bagDedKg = item.bag_deduction_kg ? Number(item.bag_deduction_kg) : 0;
@@ -1057,7 +1062,7 @@ export class AppDatabase {
             ?, ?, ?, ?,
             ?, ?, 0, 0, 0,
             ?, ?, ?, ?, ?, ?,
-            '', '', '', '',
+            ?, ?, ?, ?,
             ?, ?, ?, ?
           )
         `);
@@ -1071,13 +1076,14 @@ export class AppDatabase {
           grossKg, bagDedKg, netKg, netMon,
           rateMon, itemTotal,
           itemTotal, data.payment_method || 'CASH', previousDue, itemPaid, itemDue, remainingDue,
+          truckNo, driverName, driverPhone, transportInfo,
           cogs, profit, isTest, data.notes || ''
         );
         createdSaleIds.push(Number(res.lastInsertRowid));
 
         // Deduct inventory
         const newStockKg = roundWeight(subWeight(commodity.current_stock_kg, netKg));
-        const newBags = Math.max(0, commodity.current_stock_bags - bagsCount);
+        const newBags = bagsCount > 0 ? Math.max(0, commodity.current_stock_bags - bagsCount) : commodity.current_stock_bags;
         this.db.prepare(`
           UPDATE commodities SET
             current_stock_kg = ?,
@@ -1086,7 +1092,7 @@ export class AppDatabase {
           WHERE id = ?
         `).run(newStockKg, newBags, item.commodity_id);
 
-        itemSummaries.push(`${commodity.name_bn} (${bagsCount} বস্তা, ${netMon.toFixed(1)} মণ @ ৳${rateMon})`);
+        itemSummaries.push(`${commodity.name_bn} (${bagsCount > 0 ? `${bagsCount} বস্তা, ` : ''}${netMon.toFixed(1)} মণ @ ৳${rateMon})`);
       }
 
       // 4. Update Party Balance and Master Ledger

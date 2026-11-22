@@ -77,30 +77,47 @@ export function buildSaleSmsText(mode, {
   netAmount,
   paidAmount,
   currentDue,
+  truckNo,
 }) {
   const inv = invoiceNo || 'SAL';
   const total = Math.round(netAmount || 0);
   const paid = Math.round(paidAmount || 0);
   const due = Math.round(currentDue || 0);
+  const bagNum = Number(bagsCount) || 0;
+  const cleanTruck = (truckNo || '').trim();
 
   if (mode === 'bengali_unicode') {
-    const weightStr = `${(netWeightMon || 0).toFixed(1)} মণ (${bagsCount || 0} বস্তা)`;
-    return `মাহা এন্টারপ্রাইজ: চালান #${inv}, ${commodityName || 'শস্য'} (${weightStr}), মোট বিল ৳${total}, জমা ৳${paid}, বর্তমান মোট বকেয়া ৳${due}। ধন্যবাদ।`;
+    const bagPart = bagNum > 0 ? `${bagNum} বস্তা` : 'খোলা/লুজ';
+    const truckPart = cleanTruck ? `, ট্রাক: ${cleanTruck}` : '';
+    const weightStr = `${(netWeightMon || 0).toFixed(1)} মণ (${bagPart})`;
+    return `মাহা এন্টারপ্রাইজ: চালান #${inv}, ${commodityName || 'শস্য'} (${weightStr}${truckPart}), মোট বিল ৳${total}, জমা ৳${paid}, বর্তমান মোট বকেয়া ৳${due}। ধন্যবাদ।`;
   }
 
   // Default Mode: 'banglish_1sms' (Strictly <= 160 characters)
   let crop = toBanglishCrop(commodityName);
   const monStr = `${Number(netWeightMon || 0).toFixed(1)}m`;
-  const bagStr = bagsCount ? ` (${bagsCount}b)` : '';
+  const bagStr = bagNum > 0 ? ` (${bagNum}b)` : ' (loose)';
   const weightStr = `${monStr}${bagStr}`;
+  let truckStr = cleanTruck ? ` | Truck: ${cleanTruck}` : '';
 
-  let text = `Maha Enterprise: Inv #${inv} | ${crop} ${weightStr} | Bill: ${total} Tk | Paid: ${paid} Tk | Total Due: ${due} Tk. Dhonnobad!`;
+  let text = `Maha Enterprise: Inv #${inv} | ${crop} ${weightStr}${truckStr} | Bill: ${total} Tk | Paid: ${paid} Tk | Total Due: ${due} Tk. Dhonnobad!`;
+
+  if (text.length > 160) {
+    text = `Maha Enterprise: Inv #${inv} | ${crop} ${weightStr}${truckStr} | Bill: ${total} Tk | Paid: ${paid} Tk | Due: ${due} Tk. Dhonnobad!`;
+  }
+
+  if (text.length > 160 && cleanTruck) {
+    const excess = text.length - 160;
+    const allowedTruckLen = Math.max(0, cleanTruck.length - excess - 4);
+    truckStr = allowedTruckLen > 3 ? ` | Trk: ${cleanTruck.slice(0, allowedTruckLen)}` : '';
+    text = `Maha Enterprise: Inv #${inv} | ${crop} ${weightStr}${truckStr} | Bill: ${total} Tk | Paid: ${paid} Tk | Due: ${due} Tk. Dhonnobad!`;
+  }
 
   if (text.length > 160) {
     const excess = text.length - 160;
     const allowedCropLen = Math.max(3, crop.length - excess);
     crop = crop.slice(0, allowedCropLen);
-    text = `Maha Enterprise: Inv #${inv} | ${crop} ${weightStr} | Bill: ${total} Tk | Paid: ${paid} Tk | Total Due: ${due} Tk. Dhonnobad!`;
+    text = `Maha Enterprise: Inv #${inv} | ${crop} ${weightStr} | Bill: ${total} Tk | Paid: ${paid} Tk | Due: ${due} Tk. Dhonnobad!`;
   }
 
   if (text.length > 160) {

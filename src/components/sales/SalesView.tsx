@@ -16,6 +16,7 @@ import {
   Eye,
   AlertTriangle,
   Smartphone,
+  Truck,
 } from 'lucide-react';
 import { Commodity, Party, Sale } from '../../types';
 import { dbService } from '../../services/api';
@@ -72,9 +73,15 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
   // Cart State
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCommodityId, setSelectedCommodityId] = useState<number | ''>('');
-  const [entryBags, setEntryBags] = useState<number>(1);
+  const [entryBags, setEntryBags] = useState<number | ''>('');
   const [entryRate, setEntryRate] = useState<number>(2800);
   const [entryWeightMon, setEntryWeightMon] = useState<number>(2.0); // 2 Mon = 80kg approx
+
+  // Truck & Transport Details State
+  const [truckNo, setTruckNo] = useState('');
+  const [driverName, setDriverName] = useState('');
+  const [driverPhone, setDriverPhone] = useState('');
+  const [transportInfo, setTransportInfo] = useState('');
 
   // Settlement State
   const [cashPaid, setCashPaid] = useState<number>(0);
@@ -138,19 +145,10 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
 
   const handleCommodityChange = (commId: number) => {
     setSelectedCommodityId(commId);
-    const comm = commodities.find((c) => c.id === commId);
-    if (comm) {
-      const bagWeight = comm.default_bag_weight_kg || 80;
-      setEntryWeightMon(Number(((entryBags * bagWeight) / 40).toFixed(2)));
-    }
   };
 
-  const handleBagsChange = (bags: number) => {
+  const handleBagsChange = (bags: number | '') => {
     setEntryBags(bags);
-    if (activeCommodity) {
-      const bagWeight = activeCommodity.default_bag_weight_kg || 80;
-      setEntryWeightMon(Number(((bags * bagWeight) / 40).toFixed(2)));
-    }
   };
 
   // Add Item to Cart
@@ -159,10 +157,18 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
       alert('অনুগ্রহ করে একটি শস্য নির্বাচন করুন।');
       return;
     }
-    const bagsToAdd = Math.max(1, entryBags || 1);
-    const monToAdd = Math.max(0.01, entryWeightMon || (bagsToAdd * (activeCommodity.default_bag_weight_kg || 80)) / 40);
+    const bagsToAdd = Math.max(0, Number(entryBags) || 0);
+    const monToAdd = Math.max(0.01, Number(entryWeightMon) || 0);
+    if (monToAdd <= 0) {
+      alert('অনুগ্রহ করে মোট ওজন (মণ) প্রদান করুন।');
+      return;
+    }
     const kgToAdd = monToAdd * 40;
-    const rate = Math.max(0, entryRate || 0);
+    const rate = Math.max(0, Number(entryRate) || 0);
+    if (rate <= 0) {
+      alert('অনুগ্রহ করে সঠিক বিক্রয় দর (প্রতি মণ) প্রদান করুন।');
+      return;
+    }
 
     const existingIndex = cart.findIndex((i) => i.commodityId === activeCommodity.id);
     const currentBagsInCart = existingIndex >= 0 ? cart[existingIndex].bags : 0;
@@ -172,7 +178,7 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
     if (totalRequiredKg > (activeCommodity.current_stock_kg || 0)) {
       const curMon = ((activeCommodity.current_stock_kg || 0) / 40).toFixed(1);
       alert(
-        `পর্যাপ্ত স্টক নেই! ${activeCommodity.name_bn}-এর বর্তমান স্টক ${toBnDigits(curMon)} মণ (${toBnDigits(activeCommodity.current_stock_bags)} বস্তা)। আপনি ইতিমধ্যে কার্টে ${toBnDigits(currentBagsInCart)} বস্তা রেখেছেন।`
+        `পর্যাপ্ত স্টক নেই! ${activeCommodity.name_bn}-এর বর্তমান স্টক ${toBnDigits(curMon)} মণ।`
       );
       return;
     }
@@ -209,11 +215,7 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
       setCart([...cart, newItem]);
     }
 
-    setEntryBags(1);
-    if (activeCommodity) {
-      const bagWeight = activeCommodity.default_bag_weight_kg || 80;
-      setEntryWeightMon(Number((bagWeight / 40).toFixed(2)));
-    }
+    setEntryBags('');
   };
 
   const handleRemoveFromCart = (index: number) => {
@@ -316,16 +318,16 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
     let currentCart = [...cart];
 
     // Auto-Add Pending Item Guard:
-    // If user filled bags/rate in section 2 without clicking "+ যোগ করুন", auto-add to cart
-    if (activeCommodity && Number(entryBags) > 0 && Number(entryRate) > 0 && Number(entryWeightMon) > 0) {
-      const bagsToAdd = Math.max(1, entryBags || 1);
-      const monToAdd = Math.max(0.01, entryWeightMon || (bagsToAdd * (activeCommodity.default_bag_weight_kg || 80)) / 40);
+    // If user filled weight/rate in section 2 without clicking "+ যোগ করুন", auto-add to cart
+    if (activeCommodity && Number(entryRate) > 0 && Number(entryWeightMon) > 0) {
+      const bagsToAdd = Math.max(0, Number(entryBags) || 0);
+      const monToAdd = Math.max(0.01, Number(entryWeightMon) || 0);
       const kgToAdd = monToAdd * 40;
-      const rate = Math.max(0, entryRate || 0);
+      const rate = Math.max(0, Number(entryRate) || 0);
 
       const existingIndex = currentCart.findIndex((i) => i.commodityId === activeCommodity.id);
       if (existingIndex < 0) {
-        if (kgToAdd <= activeCommodity.current_stock_kg) {
+        if (kgToAdd <= (activeCommodity.current_stock_kg || 0)) {
           const itemTotal = roundMoney(monToAdd * rate);
           const newItem: CartItem = {
             id: `${activeCommodity.id}_${Date.now()}`,
@@ -370,6 +372,12 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
         buyer_name: selectedCustomer ? selectedCustomer.name : (walkinName.trim() || 'সাধারণ খুচরা ক্রেতা'),
         phone: selectedCustomer ? selectedCustomer.phone : (walkinPhone.trim() || ''),
         send_sms: hasValidPhone ? sendSms : false,
+        truck_no: truckNo.trim() || undefined,
+        driver_name: driverName.trim() || undefined,
+        driver_phone: driverPhone.trim() || undefined,
+        transport_info: transportInfo.trim() || undefined,
+        vehicle_no: truckNo.trim() || undefined,
+        destination: transportInfo.trim() || undefined,
         items: currentCart.map((i) => ({
           commodity_id: i.commodityId,
           bags_count: i.bags,
@@ -397,6 +405,10 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
       setCashPaid(0);
       setCashPaidTouched(false);
       setNotes('');
+      setTruckNo('');
+      setDriverName('');
+      setDriverPhone('');
+      setTransportInfo('');
 
       const smsBadge = (res as any).sms_queued ? ' 📲 ক্রেতার ফোনে SMS পাঠানো হচ্ছে' : '';
       showToast(`বিক্রয় সফল হয়েছে! চালান নং: ${res.invoice_no}${smsBadge}`, 'success');
@@ -734,17 +746,22 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
               {/* Bags Input */}
               <div className="sm:col-span-2">
                 <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  বস্তার সংখ্যা
+                  বস্তার সংখ্যা (ঐচ্ছিক)
                 </label>
                 <input
                   type="text"
                   inputMode="numeric"
+                  placeholder="০ (ঐচ্ছিক)"
                   value={entryBags !== undefined && (entryBags as any) !== '' ? toBengaliDigits(entryBags) : ''}
                   onFocus={(e) => e.target.select()}
                   onChange={(e) => {
                     const norm = toEnglishDigits(e.target.value);
-                    const val = parseInt(norm, 10);
-                    handleBagsChange(isNaN(val) ? (norm === '' ? ('' as any) : 1) : Math.max(1, val));
+                    if (norm === '') {
+                      handleBagsChange('');
+                    } else {
+                      const val = parseInt(norm, 10);
+                      handleBagsChange(isNaN(val) ? '' : Math.max(0, val));
+                    }
                   }}
                   className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-2 text-xs text-slate-900 dark:text-white font-mono font-bold outline-none text-center"
                 />
@@ -832,7 +849,7 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
                           <span className="font-bold text-slate-900 dark:text-white text-xs">{item.name}</span>
                         </td>
                         <td className="py-2.5 px-3 text-center font-bold text-slate-900 dark:text-white font-mono">
-                          {toBnDigits(item.bags)}
+                          {item.bags > 0 ? `${toBnDigits(item.bags)} বস্তা` : '০ বস্তা (খোলা/লুজ)'}
                         </td>
                         <td className="py-2.5 px-3 text-center font-bold text-cyan-600 dark:text-cyan-300 font-mono">
                           {toBnDigits(item.weightMon)} মণ
@@ -861,7 +878,7 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
                   <tfoot className="bg-slate-100 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 font-bold">
                     <tr>
                       <td colSpan={3} className="py-3 px-3 text-slate-700 dark:text-slate-300">
-                        মোট বস্তা: <span className="text-slate-900 dark:text-white font-mono font-black">{toBnDigits(totalBags)}</span>
+                        মোট বস্তা: <span className="text-slate-900 dark:text-white font-mono font-black">{totalBags > 0 ? `${toBnDigits(totalBags)} বস্তা` : '০ বস্তা (খোলা/লুজ)'}</span>
                       </td>
                       <td className="py-3 px-3 text-center text-cyan-700 dark:text-cyan-300 font-mono font-bold">
                         {toBnDigits(totalWeightMon.toFixed(2))} মণ
@@ -877,6 +894,67 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
                   </tfoot>
                 )}
               </table>
+            </div>
+
+            {/* Truck & Transport Details Card */}
+            <div className="mt-4 p-3.5 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2.5">
+              <div className="flex items-center justify-between pb-1.5 border-b border-slate-200 dark:border-slate-800">
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <Truck className="w-4 h-4 text-amber-500" />
+                  <span>🚛 ট্রাক ও পরিবহন বিবরণ (লোডিং তথ্য — ঐচ্ছিক)</span>
+                </span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400">চালান ও SMS-এ যুক্ত হবে</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                    ট্রাক / গাড়ি নম্বর
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="যেমন: ঢাকা মেট্রো-ট ১২-৩৪৫৬"
+                    value={truckNo}
+                    onChange={(e) => setTruckNo(e.target.value)}
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:border-amber-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                    ড্রাইভারের নাম
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="যেমন: মো: রফিকুল ইসলাম"
+                    value={driverName}
+                    onChange={(e) => setDriverName(e.target.value)}
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:border-amber-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                    ড্রাইভারের মোবাইল নম্বর
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="যেমন: ০১৭১২-৩৪৫৬৭৮"
+                    value={driverPhone}
+                    onChange={(e) => setDriverPhone(e.target.value)}
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:border-amber-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white outline-none font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                    পরিবহন / গন্তব্য বিবরণ
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="যেমন: ভাই ভাই পরিবহন, পাবনা"
+                    value={transportInfo}
+                    onChange={(e) => setTransportInfo(e.target.value)}
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:border-amber-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white outline-none"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1169,7 +1247,9 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
                       )}
                     </td>
                     <td className="py-3 px-4 text-center">
-                      <span className="font-bold text-slate-900 dark:text-white font-mono">{toBnDigits(s.bags_count)} বস্তা</span>
+                      <span className="font-bold text-slate-900 dark:text-white font-mono">
+                        {s.bags_count > 0 ? `${toBnDigits(s.bags_count)} বস্তা` : '০ বস্তা (খোলা/লুজ)'}
+                      </span>
                       <span className="text-[10px] text-cyan-600 dark:text-cyan-300 block font-mono">
                         {toBnDigits(s.net_weight_mon?.toFixed(1) || 0)} মণ
                       </span>
@@ -1333,7 +1413,7 @@ export const SalesView: React.FC<{ initialMode?: string }> = () => {
             </div>
 
             <p className="text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 p-3 rounded-lg leading-relaxed">
-              সতর্কতা: এই চালানটি বাতিল বা মুছে ফেললে সংশ্লিষ্ট শস্যের বিক্রিত স্টক ({toBnDigits(deleteConfirmSale.bags_count)} বস্তা, {toBnDigits(deleteConfirmSale.net_weight_mon?.toFixed(1) || 0)} মণ) স্বয়ংক্রিয়ভাবে পুনরায় গুদাম মজুদে ফেরত দেওয়া হবে এবং গ্রাহকের বাকি ও ক্যাশ খতিয়ান সমন্বয় করা হবে।
+              সতর্কতা: এই চালানটি বাতিল বা মুছে ফেললে সংশ্লিষ্ট শস্যের বিক্রিত স্টক ({deleteConfirmSale.bags_count > 0 ? `${toBnDigits(deleteConfirmSale.bags_count)} বস্তা, ` : ''}{toBnDigits(deleteConfirmSale.net_weight_mon?.toFixed(1) || 0)} মণ) স্বয়ংক্রিয়ভাবে পুনরায় গুদাম মজুদে ফেরত দেওয়া হবে এবং গ্রাহকের বাকি ও ক্যাশ খতিয়ান সমন্বয় করা হবে।
             </p>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">

@@ -648,9 +648,15 @@ async function ensureD1Initialized(db) {
       `);
     }
 
-    // Schema Migrations (Idempotent): Add previous_due/remaining_due to sales, notes to party_ledger
+    // Schema Migrations (Idempotent): Add previous_due/remaining_due to sales, notes to party_ledger, and truck/transport fields
     await db.exec(`ALTER TABLE sales ADD COLUMN previous_due REAL DEFAULT 0.0;`).catch(() => null);
     await db.exec(`ALTER TABLE sales ADD COLUMN remaining_due REAL DEFAULT 0.0;`).catch(() => null);
+    await db.exec(`ALTER TABLE sales ADD COLUMN truck_no TEXT;`).catch(() => null);
+    await db.exec(`ALTER TABLE sales ADD COLUMN driver_name TEXT;`).catch(() => null);
+    await db.exec(`ALTER TABLE sales ADD COLUMN driver_phone TEXT;`).catch(() => null);
+    await db.exec(`ALTER TABLE sales ADD COLUMN transport_info TEXT;`).catch(() => null);
+    await db.exec(`ALTER TABLE sales ADD COLUMN vehicle_no TEXT;`).catch(() => null);
+    await db.exec(`ALTER TABLE sales ADD COLUMN destination TEXT;`).catch(() => null);
     await db.exec(`ALTER TABLE party_ledger ADD COLUMN notes TEXT;`).catch(() => null);
 
     // Auto-purge recycle bin entries older than 60 days
@@ -1603,9 +1609,15 @@ export default {
               const cogs = roundMoney(netKg * commodity.current_wac_per_kg);
               const profit = subMoney(netInvoiceAmount, cogs);
 
+              const bagsCount = Math.max(0, Number(body.bags_count) || 0);
               const remainingStockKg = roundWeight(subWeight(commodity.current_stock_kg, netKg));
-              const remainingBags = Math.max(0, commodity.current_stock_bags - (body.bags_count || 0));
+              const remainingBags = bagsCount > 0 ? Math.max(0, commodity.current_stock_bags - bagsCount) : commodity.current_stock_bags;
               const newPartyBal = remainingDue;
+
+              const truckNo = (body.truck_no || body.vehicle_no || '').trim();
+              const driverName = (body.driver_name || '').trim();
+              const driverPhone = (body.driver_phone || '').trim();
+              const transportInfo = (body.transport_info || body.destination || '').trim();
 
               const batchStmts = [
                 db.prepare(`
@@ -1615,15 +1627,17 @@ export default {
                     rate_per_mon, gross_amount, loading_charge, damaged_bag_deduction, discount_amount,
                     net_invoice_amount, payment_method, paid_amount, due_amount,
                     vehicle_no, driver_name, driver_phone, destination,
+                    truck_no, transport_info,
                     cogs_amount, realized_profit, is_test_draft, notes,
                     previous_due, remaining_due
-                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `).bind(
-                  invoiceNo, body.sale_date, partyId, body.commodity_id, body.bags_count || 0,
+                  invoiceNo, body.sale_date, partyId, body.commodity_id, bagsCount,
                   grossKg, bagDedKg, netKg, netMon,
                   rateMon, grossAmount, loading, damage, discount,
                   netInvoiceAmount, payMethod, paidAmount, remainingDue,
-                  body.vehicle_no || '', body.driver_name || '', body.driver_phone || '', body.destination || '',
+                  truckNo, driverName, driverPhone, transportInfo,
+                  truckNo, transportInfo,
                   cogs, profit, isTest, body.notes || '',
                   prevDue, remainingDue
                 ),
@@ -1637,7 +1651,7 @@ export default {
                 `).bind(
                   body.sale_date, partyId, invoiceNo,
                   todayBill, addMoney(prevDue, todayBill), isTest,
-                  `বিক্রয়: ${commodity.name_bn} (${netMon.toFixed(2)} মন / ${body.bags_count} বস্তা @ ৳${rateMon}/মন)`
+                  `বিক্রয়: ${commodity.name_bn} (${netMon.toFixed(2)} মন / ${bagsCount > 0 ? `${bagsCount} বস্তা` : 'খোলা/লুজ'} @ ৳${rateMon}/মন)`
                 )
               ];
 
@@ -1662,7 +1676,6 @@ export default {
                 JOIN commodities c ON s.commodity_id = c.id
                 WHERE s.invoice_no = ?
               `).bind(invoiceNo).first();
-              return sendJson(created, 201);
 
               // Auto-SMS Dispatch via ctx.waitUntil (Non-blocking)
               let smsQueued = false;
@@ -1684,6 +1697,7 @@ export default {
                           netAmount: created.net_invoice_amount,
                           paidAmount: created.paid_amount,
                           currentDue: created.remaining_due !== undefined ? created.remaining_due : created.due_amount,
+                          truckNo: truckNo,
                         });
                         await sendBulkSms(db, env, {
                           phone: normPhone,
@@ -1745,6 +1759,11 @@ export default {
           const party = await resolveOrCreateParty(db, body.party_id, custName, custPhone, 'BUYER', isTest);
           const partyId = party.id;
 
+          const truckNo = (body.truck_no || body.vehicle_no || '').trim();
+          const driverName = (body.driver_name || '').trim();
+          const driverPhone = (body.driver_phone || '').trim();
+          const transportInfo = (body.transport_info || body.destination || '').trim();
+
           if (db) {
             let grandTotalBill = 0;
             const itemsProcessed = [];
@@ -1754,8 +1773,12 @@ export default {
               const commodity = await db.prepare('SELECT * FROM commodities WHERE id = ?').bind(item.commodity_id).first();
               if (!commodity) return sendJson({ success: false, error: `শস্যের আইডি ${item.commodity_id} পাওয়া যায়নি` }, 404);
 
-              const bagsCount = Math.max(1, Number(item.bags_count) || 1);
-              let netMon = item.net_weight_mon ? Number(item.net_weight_mon) : (bagsCount * (commodity.default_bag_weight_kg || 80)) / 40.0;
+              const bagsCount = Math.max(0, Number(item.bags_count) || 0);
+              let netMon = item.net_weight_mon
+                ? Number(item.net_weight_mon)
+                : (bagsCount > 0
+                    ? (bagsCount * (commodity.default_bag_weight_kg || 80)) / 40.0
+                    : (item.net_weight_kg ? Number(item.net_weight_kg) / 40.0 : 0));
               netMon = roundWeight(netMon);
               let netKg = item.net_weight_kg ? Number(item.net_weight_kg) : roundWeight(netMon * 40.0);
               let grossKg = item.gross_weight_kg ? Number(item.gross_weight_kg) : netKg;
@@ -1824,14 +1847,17 @@ export default {
                     rate_per_mon, gross_amount, loading_charge, damaged_bag_deduction, discount_amount,
                     net_invoice_amount, payment_method, paid_amount, due_amount,
                     vehicle_no, driver_name, driver_phone, destination,
+                    truck_no, transport_info,
                     cogs_amount, realized_profit, is_test_draft, notes,
                     previous_due, remaining_due
-                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, '', '', '', '', ?, ?, ?, ?, ?, ?)
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `).bind(
                   p.itemInvoiceNo, body.sale_date, partyId, p.item.commodity_id, p.bagsCount,
                   p.grossKg, p.bagDedKg, p.netKg, p.netMon,
                   p.rateMon, p.itemTotal,
                   p.itemTotal, payMethod, itemPaid, itemRemainingDue,
+                  truckNo, driverName, driverPhone, transportInfo,
+                  truckNo, transportInfo,
                   p.cogs, p.profit, isTest, body.notes || '',
                   itemPrevDue, itemRemainingDue
                 ),
@@ -1841,12 +1867,13 @@ export default {
                   WHERE id = ?
                 `).bind(
                   roundWeight(subWeight(p.commodity.current_stock_kg, p.netKg)),
-                  Math.max(0, p.commodity.current_stock_bags - p.bagsCount),
+                  p.bagsCount > 0 ? Math.max(0, p.commodity.current_stock_bags - p.bagsCount) : p.commodity.current_stock_bags,
                   p.item.commodity_id
                 )
               );
 
-              itemSummaries.push(`${p.commodity.name_bn} (${p.bagsCount} বস্তা, ${p.netMon.toFixed(1)} মণ @ ৳${p.rateMon})`);
+              const bagDesc = p.bagsCount > 0 ? `${p.bagsCount} বস্তা, ` : 'খোলা/লুজ, ';
+              itemSummaries.push(`${p.commodity.name_bn} (${bagDesc}${p.netMon.toFixed(1)} মণ @ ৳${p.rateMon})`);
             }
 
             const newPartyBal = remainingDue;
@@ -1895,7 +1922,6 @@ export default {
               ORDER BY s.id ASC
             `).bind(`${baseInvoiceNo}%`).all();
 
-            return sendJson({ success: true, invoice_no: baseInvoiceNo, sales: createdSales || [] }, 201);
             // Auto-SMS Dispatch for Wholesale POS Batch Sale
             let smsQueued = false;
             const sendSmsReq = body.send_sms !== undefined ? Boolean(body.send_sms) : true;
@@ -1922,6 +1948,7 @@ export default {
                       netAmount: grandTotalBill,
                       paidAmount: totalPaid,
                       currentDue: newPartyBal,
+                      truckNo: truckNo,
                     });
 
                     await sendBulkSms(db, env, {
@@ -1953,13 +1980,19 @@ export default {
             party_id: party.id,
             party_name: party.name,
             commodity_id: item.commodity_id,
-            bags_count: item.bags_count || 1,
+            bags_count: item.bags_count !== undefined ? Number(item.bags_count) : 0,
             net_weight_mon: item.net_weight_mon || 1,
             rate_per_mon: item.rate_per_mon || 0,
             gross_amount: item.total_amount || 0,
             net_invoice_amount: item.total_amount || 0,
             paid_amount: idx === 0 ? (body.cash_paid || 0) : 0,
             due_amount: 0,
+            truck_no: truckNo,
+            driver_name: driverName,
+            driver_phone: driverPhone,
+            transport_info: transportInfo,
+            vehicle_no: truckNo,
+            destination: transportInfo,
           }));
           return sendJson({ success: true, invoice_no: baseInvoiceNo, sales: mockSales }, 201);
         }

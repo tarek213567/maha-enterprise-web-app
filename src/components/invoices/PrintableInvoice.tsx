@@ -152,13 +152,13 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ sale, onClos
               </div>
 
               <div className="text-xs text-right space-y-0.5">
-                <p><strong>গাড়ি নম্বর:</strong> {sale.vehicle_no || 'প্রযোজ্য নয়'}</p>
-                <p><strong>ড্রাইভার:</strong> {sale.driver_name ? `${sale.driver_name} (${sale.driver_phone})` : 'প্রযোজ্য নয়'}</p>
+                <p><strong>গাড়ি/ট্রাক:</strong> {sale.truck_no || sale.vehicle_no || 'প্রযোজ্য নয়'}</p>
+                <p><strong>ড্রাইভার:</strong> {sale.driver_name ? `${sale.driver_name}${sale.driver_phone ? ` (${sale.driver_phone})` : ''}` : 'প্রযোজ্য নয়'}</p>
               </div>
             </div>
 
             {/* Buyer Info Card */}
-            <div className="bg-slate-50 border border-slate-300 rounded-lg p-3 mb-4 text-xs">
+            <div className="bg-slate-50 border border-slate-300 rounded-lg p-3 mb-3 text-xs">
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <span className="text-slate-500">ক্রেতা / মিলের নাম:</span>
@@ -170,10 +170,37 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ sale, onClos
                 </div>
                 <div className="col-span-2">
                   <span className="text-slate-500">গন্তব্য / ডেলিভারি ঠিকানা:</span>
-                  <p className="font-semibold text-slate-800">{sale.destination || sale.party_address || '---'}</p>
+                  <p className="font-semibold text-slate-800">{sale.destination || sale.transport_info || sale.party_address || '---'}</p>
                 </div>
               </div>
             </div>
+
+            {/* Transport & Truck Details Strip */}
+            {Boolean(sale.truck_no || sale.vehicle_no || sale.driver_name || sale.driver_phone || sale.transport_info || sale.destination) && (
+              <div className="bg-amber-50/60 border border-amber-300/80 rounded-lg p-2.5 mb-4 text-xs print:border-slate-400 print:bg-slate-50">
+                <div className="font-bold text-slate-800 mb-1 flex items-center gap-1.5 border-b border-amber-200/80 pb-1">
+                  <span>🚛 পরিবহন ও ট্রাক বিবরণ:</span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-slate-700">
+                  <div>
+                    <span className="text-slate-500 text-[11px] block">ট্রাক/গাড়ি নম্বর:</span>
+                    <span className="font-bold font-mono text-slate-900">{sale.truck_no || sale.vehicle_no || '---'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-[11px] block">ড্রাইভারের নাম:</span>
+                    <span className="font-semibold text-slate-900">{sale.driver_name || '---'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-[11px] block">ড্রাইভারের ফোন:</span>
+                    <span className="font-mono text-slate-900">{sale.driver_phone || '---'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-[11px] block">পরিবহন / গন্তব্য:</span>
+                    <span className="font-semibold text-slate-900">{sale.transport_info || sale.destination || '---'}</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Item Table */}
             <table className="w-full text-xs border-collapse border border-slate-400 mb-4">
@@ -199,7 +226,9 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ sale, onClos
                   <td className="border border-slate-400 py-2 px-2 text-left font-bold text-slate-900">
                     {sale.commodity_name}
                   </td>
-                  <td className="border border-slate-400 py-2 px-2 font-bold">{sale.bags_count} বস্তা</td>
+                  <td className="border border-slate-400 py-2 px-2 font-bold">
+                    {sale.bags_count > 0 ? `${sale.bags_count} বস্তা` : '০ বস্তা (খোলা/লুজ)'}
+                  </td>
                   <td className="border border-slate-400 py-2 px-2">
                     {grossMonWhole} মন {grossKgRemainder} কেজি
                     <div className="text-[10px] text-slate-500 font-mono">({sale.gross_weight_kg.toFixed(1)} কেজি)</div>
