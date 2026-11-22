@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
+import { useSector, SECTORS } from '../../context/SectorContext';
 import { dbService } from '../../services/api';
 import { toBnDigits } from '../../utils/bengaliNumbers';
 
@@ -110,6 +111,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [isBackingUp, setIsBackingUp] = useState(false);
   const { isDark, toggleTheme } = useTheme();
   const { lockApp } = useSecurity();
+  const { activeSector, setActiveSector } = useSector();
 
   useEffect(() => {
     const fetchCounts = async () => {
@@ -174,6 +176,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span>🌾</span>
             <span>চাচকৈড় বাজার, নাটোর</span>
           </p>
+        </div>
+      </div>
+
+      {/* Compact 2x2 Sector Switcher Grid */}
+      <div className="mb-2 px-1 pt-0.5 shrink-0">
+        <div className="grid grid-cols-2 gap-1.5">
+          {SECTORS.map((s) => {
+            const isActive = activeSector === s.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setActiveSector(s.id)}
+                className={`text-xs font-semibold py-2 px-2.5 rounded-lg border flex items-center justify-center gap-1.5 transition-all select-none cursor-pointer ${
+                  isActive
+                    ? 'border-[#D4AF37] bg-[#D4AF37]/20 text-[#FFEFA6] shadow-[0_0_10px_rgba(212,175,55,0.25)] font-bold'
+                    : 'border-[#174233] bg-[#061D15] text-emerald-200/80 hover:border-[#D4AF37]/50 hover:text-[#FFEFA6]'
+                }`}
+                title={s.description}
+              >
+                <span className="text-sm leading-none">{s.icon}</span>
+                <span className="truncate">{s.shortLabel}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 

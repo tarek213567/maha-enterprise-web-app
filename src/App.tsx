@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { SecurityProvider } from './context/SecurityContext';
 import { SectorProvider } from './context/SectorContext';
-import { SectorSwitcherBar } from './components/layout/SectorSwitcherBar';
 import { PinLockOverlay } from './components/security/PinLockOverlay';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopHeader } from './components/layout/TopHeader';
@@ -175,12 +174,6 @@ const AppContent: React.FC = () => {
           {/* Module Content */}
           <ErrorBoundary fallbackTitle="মডিউল রেন্ডারার রিকভারি">
             <main className="flex-1 max-w-[1550px] w-full mx-auto p-3 sm:p-4 pb-24 md:pb-6">
-              {['dashboard', 'purchases', 'sales', 'stock', 'ledgers', 'creditors', 'cashbook', 'expenses', 'reports'].includes(currentTab) && (
-                <div className="hidden md:block mb-3 sm:mb-4">
-                  <SectorSwitcherBar />
-                </div>
-              )}
-
               {currentTab === 'dashboard' && (
                 <DashboardView
                   onNavigate={setCurrentTab}
@@ -225,17 +218,17 @@ const AppContent: React.FC = () => {
         onOpenMenu={() => setIsMobileDrawerOpen(true)}
       />
 
-      {/* Mobile Floating Tall Vertical Three-Dot (⋮) Pill Button at Bottom-Left (Aligned with AI Manezar Orb) */}
+      {/* Mobile Menu Trigger Button at Bottom-Left (3-Bar Hamburger ≡) */}
       <button
         type="button"
         onClick={() => setIsMobileDrawerOpen(true)}
-        className="fixed bottom-5 left-4 z-50 md:hidden w-11 h-14 rounded-2xl bg-gradient-to-b from-[#0D3326] via-[#082219] to-[#04150F] border-2 border-[#D4AF37] shadow-[0_6px_20px_rgba(0,0,0,0.75),0_0_15px_rgba(212,175,55,0.35)] flex flex-col items-center justify-center gap-1.5 active:scale-95 transition-transform cursor-pointer group select-none"
-        title="মেনু ড্রয়ার খুলুন (থ্রি ডট মেনু)"
+        className="fixed bottom-5 left-4 z-50 md:hidden w-12 h-12 rounded-2xl bg-gradient-to-b from-[#0D3326] to-[#04150F] border-2 border-[#D4AF37] shadow-[0_6px_20px_rgba(0,0,0,0.75)] flex flex-col items-center justify-center gap-1.5 active:scale-95 transition-transform cursor-pointer select-none"
+        title="মেনু ড্রয়ার খুলুন"
         aria-label="মেনু ড্রয়ার খুলুন"
       >
-        <span className="w-1.5 h-1.5 rounded-full bg-[#FFE48F] shadow-[0_0_6px_#FFE48F] transition-transform group-hover:scale-125" />
-        <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] shadow-[0_0_6px_#D4AF37] transition-transform group-hover:scale-125" />
-        <span className="w-1.5 h-1.5 rounded-full bg-[#FFE48F] shadow-[0_0_6px_#FFE48F] transition-transform group-hover:scale-125" />
+        <span className="w-5 h-[2.5px] bg-white rounded-full block" />
+        <span className="w-5 h-[2.5px] bg-white rounded-full block" />
+        <span className="w-5 h-[2.5px] bg-white rounded-full block" />
       </button>
 
       {/* Slide-over Full Mobile Sidebar Drawer */}

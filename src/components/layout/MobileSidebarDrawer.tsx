@@ -139,18 +139,8 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
           </button>
         </div>
 
-        {/* Dedicated 2x2 Sector Selector Grid */}
-        <div className="mb-3 px-1 pt-1">
-          <div className="flex items-center justify-between mb-1.5 px-0.5">
-            <span className="text-[11px] font-extrabold text-[#D4AF37] tracking-wider uppercase flex items-center gap-1.5">
-              <span>🌾</span>
-              <span>সেক্টর নির্বাচন করুন</span>
-            </span>
-            <span className="text-[10px] text-[#A7C2B2] font-semibold bg-[#03150F] px-1.5 py-0.5 rounded border border-[#D4AF37]/20">
-              {activeSector === 'all' ? 'সব সেক্টর' : activeSector === 'jute' ? 'পাট' : activeSector === 'maize' ? 'ভুট্টা' : 'সরিষা'}
-            </span>
-          </div>
-
+        {/* Compact 2x2 Sector Switcher Grid */}
+        <div className="mb-2 px-1 pt-0.5 shrink-0">
           <div className="grid grid-cols-2 gap-1.5">
             {SECTORS.map((s) => {
               const isActive = activeSector === s.id;
@@ -162,10 +152,10 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
                     setActiveSector(s.id);
                     onClose();
                   }}
-                  className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer active:scale-95 select-none ${
+                  className={`text-xs font-semibold py-2 px-2.5 rounded-lg border flex items-center justify-center gap-1.5 transition-all select-none cursor-pointer active:scale-95 ${
                     isActive
-                      ? 'border-2 border-[#D4AF37] bg-[#D4AF37]/20 text-[#FFEFA6] shadow-[0_0_12px_rgba(212,175,55,0.3)]'
-                      : 'bg-[#062016]/80 hover:bg-[#0A2E20] border border-[#D4AF37]/20 text-[#C4D9CC] hover:text-[#FFEFA6]'
+                      ? 'border-[#D4AF37] bg-[#D4AF37]/20 text-[#FFEFA6] shadow-[0_0_10px_rgba(212,175,55,0.25)] font-bold'
+                      : 'border-[#174233] bg-[#061D15] text-emerald-200/80 hover:border-[#D4AF37]/50 hover:text-[#FFEFA6]'
                   }`}
                   title={s.description}
                 >
