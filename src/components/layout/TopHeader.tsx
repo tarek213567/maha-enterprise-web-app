@@ -115,7 +115,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         {/* Left: Active Tab Title & Subtitle */}
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-black text-[#FFEFA6] tracking-tight truncate font-sans">
+            <h2 className="text-sm sm:text-lg font-black text-[#FFEFA6] tracking-tight whitespace-nowrap truncate max-w-[140px] sm:max-w-none shrink-0 font-sans">
               {currentInfo.title}
             </h2>
             <span className="hidden lg:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/35 text-[#FFEFA6]">
@@ -129,7 +129,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         </div>
 
         {/* Right: Date, Location & Quick Entry Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 overflow-x-auto no-scrollbar max-w-full pb-0.5">
           {/* Location & Date Badge (Isolated Memoized Component) */}
           <LiveClock />
 
@@ -139,7 +139,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               onClick={handlePurgeDrafts}
               disabled={isPurging}
               title="সকল পরীক্ষামূলক টেস্ট ড্রাফট ডাটা ডাটাবেজ থেকে মুছে ফেলুন"
-              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-black rounded-xl text-xs flex items-center gap-1.5 shadow-md transition-all duration-150 cursor-pointer animate-pulse"
+              className="px-2 sm:px-3 py-1 sm:py-1.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-black rounded-xl text-xs whitespace-nowrap shrink-0 flex items-center gap-1.5 shadow-md transition-all duration-150 cursor-pointer animate-pulse"
             >
               <Trash2 className="w-3.5 h-3.5 text-white" />
               <span>{isPurging ? 'মুছে ফেলা হচ্ছে...' : '🗑️ সকল টেস্ট ড্রাফট ডাটা মুছুন'}</span>
@@ -150,7 +150,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           <button
             onClick={() => window.dispatchEvent(new CustomEvent('open-ai-manezar'))}
             title="Ai Manezar (Gemini 3 Flash) আড়ত সহকারী খুলুন"
-            className="px-3.5 py-1.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 active:scale-95 text-white font-black rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all duration-150 cursor-pointer"
+            className="px-2.5 sm:px-3.5 py-1 sm:py-1.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 active:scale-95 text-white font-black rounded-xl text-xs whitespace-nowrap shrink-0 flex items-center gap-1.5 shadow-sm transition-all duration-150 cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
             <span>✨ Ai Manezar</span>
@@ -160,7 +160,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           <button
             onClick={onOpenQuickPurchase}
             title="নতুন শস্য ক্রয় চালান এন্ট্রি করুন (F2)"
-            className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all duration-150 cursor-pointer"
+            className="px-2.5 sm:px-3.5 py-1 sm:py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-black rounded-xl text-xs whitespace-nowrap shrink-0 flex items-center gap-1.5 shadow-sm transition-all duration-150 cursor-pointer"
           >
             <ShoppingCart className="w-4 h-4 text-slate-950" />
             <span>+ ক্রয় (F2)</span>
@@ -170,7 +170,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           <button
             onClick={onOpenQuickSale}
             title="নতুন বিক্রয় ও মেমো চালান তৈরি করুন (F3)"
-            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all duration-150 cursor-pointer"
+            className="px-2.5 sm:px-3.5 py-1 sm:py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black rounded-xl text-xs whitespace-nowrap shrink-0 flex items-center gap-1.5 shadow-sm transition-all duration-150 cursor-pointer"
           >
             <TrendingUp className="w-4 h-4 text-emerald-100" />
             <span>+ বিক্রয় (F3)</span>

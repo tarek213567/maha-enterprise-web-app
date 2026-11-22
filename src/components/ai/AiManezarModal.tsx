@@ -1260,7 +1260,7 @@ export const AiManezarModal: React.FC<AiManezarModalProps> = ({
           {/* BOTTOM UNIFIED INPUT PILL & CONTROLS                                */}
           {/* =================================================================== */}
           <footer className="ai-chat-footer">
-            <div className="ai-input-pill-wrapper">
+            <div className="ai-input-pill-wrapper flex flex-col w-full gap-1.5">
               {/* Image Preview Bar */}
               {selectedImage && (
                 <div className="ai-image-preview-bar rounded-t-2xl mb-1">
@@ -1360,7 +1360,7 @@ export const AiManezarModal: React.FC<AiManezarModalProps> = ({
               />
 
               {/* Unified Rounded Input Pill */}
-              <div className="ai-input-container">
+              <div className="ai-input-container w-full flex flex-nowrap items-center">
                 {/* Left + Button */}
                 <button
                   id="ai-btn-attachment-menu"
@@ -1426,7 +1426,7 @@ export const AiManezarModal: React.FC<AiManezarModalProps> = ({
               </div>
 
               {/* Footnote */}
-              <div className="ai-input-footnote">
+              <div className="ai-input-footnote w-full text-center text-[10.5px] leading-tight opacity-70">
                 Ai Manezar তথ্য ও ডাটাবেজ এন্ট্রির নির্ভুলতা নিশ্চিত করে • ডেটাবেজ পরিবর্তনের পূর্বে ৬০ দিনের রিস্টোর পয়েন্ট সুরক্ষিত থাকে
               </div>
             </div>

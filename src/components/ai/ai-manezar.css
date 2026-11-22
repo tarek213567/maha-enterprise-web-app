@@ -1299,6 +1299,9 @@
   position: relative;
   width: 100%;
   max-width: 780px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 /* Drop-Up Attachment Menu */
@@ -1524,9 +1527,11 @@
 
 .ai-input-footnote {
   text-align: center;
-  font-size: 11px;
+  font-size: 10.5px;
   color: #75797f;
-  margin-top: 8px;
+  margin-top: 4px;
+  width: 100%;
+  line-height: 1.3;
 }
 
 /* 11. Mobile Responsive Rules */

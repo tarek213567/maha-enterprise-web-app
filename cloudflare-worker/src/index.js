@@ -10,9 +10,18 @@ import {
   resendSms,
 } from './smsService.js';
 import {
+  computeVerifiedBusinessLedger,
+  getBstDateString,
+  roundMoney as ledgerRoundMoney,
+  roundWeight as ledgerRoundWeight,
+} from './verifiedLedger.js';
+import {
   getGeminiApiKey,
   callGeminiModel,
   fetchLiveShopContext,
+  buildAiSystemPrompt,
+  parseGeminiResponse,
+  persistAiAssistantReply,
   generateAndSendDailyAiAudit,
   executeAiAction,
   createRecycleSnapshot,
@@ -2996,83 +3005,49 @@ export default {
           return sendJson({ success: true, message: 'রেকর্ডটি সফলভাবে পুনরুদ্ধার করা হয়েছে' });
         }
 
-        // --- REPORTS & DASHBOARD ---
+        // --- REPORTS & DASHBOARD (POWERED BY SINGLE-SOURCE-OF-TRUTH BST LEDGER) ---
         if (url.pathname === '/api/reports/stats') {
-          const today = new Date().toISOString().split('T')[0];
+          const ledger = await computeVerifiedBusinessLedger(db, inMemoryStore);
+          const today = ledger.bstDate;
           const monthStart = `${today.slice(0, 7)}-01`;
 
+          let monthlyGp = 0;
+          let monthlyExp = 0;
+          let monthlyShrinkage = 0;
+          let monthlyRev = 0;
+
           if (db) {
-            const todayPur = await db.prepare("SELECT COALESCE(SUM(total_landed_cost), 0) as amt, COALESCE(SUM(net_weight_mon), 0) as mon FROM purchases WHERE purchase_date = ?").bind(today).first();
-            const todaySal = await db.prepare("SELECT COALESCE(SUM(net_invoice_amount), 0) as amt, COALESCE(SUM(paid_amount), 0) as cash_amt, COALESCE(SUM(due_amount), 0) as due_amt, COALESCE(SUM(net_weight_mon), 0) as mon FROM sales WHERE sale_date = ?").bind(today).first();
-            const todayExp = (await db.prepare("SELECT COALESCE(SUM(amount), 0) as s FROM expenses WHERE expense_date = ?").bind(today).first())?.s || 0;
-
-            const partyStats = await db.prepare(`
-              SELECT
-                COALESCE(SUM(CASE WHEN current_balance > 0 THEN current_balance ELSE 0 END), 0) as rec,
-                COALESCE(SUM(CASE WHEN current_balance < 0 THEN ABS(current_balance) ELSE 0 END), 0) as pay
-              FROM parties WHERE is_active = 1
-            `).first();
-
-            const stockStats = await db.prepare(`
-              SELECT
-                COALESCE(SUM(current_stock_kg * current_wac_per_kg), 0) as total_val,
-                COALESCE(SUM(current_stock_kg / 40.0), 0) as total_mon,
-                COALESCE(SUM(current_stock_bags), 0) as total_bags
-              FROM commodities WHERE is_active = 1
-            `).first();
-
-            const cashPrior = await db.prepare(`
-              SELECT
-                COALESCE(SUM(CASE WHEN entry_type = 'INFLOW' THEN amount ELSE 0 END), 0) as inf,
-                COALESCE(SUM(CASE WHEN entry_type = 'OUTFLOW' THEN amount ELSE 0 END), 0) as outf
-              FROM cashbook WHERE entry_date <= ?
-            `).bind(today).first();
-            const closingCash = subMoney(cashPrior.inf, cashPrior.outf);
-
-            const monthlySales = await db.prepare("SELECT COALESCE(SUM(net_invoice_amount), 0) as rev, COALESCE(SUM(realized_profit), 0) as gp FROM sales WHERE sale_date >= ? AND sale_date <= ?").bind(monthStart, today).first();
-            const monthlyExp = (await db.prepare("SELECT COALESCE(SUM(amount), 0) as s FROM expenses WHERE expense_date >= ? AND expense_date <= ?").bind(monthStart, today).first())?.s || 0;
-            const monthlyShrinkage = (await db.prepare("SELECT COALESCE(SUM(cost_value), 0) as s FROM stock_adjustments WHERE adjustment_date >= ? AND adjustment_date <= ?").bind(monthStart, today).first())?.s || 0;
-
-            const netProfit = roundMoney(monthlySales.gp - monthlyExp - monthlyShrinkage);
-
-            return sendJson({
-              today_purchases_amount: roundMoney(todayPur.amt),
-              today_purchases_mon: roundWeight(todayPur.mon),
-              today_sales_amount: roundMoney(todaySal.amt),
-              today_sales_cash: roundMoney(todaySal.cash_amt),
-              today_sales_due: roundMoney(todaySal.due_amt),
-              today_operating_expense: roundMoney(todayExp),
-              today_sales_mon: roundWeight(todaySal.mon),
-              today_cash_in: roundMoney(todaySal.cash_amt),
-              today_cash_out: roundMoney(todayPur.amt + todayExp),
-              closing_cash_balance: closingCash,
-              total_receivable: roundMoney(partyStats.rec),
-              total_payable: roundMoney(partyStats.pay),
-              total_stock_value: roundMoney(stockStats.total_val),
-              total_stock_mon: roundWeight(stockStats.total_mon),
-              total_stock_bags: stockStats.total_bags,
-              monthly_sales_revenue: roundMoney(monthlySales.rev),
-              monthly_gross_profit: roundMoney(monthlySales.gp),
-              monthly_net_profit: netProfit,
-            });
+            const monthlySales = await db.prepare("SELECT COALESCE(SUM(net_invoice_amount), 0) as rev, COALESCE(SUM(realized_profit), 0) as gp FROM sales WHERE sale_date >= ? AND sale_date <= ? AND COALESCE(is_test_draft, 0) = 0").bind(monthStart, today).first().catch(() => ({ rev: 0, gp: 0 }));
+            monthlyRev = monthlySales?.rev || 0;
+            monthlyGp = monthlySales?.gp || 0;
+            const expRow = await db.prepare("SELECT COALESCE(SUM(amount), 0) as s FROM expenses WHERE expense_date >= ? AND expense_date <= ? AND COALESCE(is_test_draft, 0) = 0").bind(monthStart, today).first().catch(() => ({ s: 0 }));
+            monthlyExp = expRow?.s || 0;
+            const shrinkRow = await db.prepare("SELECT COALESCE(SUM(cost_value), 0) as s FROM stock_adjustments WHERE adjustment_date >= ? AND adjustment_date <= ? AND COALESCE(is_test_draft, 0) = 0").bind(monthStart, today).first().catch(() => ({ s: 0 }));
+            monthlyShrinkage = shrinkRow?.s || 0;
           }
 
+          const netProfit = roundMoney(monthlyGp - monthlyExp - monthlyShrinkage);
+
           return sendJson({
-            today_purchases_amount: 0,
-            today_purchases_mon: 0,
-            today_sales_amount: 0,
-            today_sales_mon: 0,
-            today_cash_in: 0,
-            today_cash_out: 0,
-            closing_cash_balance: 0,
-            total_receivable: 145000,
-            total_payable: 25000,
-            total_stock_value: 940000,
-            total_stock_mon: 536.25,
-            total_stock_bags: 280,
-            monthly_sales_revenue: 0,
-            monthly_gross_profit: 0,
-            monthly_net_profit: 0,
+            today_purchases_amount: ledger.todayPurchases.totalAmount,
+            today_purchases_mon: ledger.todayPurchases.totalWeightMon,
+            today_sales_amount: ledger.todaySales.totalAmount,
+            today_sales_cash: ledger.todaySales.cashAmount,
+            today_sales_due: ledger.todaySales.dueAmount,
+            today_operating_expense: ledger.todayExpenses.totalAmount,
+            today_sales_mon: ledger.todaySales.totalWeightMon,
+            today_cash_in: ledger.dailyCashBook.todayCashIn,
+            today_cash_out: ledger.dailyCashBook.todayCashOut,
+            closing_cash_balance: ledger.dailyCashBook.liveCashBalance,
+            total_receivable: ledger.customerDues.totalReceivable,
+            total_payable: ledger.supplierPayables.totalPayable,
+            total_stock_value: ledger.warehouseStock.totalValuation,
+            total_stock_mon: ledger.warehouseStock.totalMaund,
+            total_stock_bags: ledger.warehouseStock.totalBags,
+            monthly_sales_revenue: roundMoney(monthlyRev),
+            monthly_gross_profit: roundMoney(monthlyGp),
+            monthly_net_profit: netProfit,
+            bst_date: today,
           });
         }
 
@@ -3571,26 +3546,63 @@ export default {
 
         // 7. Morning Briefing
         if (url.pathname === '/api/ai/morning-briefing' && request.method === 'GET') {
-          const shopContext = await fetchLiveShopContext(db);
-          const lowStockCommodities = shopContext.commodities.filter((c) => (Number(c.current_stock_kg) / 40.0) <= 25);
-          const topDues = shopContext.buyers.slice(0, 3);
+          const shopContext = await fetchLiveShopContext(db, inMemoryStore);
+          const ledger = shopContext.verifiedLedger;
+          const lowStockCommodities = (ledger.warehouseStock.categories || []).filter((c) => c.maund <= 25);
+          const topDues = ledger.customerDues.topDueCustomers.slice(0, 3);
 
           const briefing = {
             date: shopContext.todayStr,
-            totalStockMon: shopContext.totalStockMon,
-            totalStockValuation: shopContext.totalStockValuation,
-            totalCustomerDue: shopContext.totalCustomerDue,
-            totalSupplierPayable: shopContext.totalSupplierPayable,
+            totalStockMon: ledger.warehouseStock.totalMaund,
+            totalStockValuation: ledger.warehouseStock.totalValuation,
+            totalCustomerDue: ledger.customerDues.totalReceivable,
+            totalSupplierPayable: ledger.supplierPayables.totalPayable,
             lowStockCount: lowStockCommodities.length,
-            lowStockCommodities: lowStockCommodities.map((c) => `${c.name_bn} (${(c.current_stock_kg / 40.0).toFixed(1)} মণ)`),
-            topDueCustomers: topDues.map((b) => `${b.name} (৳${Number(b.current_balance).toLocaleString()})`),
-            summaryText: `শুভ সকাল! গুদামে বর্তমানে মোট ${shopContext.totalStockMon} মণ শস্য মজুদ রয়েছে (আনুমানিক মূল্য ৳ ${shopContext.totalStockValuation.toLocaleString()})। বাজারে বকেয়া পাওনা ৳ ${shopContext.totalCustomerDue.toLocaleString()} এবং মহাজন দেনা ৳ ${shopContext.totalSupplierPayable.toLocaleString()}। ${lowStockCommodities.length > 0 ? `⚠️ ${lowStockCommodities.length}টি শস্যের স্টক কম আছে।` : '✅ গুদামে পর্যাপ্ত শস্য মজুদ রয়েছে।'}`,
+            lowStockCommodities: lowStockCommodities.map((c) => `${c.name} (${c.maund} মণ)`),
+            topDueCustomers: topDues.map((b) => `${b.n} (৳${Number(b.d).toLocaleString()})`),
+            summaryText: `শুভ সকাল! গুদামে বর্তমানে মোট ${ledger.warehouseStock.totalMaund} মণ শস্য মজুদ রয়েছে (আনুমানিক মূল্য ৳ ${ledger.warehouseStock.totalValuation.toLocaleString()})। বাজারে বকেয়া পাওনা ৳ ${ledger.customerDues.totalReceivable.toLocaleString()} এবং মহাজন দেনা ৳ ${ledger.supplierPayables.totalPayable.toLocaleString()}। ${lowStockCommodities.length > 0 ? `⚠️ ${lowStockCommodities.length}টি শস্যের স্টক কম আছে।` : '✅ গুদামে পর্যাপ্ত শস্য মজুদ রয়েছে।'}`,
           };
 
           return sendJson({ success: true, briefing });
         }
 
-        // 8. Core AI Chat Engine (Text, Audio Multimodal, Vision OCR)
+        // 7.1 Automated Live AI vs. App Parity Audit Endpoint (GET /api/ai/verify-parity)
+        if (url.pathname === '/api/ai/verify-parity' && request.method === 'GET') {
+          const verifiedLedger = await computeVerifiedBusinessLedger(db, inMemoryStore);
+          return sendJson({
+            ok: true,
+            bstDate: verifiedLedger.bstDate,
+            verifiedLedger,
+          });
+        }
+
+        // 7.2 Geo-Block Direct Browser Commit Endpoint (POST /api/ai/sessions/:id/commit-reply or /api/ai/chat/commit-reply)
+        const commitMatch = url.pathname.match(/^\/api\/ai\/sessions\/([^/]+)\/commit-reply$/);
+        if ((commitMatch || url.pathname === '/api/ai/chat/commit-reply') && request.method === 'POST') {
+          const body = await request.json().catch(() => ({}));
+          const targetSessionId = commitMatch ? commitMatch[1] : (body.sessionId || body.id);
+          const userMessageId = body.userMessageId;
+          const modelUsed = body.modelUsed || 'gemini-3-flash-preview';
+          const geminiResponse = body.geminiResponse || body.response;
+
+          if (!geminiResponse) {
+            return sendJson({ success: false, error: 'geminiResponse প্যারামিটার প্রদান করুন' }, 400);
+          }
+
+          const rawContent = geminiResponse?.candidates?.[0]?.content?.parts?.[0]?.text ||
+                            (typeof geminiResponse === 'string' ? geminiResponse : JSON.stringify(geminiResponse));
+
+          const committed = await persistAiAssistantReply(db, inMemoryStore, {
+            sessionId: targetSessionId,
+            userMessageId,
+            rawContent,
+            modelUsed,
+          });
+
+          return sendJson(committed);
+        }
+
+        // 8. Core AI Chat Engine (Text, Audio Multimodal, Vision OCR with Geo-Block Bypass)
         if (url.pathname === '/api/ai/chat' && request.method === 'POST') {
           const body = await request.json().catch(() => ({}));
           let sessionId = body.sessionId;
@@ -3628,183 +3640,99 @@ export default {
               VALUES (?, ?, 'user', ?, ?, NULL, 0, CURRENT_TIMESTAMP)
             `).bind(userMsgId, sessionId, initialText, imageBase64 ? 1 : 0).run();
 
-            const shopContext = await fetchLiveShopContext(db);
+            const shopContext = await fetchLiveShopContext(db, inMemoryStore);
             const apiKey = await getGeminiApiKey(db, env);
 
-            let aiReply = '';
-            let transcribedText = '';
-            let suggestedTitle = '';
-            let memoryToSave = '';
-            let navigateTo = '';
-            let proposedAction = null;
-
             if (!apiKey) {
-              aiReply = `⚠️ **Gemini 3 Flash API Key কনফিগার করা হয়নি!**\n\n` +
+              const noKeyReply = `⚠️ **Gemini 3 Flash API Key কনফিগার করা হয়নি!**\n\n` +
                 `Ai Manezar-এর কৃত্রিম বুদ্ধিমত্তা ও ভিশন ওসিআর সক্রিয় করতে অনুগ্রহ করে **"সেটিংস ও ব্যাকআপ"** মেনুতে গিয়ে **"🤖 Ai Manezar — Gemini 3 Flash কনফিগারেশন"** কার্ডে আপনার গুগল জেমিনাই API Key প্রদান করুন এবং সংরক্ষণ করুন।\n\n` +
-                `💡 **মাহা এন্টারপ্রাইজের বর্তমান তথ্য:**\n` +
-                `- মোট শস্যের মজুদ: ${shopContext.totalStockMon} মণ\n` +
+                `💡 **মাহা এন্টারপ্রাইজের বর্তমান লাইভ তথ্য:**\n` +
+                `- মোট শস্যের মজুদ: ${shopContext.totalStockMon} মণ (মূল্য ৳ ${shopContext.totalStockValuation.toLocaleString()})\n` +
                 `- মোট ক্রেতা বকেয়া: ৳ ${shopContext.totalCustomerDue.toLocaleString()}\n` +
                 `- মোট মহাজন দেনা: ৳ ${shopContext.totalSupplierPayable.toLocaleString()}\n` +
                 `- ক্যাশ ইন হ্যান্ড: ৳ ${shopContext.cashInHand.toLocaleString()}`;
-            } else {
-              const systemPrompt = `তুমি "Ai Manezar", মাহা এন্টারপ্রাইজ (চাচকৈড় বাজার, গুরুদাসপুর, নাটোর)-এর প্রধান বুদ্ধিমান ব্যবসায়িক সহকারী ও ম্যানেজার।
-তোমাকে গুগল জেমিনাই ৩ ফ্ল্যাশ (Gemini 3 Flash - gemini-3-flash-preview) দ্বারা পরিচালিত করা হচ্ছে।
 
-তুমি দুইটি কাজ নিখুঁতভাবে করতে পারো:
-১. যেকোনো সাধারণ বিষয়ে প্রশ্ন-উত্তর, কোডিং, হিসাব-নিকাশ, পরামর্শ ও চ্যাট করা (Gemini-এর মতো পূর্ণ সাধারণ বুদ্ধিমত্তা)।
-২. আড়তের লাইভ D1 ডাটাবেজ (১৪টি টেবিল) এবং ৬০ দিনের RecycleBin-এর তথ্য জেনে বিশ্লেষণ ও সরাসরি ডাটাবেজ অ্যাকশন এবং লাইভ ডিজাইন ওভাররাইড প্রস্তাব করা।
+              const committed = await persistAiAssistantReply(db, inMemoryStore, {
+                sessionId,
+                userMessageId: userMsgId,
+                rawContent: JSON.stringify({ reply: noKeyReply }),
+                modelUsed: 'offline-rule-based',
+              });
+              return sendJson(committed);
+            }
 
-তোমার কাছে পুরো সফটওয়্যারের ডাটাবেজ, সেটিংস, পিন/লক স্টেট, শস্যের স্টক, খাতা, রিসাইকেল বিন এবং CSS ডিজাইন ওভাররাইডের উপর পূর্ণ পরিচালনা ও সম্পাদনার সার্বিক ক্ষমতা রয়েছে। সফটওয়্যারের আসল ডিজাইন অক্ষুণ্ণ রেখে তুমি যেকোনো ডাটা পড়তে, এন্ট্রি করতে, এডিট করতে এবং রিসাইকেল বিনে পাঠাতে পারো। তবে ডাটাবেজে পরিবর্তনের আগে সর্বদা একটি 'action' অবজেক্ট রিটার্ন করবে, যেন ব্যবহারকারী '✅ নিশ্চিত করুন' চাপলে তা কার্যকর হয়।
+            // Build system prompt injecting [EXACT_VERIFIED_SUMMARY] at the very top
+            const systemPrompt = buildAiSystemPrompt(shopContext.verifiedLedger, shopContext);
 
-যদি ইনপুটে অডিও (audio) থাকে:
-- অডিওটি মনোযোগ দিয়ে শুনবে এবং বাংলা কথ্য রূপটিকে 'transcribedText' ফিল্ডে নিখুঁতভাবে বাংলায় লিখবে।
-- স্থানীয় শস্য মোকামের শব্দভাণ্ডার (যেমন: সরিষা, মাঘি সরিষা, টোরি, ভুট্টা, তোষা পাট, গম, আমন ধান, বোরো ধান, খেসারী, মসুর, বস্তা, মণ, কেজি, শুকতি, ঘাটতি, ডালডাল, চালান, খতিয়ান, নগদ আদায়, বাকি বিক্রয়, মহাজন দেনা) সঠিকভাবে সনাক্ত করবে।
+            try {
+              const parts = [{ text: systemPrompt + (userMessage ? `\n\nইউজারের বার্তা: ${userMessage}` : `\n\n[অডিও বা মিডিয়া ইনপুট দেওয়া হয়েছে, অনুগ্রহ করে ট্রান্সক্রিপশন ও নির্দেশনা প্রস্তুত করুন]`) }];
 
-মাহা এন্টারপ্রাইজের বর্তমান লাইভ ডাটা:
-- শস্য তালিকা ও স্টক: ${JSON.stringify(shopContext.commodities.map((c) => ({ id: c.id, name: c.name_bn, mon: Number((c.current_stock_kg / 40.0).toFixed(1)), bags: c.current_stock_bags, wacMon: c.current_wac_per_mon })))}
-- মোট শস্য মজুদ: ${shopContext.totalStockMon} মণ (মূল্য ৳ ${shopContext.totalStockValuation})
-- শীর্ষ বাকিদার ক্রেতা: ${JSON.stringify(shopContext.buyers.slice(0, 10).map((b) => ({ id: b.id, name: b.name, phone: b.phone, due: b.current_balance })))}
-- মোট ক্রেতা বকেয়া: ৳ ${shopContext.totalCustomerDue}
-- শীর্ষ মহাজন/সাপ্লায়ার: ${JSON.stringify(shopContext.suppliers.slice(0, 10).map((s) => ({ id: s.id, name: s.name, payable: Math.abs(s.current_balance) })))}
-- মোট মহাজন দেনা: ৳ ${shopContext.totalSupplierPayable}
-- ক্যাশ ইন হ্যান্ড: ৳ ${shopContext.cashInHand}
-- মেমরি/নিয়মাবলী: ${JSON.stringify(shopContext.memories)}
-- সক্রিয় ডিজাইন ওভাররাইড: ${JSON.stringify(shopContext.overrides)}
-
-যদি ব্যবহারকারী কোনো নতুন তথ্য এন্ট্রি (INSERT), সংশোধন (UPDATE), ডিজাইন পরিবর্তন (DYNAMIC_OVERRIDE) অথবা মুছে ফেলা (DELETE/SOFT_DELETE) করতে বলে:
-অ্যাকশন অবজেক্টে স্পষ্ট Before -> After প্রিভিউ সহ নিচের অ্যাকশন স্কিমা রিটার্ন করবে:
-{
-  "type": "ADD_SALE" | "ADD_PURCHASE" | "ADD_CUSTOMER_PAYMENT" | "ADD_SUPPLIER_PAYMENT" | "ADD_EXPENSE" | "ADD_NOTE" | "EDIT_STOCK" | "DYNAMIC_OVERRIDE" | "DELETE_RECORD" | "UNIVERSAL_DB_MUTATION",
-  "table": "sales" | "purchases" | "parties" | "commodities" | "expenses" | "notes" | "settings",
-  "description": "সংক্ষিপ্ত বাংলা বিবরণ ও Before->After প্রিভিউ (যেমন: ৫০ মণ সরিষা নগদ বিক্রয় - মোট ৳১,৪০,০০০)",
-  "data": { ...টেবিলের ফিল্ডসমূহ বা overrideType, targetKey, content... },
-  "filter": { "id": "রেকর্ড আইডি" },
-  "softDelete": true
-}
-
-যদি বিক্রয় (Sale) হয়:
-"data": {
-  "commodity_id": 1,
-  "varietyName": "সরিষা",
-  "bags": 25,
-  "weightMon": 50.0,
-  "rate": 2800,
-  "totalAmount": 140000,
-  "paymentType": "CASH" বা "DUE",
-  "cashPaid": 140000,
-  "customerName": "রহমান ট্রেডার্স"
-}
-
-যদি নেভিগেশন হতে হয়:
-"navigateTo": "dashboard" | "purchases" | "sales" | "stock" | "ledgers" | "creditors" | "cashbook" | "expenses" | "reports" | "settings" | "notebook" | "recycle_bin"
-
-আউটপুট অবশ্যই নিচের JSON ফরম্যাটে হতে হবে:
-{
-  "transcribedText": "বাংলা ভয়েস রূপান্তর (যদি অডিও ইনপুট থাকে, অন্যথায় খালি)",
-  "reply": "আপনার বিস্তারিত মার্জিত বাংলা উত্তর (Markdown সমর্থিত)",
-  "suggestedTitle": "৩-৫ শব্দের সংক্ষিপ্ত শিরোনাম",
-  "memoryToSave": "সংরক্ষণের উপযোগী দীর্ঘমেয়াদী কোনো তথ্য থাকলে (নতুবা খালি)",
-  "navigateTo": "মডিউল আইডি (নতুবা খালি)",
-  "action": null বা অ্যাকশন অবজেক্ট
-}`;
-
-              try {
-                const parts = [{ text: systemPrompt + (userMessage ? `\n\nইউজারের বার্তা: ${userMessage}` : `\n\n[অডিও বা মিডিয়া ইনপুট দেওয়া হয়েছে, অনুগ্রহ করে ট্রান্সক্রিপশন ও নির্দেশনা প্রস্তুত করুন]`) }];
-
-                if (audioBase64) {
-                  parts.push({
-                    inlineData: {
-                      mimeType: audioMimeType || 'audio/webm',
-                      data: audioBase64.replace(/^data:audio\/\w+;base64,/, ''),
-                    },
-                  });
-                }
-
-                if (imageBase64) {
-                  parts.push({
-                    inlineData: {
-                      mimeType: mimeType || 'image/jpeg',
-                      data: imageBase64.replace(/^data:image\/\w+;base64,/, ''),
-                    },
-                  });
-                }
-
-                const payload = {
-                  contents: [{ parts }],
-                  generationConfig: {
-                    responseMimeType: 'application/json',
-                    temperature: 0.2,
+              if (audioBase64) {
+                parts.push({
+                  inlineData: {
+                    mimeType: audioMimeType || 'audio/webm',
+                    data: audioBase64.replace(/^data:audio\/\w+;base64,/, ''),
                   },
-                };
-
-                const geminiCall = await callGeminiModel(apiKey, payload);
-                if (!geminiCall.ok) {
-                  throw new Error(`Google API (${geminiCall.status}): ${geminiCall.errorText}`);
-                }
-
-                const rawContent = geminiCall.data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-                let parsed = {};
-                try {
-                  const cleanJson = rawContent.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
-                  parsed = JSON.parse(cleanJson);
-                } catch {
-                  parsed = { reply: rawContent };
-                }
-
-                aiReply = parsed.reply || 'দুঃখিত, কোনো উত্তর পাওয়া যায়নি।';
-                transcribedText = parsed.transcribedText || '';
-                suggestedTitle = parsed.suggestedTitle || '';
-                memoryToSave = parsed.memoryToSave || '';
-                navigateTo = parsed.navigateTo || '';
-                proposedAction = parsed.action || null;
-
-                if (transcribedText && transcribedText.trim()) {
-                  await db.prepare('UPDATE AiChatMessage SET message = ? WHERE id = ?').bind(transcribedText.trim(), userMsgId).run().catch(() => {});
-                }
-              } catch (apiErr) {
-                console.error('[Gemini Chat Error]:', apiErr);
-                aiReply = `⚠️ **এআই প্রতিক্রিয়া ত্রুটি:** ${apiErr.message}\n\nদয়া করে আপনার ইন্টারনেট সংযোগ ও API Key যাচাই করুন।`;
+                });
               }
+
+              if (imageBase64) {
+                parts.push({
+                  inlineData: {
+                    mimeType: mimeType || 'image/jpeg',
+                    data: imageBase64.replace(/^data:image\/\w+;base64,/, ''),
+                  },
+                });
+              }
+
+              const payload = {
+                contents: [{ parts }],
+                generationConfig: {
+                  responseMimeType: 'application/json',
+                  temperature: 0.2,
+                },
+              };
+
+              const geminiCall = await callGeminiModel(apiKey, payload);
+
+              // Seamless Authenticated Direct Client-Side Fallback on Geo-block
+              if (!geminiCall.ok && geminiCall.isGeoBlock) {
+                console.warn('[Gemini 400 Geo-Block intercepted] Routing to client-side Bangladesh bypass...');
+                return sendJson({
+                  success: true,
+                  geoFallbackRequired: true,
+                  targetUrl: geminiCall.targetUrl || `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`,
+                  requestBody: payload,
+                  sessionId,
+                  userMessageId: userMsgId,
+                  modelUsed: geminiCall.modelUsed || 'gemini-3-flash-preview',
+                });
+              }
+
+              if (!geminiCall.ok) {
+                throw new Error(`Google API (${geminiCall.status}): ${geminiCall.errorText}`);
+              }
+
+              const rawContent = geminiCall.data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+              const committed = await persistAiAssistantReply(db, inMemoryStore, {
+                sessionId,
+                userMessageId: userMsgId,
+                rawContent,
+                modelUsed: geminiCall.modelUsed,
+              });
+
+              return sendJson(committed);
+            } catch (apiErr) {
+              console.error('[Gemini Chat Error]:', apiErr);
+              const errReply = `⚠️ **এআই প্রতিক্রিয়া ত্রুটি:** ${apiErr.message}\n\nদয়া করে আপনার ইন্টারনেট সংযোগ ও API Key যাচাই করুন।`;
+              const committed = await persistAiAssistantReply(db, inMemoryStore, {
+                sessionId,
+                userMessageId: userMsgId,
+                rawContent: JSON.stringify({ reply: errReply }),
+                modelUsed: 'error',
+              });
+              return sendJson(committed);
             }
-
-            if (memoryToSave && memoryToSave.trim().length > 0) {
-              const memId = `mem_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
-              await db.prepare(`
-                INSERT INTO AiMemory (id, fact, category, createdAt)
-                VALUES (?, ?, 'BUSINESS', CURRENT_TIMESTAMP)
-              `).bind(memId, memoryToSave.trim()).run().catch(() => {});
-            }
-
-            if (suggestedTitle && suggestedTitle.trim().length > 0) {
-              await db.prepare(`
-                UPDATE AiChatSession
-                SET title = CASE WHEN title = 'নতুন আলোচনা' OR title LIKE '%ছবি বিশ্লেষণ%' OR title LIKE '%ভয়েস বার্তা%' THEN ? ELSE title END,
-                    updatedAt = CURRENT_TIMESTAMP
-                WHERE id = ?
-              `).bind(suggestedTitle.trim(), sessionId).run().catch(() => {});
-            } else {
-              await db.prepare('UPDATE AiChatSession SET updatedAt = CURRENT_TIMESTAMP WHERE id = ?').bind(sessionId).run().catch(() => {});
-            }
-
-            const modelMsgId = `msg_m_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
-            const actionStr = proposedAction ? JSON.stringify(proposedAction) : null;
-            await db.prepare(`
-              INSERT INTO AiChatMessage (id, sessionId, role, message, hasImage, actionJson, actionExecuted, createdAt)
-              VALUES (?, ?, 'model', ?, 0, ?, 0, CURRENT_TIMESTAMP)
-            `).bind(modelMsgId, sessionId, aiReply, actionStr).run();
-
-            return sendJson({
-              success: true,
-              sessionId,
-              messageId: modelMsgId,
-              userMessageId: userMsgId,
-              transcribedText,
-              reply: aiReply,
-              suggestedTitle,
-              memoryToSave,
-              navigateTo,
-              action: proposedAction,
-            });
           }
 
           return sendJson({ success: true, reply: 'ডাটাবেজ কানেকশন প্রস্তুত নয়' });

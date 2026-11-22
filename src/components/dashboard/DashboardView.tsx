@@ -84,8 +84,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         ]);
       }
 
-      // Compute total creditor liability
-      if (suppliers && suppliers.length > 0) {
+      // Compute total creditor liability from verified stats or suppliers
+      if (st && st.total_payable !== undefined && st.total_payable !== null && Number(st.total_payable) > 0) {
+        setCreditorTotal(Number(st.total_payable));
+      } else if (suppliers && suppliers.length > 0) {
         const totalPayable = suppliers.reduce((sum: number, s: any) => {
           const bal = Number(s.current_balance || s.opening_balance || 0);
           return bal < 0 ? sum + Math.abs(bal) : sum;
@@ -198,7 +200,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </span>
             </div>
             <p className="text-xs sm:text-[13px] text-[#E2C384] font-medium mt-1 leading-relaxed line-clamp-2">
-              {greeting} আজকের ব্যবসায় আজ পর্যন্ত {topComm ? topComm.name_bn : 'সরিষা'}-র স্টক রয়েছে ({toBnDigits(topMon)} মণ) । বাকি/বকেয়া খাতা ৳{formatTakaBn(todayDueSale, false)} এবং কোনো বকেয়া পাওনাদার হিসাব নেই। ⚠️ ১টি চালানের স্টক কম আছে।
+              {greeting} আজকের ব্যবসায় আজ পর্যন্ত {topComm ? topComm.name_bn : 'সরিষা'}-র স্টক রয়েছে ({toBnDigits(topMon)} মণ) । বাকি বিক্রয় ৳{formatTakaBn(todayDueSale, false)}{creditorTotal > 0 ? ` এবং মোট পাওনাদার দেনা ৳${formatTakaBn(creditorTotal, false)}` : ' এবং কোনো বকেয়া পাওনাদার দেনা নেই'}। ⚠️ ১টি চালানের স্টক কম আছে।
             </p>
           </div>
         </div>

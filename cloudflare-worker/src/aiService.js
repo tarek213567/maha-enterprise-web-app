@@ -8,6 +8,12 @@
  */
 
 import { toBnDigits, formatTakaBn, getDhakaInfo } from './royalExcelBackup.js';
+import {
+  computeVerifiedBusinessLedger,
+  getBstDateString,
+  roundMoney,
+  roundWeight,
+} from './verifiedLedger.js';
 
 // ============================================================================
 // GEMINI API KEY & MODEL DISPATCH
@@ -38,6 +44,7 @@ export async function callGeminiModel(apiKey, payload) {
 
   let lastErrorText = '';
   let lastStatus = 500;
+  let isGeoBlock = false;
 
   for (const model of models) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -50,154 +57,295 @@ export async function callGeminiModel(apiKey, payload) {
 
       if (res.ok) {
         const data = await res.json();
-        return { ok: true, status: res.status, data, modelUsed: model };
+        return { ok: true, status: res.status, data, modelUsed: model, isGeoBlock: false };
       }
 
       lastStatus = res.status;
       lastErrorText = await res.text();
       console.warn(`[Gemini Model ${model} failed with ${res.status}]:`, lastErrorText.slice(0, 150));
+
+      if (res.status === 400 && (
+        lastErrorText.includes('User location is not supported') ||
+        lastErrorText.includes('FAILED_PRECONDITION') ||
+        lastErrorText.toLowerCase().includes('location')
+      )) {
+        isGeoBlock = true;
+        // In geo-block, calling other models from the same Worker IP will fail identically; immediately return fallback instruction
+        return {
+          ok: false,
+          status: 400,
+          isGeoBlock: true,
+          errorText: lastErrorText,
+          targetUrl: url,
+          modelUsed: model,
+        };
+      }
     } catch (err) {
       lastErrorText = err.message;
       console.warn(`[Gemini Model ${model} fetch error]:`, err.message);
     }
   }
 
-  return { ok: false, status: lastStatus, errorText: lastErrorText };
+  return {
+    ok: false,
+    status: lastStatus,
+    isGeoBlock,
+    errorText: lastErrorText,
+    targetUrl: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`,
+    modelUsed: 'gemini-3-flash-preview',
+  };
 }
 
 // ============================================================================
-// LIVE SHOP CONTEXT COLLECTOR
+// LIVE SHOP CONTEXT COLLECTOR (POWERED BY SINGLE-SOURCE-OF-TRUTH BST LEDGER)
 // ============================================================================
-export async function fetchLiveShopContext(db) {
-  if (!db) {
-    return {
-      commodities: [],
-      totalStockMon: 0,
-      totalStockValuation: 0,
-      buyers: [],
-      totalCustomerDue: 0,
-      suppliers: [],
-      totalSupplierPayable: 0,
-      todaySales: { count: 0, totalAmount: 0, totalCash: 0, totalDue: 0 },
-      todayPurchases: { count: 0, totalAmount: 0, totalMon: 0 },
-      todayExpenses: { count: 0, totalAmount: 0 },
-      cashInHand: 0,
-      recentNotes: [],
-      memories: [],
-      overrides: [],
-    };
+export async function fetchLiveShopContext(db, inMemoryStore = null) {
+  const ledger = await computeVerifiedBusinessLedger(db, inMemoryStore);
+  const todayStr = ledger.bstDate;
+
+  // Recent Notes
+  let notes = [];
+  if (db) {
+    const { results } = await db.prepare(`
+      SELECT id, title, content, category, is_pinned FROM notes ORDER BY is_pinned DESC, updated_at DESC LIMIT 5
+    `).all().catch(() => ({ results: [] }));
+    notes = results || [];
+  } else if (inMemoryStore?.notes) {
+    notes = inMemoryStore.notes.slice(0, 5);
   }
 
-  const dhaka = getDhakaInfo();
-  const p = dhaka?.parts || dhaka;
-  const todayStr = `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
+  // Ai Memories
+  let memories = [];
+  if (db) {
+    const { results } = await db.prepare(`
+      SELECT id, fact, category FROM AiMemory ORDER BY createdAt DESC LIMIT 15
+    `).all().catch(() => ({ results: [] }));
+    memories = (results || []).map((m) => m.fact);
+  }
 
-  // 1. Commodities & Stocks
-  const { results: comms } = await db.prepare(`
-    SELECT id, name_bn, name_en, default_bag_weight_kg, current_stock_kg, current_stock_bags, current_wac_per_kg, current_wac_per_mon
-    FROM commodities ORDER BY id ASC
-  `).all().catch(() => ({ results: [] }));
-
-  let totalStockKg = 0;
-  let totalStockValuation = 0;
-  (comms || []).forEach((c) => {
-    const kg = Number(c.current_stock_kg) || 0;
-    const wacKg = Number(c.current_wac_per_kg) || 0;
-    totalStockKg += kg;
-    totalStockValuation += kg * wacKg;
-  });
-  const totalStockMon = Number((totalStockKg / 40.0).toFixed(2));
-
-  // 2. Parties (Buyers & Suppliers)
-  const { results: buyers } = await db.prepare(`
-    SELECT id, name, phone, address, current_balance FROM parties
-    WHERE party_type = 'BUYER' AND current_balance > 0
-    ORDER BY current_balance DESC
-  `).all().catch(() => ({ results: [] }));
-
-  const totalCustomerDue = (buyers || []).reduce((acc, b) => acc + (Number(b.current_balance) || 0), 0);
-
-  const { results: suppliers } = await db.prepare(`
-    SELECT id, name, phone, address, current_balance FROM parties
-    WHERE party_type = 'SUPPLIER' AND current_balance < 0
-    ORDER BY current_balance ASC
-  `).all().catch(() => ({ results: [] }));
-
-  const totalSupplierPayable = Math.abs(
-    (suppliers || []).reduce((acc, s) => acc + (Number(s.current_balance) || 0), 0)
-  );
-
-  // 3. Today's Sales
-  const todaySalesData = await db.prepare(`
-    SELECT COUNT(*) as count, SUM(net_invoice_amount) as totalAmount, SUM(paid_amount) as totalCash, SUM(due_amount) as totalDue
-    FROM sales WHERE sale_date = ?
-  `).bind(todayStr).first().catch(() => null);
-
-  // 4. Today's Purchases
-  const todayPurchasesData = await db.prepare(`
-    SELECT COUNT(*) as count, SUM(gross_amount) as totalAmount, SUM(net_weight_mon) as totalMon
-    FROM purchases WHERE purchase_date = ?
-  `).bind(todayStr).first().catch(() => null);
-
-  // 5. Today's Expenses
-  const todayExpData = await db.prepare(`
-    SELECT COUNT(*) as count, SUM(amount) as totalAmount
-    FROM expenses WHERE expense_date = ?
-  `).bind(todayStr).first().catch(() => null);
-
-  // 6. Cash In Hand (Cashbook calculation)
-  let cashInHand = 0;
-  try {
-    const cashInflows = await db.prepare("SELECT SUM(amount) as s FROM cashbook WHERE entry_type = 'INFLOW' AND payment_mode = 'CASH'").first();
-    const cashOutflows = await db.prepare("SELECT SUM(amount) as s FROM cashbook WHERE entry_type = 'OUTFLOW' AND payment_mode = 'CASH'").first();
-    cashInHand = (cashInflows?.s || 0) - (cashOutflows?.s || 0);
-  } catch (e) {}
-
-  // 7. Recent Notes
-  const { results: notes } = await db.prepare(`
-    SELECT id, title, content, category, is_pinned FROM notes ORDER BY is_pinned DESC, updated_at DESC LIMIT 5
-  `).all().catch(() => ({ results: [] }));
-
-  // 8. Ai Memories
-  const { results: memories } = await db.prepare(`
-    SELECT id, fact, category FROM AiMemory ORDER BY createdAt DESC LIMIT 15
-  `).all().catch(() => ({ results: [] }));
-
-  // 9. Active Dynamic Overrides
-  const { results: overrides } = await db.prepare(`
-    SELECT id, overrideType, targetKey, content, isActive FROM AiDynamicOverride WHERE isActive = 1
-  `).all().catch(() => ({ results: [] }));
+  // Active Dynamic Overrides
+  let overrides = [];
+  if (db) {
+    const { results } = await db.prepare(`
+      SELECT id, overrideType, targetKey, content, isActive FROM AiDynamicOverride WHERE isActive = 1
+    `).all().catch(() => ({ results: [] }));
+    overrides = results || [];
+  }
 
   return {
     todayStr,
-    commodities: comms || [],
-    totalStockKg,
-    totalStockMon,
-    totalStockValuation: Math.round(totalStockValuation),
-    buyers: buyers || [],
-    totalCustomerDue: Math.round(totalCustomerDue),
-    suppliers: suppliers || [],
-    totalSupplierPayable: Math.round(totalSupplierPayable),
+    verifiedLedger: ledger,
+    commodities: (ledger.warehouseStock.categories || []).map((c) => ({
+      id: c.id,
+      name_bn: c.name,
+      name_en: c.name_en,
+      current_stock_kg: c.weightKg,
+      current_stock_bags: c.bags,
+      current_wac_per_kg: c.avgRatePerKg,
+      current_wac_per_mon: c.avgRatePerMon,
+      status: c.status,
+    })),
+    totalStockKg: ledger.warehouseStock.totalWeightKg,
+    totalStockMon: ledger.warehouseStock.totalMaund,
+    totalStockValuation: ledger.warehouseStock.totalValuation,
+    buyers: (ledger.customerDues.allActiveCustomerDues || []).map((c) => ({
+      id: c.id,
+      name: c.n,
+      phone: c.p,
+      address: c.a,
+      current_balance: c.d,
+    })),
+    totalCustomerDue: ledger.customerDues.totalReceivable,
+    suppliers: (ledger.supplierPayables.allActiveSupplierPayables || []).map((s) => ({
+      id: s.id,
+      name: s.n,
+      phone: s.p,
+      address: s.a,
+      current_balance: -s.d,
+    })),
+    totalSupplierPayable: ledger.supplierPayables.totalPayable,
     todaySales: {
-      count: todaySalesData?.count || 0,
-      totalAmount: Math.round(todaySalesData?.totalAmount || 0),
-      totalCash: Math.round(todaySalesData?.totalCash || 0),
-      totalDue: Math.round(todaySalesData?.totalDue || 0),
+      count: ledger.todaySales.invoiceCount,
+      totalAmount: ledger.todaySales.totalAmount,
+      totalCash: ledger.todaySales.cashAmount,
+      totalDue: ledger.todaySales.dueAmount,
+      totalBags: ledger.todaySales.totalBags,
+      totalWeightMon: ledger.todaySales.totalWeightMon,
+      invoices: ledger.todaySales.invoices,
     },
     todayPurchases: {
-      count: todayPurchasesData?.count || 0,
-      totalAmount: Math.round(todayPurchasesData?.totalAmount || 0),
-      totalMon: Number((todayPurchasesData?.totalMon || 0).toFixed(2)),
+      count: ledger.todayPurchases.purchaseCount,
+      totalAmount: ledger.todayPurchases.totalAmount,
+      paidAmount: ledger.todayPurchases.paidAmount,
+      dueAmount: ledger.todayPurchases.dueAmount,
+      totalBags: ledger.todayPurchases.totalBags,
+      totalMon: ledger.todayPurchases.totalWeightMon,
+      purchases: ledger.todayPurchases.purchases,
     },
     todayExpenses: {
-      count: todayExpData?.count || 0,
-      totalAmount: Math.round(todayExpData?.totalAmount || 0),
+      count: ledger.todayExpenses.count,
+      totalAmount: ledger.todayExpenses.totalAmount,
+      items: ledger.todayExpenses.items,
     },
-    cashInHand: Math.round(cashInHand),
-    recentNotes: notes || [],
-    memories: (memories || []).map((m) => m.fact),
-    overrides: overrides || [],
+    cashInHand: ledger.dailyCashBook.liveCashBalance,
+    dailyCashBook: ledger.dailyCashBook,
+    recentNotes: notes,
+    memories,
+    overrides,
   };
+}
+
+// ============================================================================
+// SYSTEM PROMPT BUILDER INJECTING [EXACT_VERIFIED_SUMMARY]
+// ============================================================================
+export function buildAiSystemPrompt(ledger, shopContext) {
+  return `[EXACT_VERIFIED_SUMMARY]
+${JSON.stringify(ledger)}
+[/EXACT_VERIFIED_SUMMARY]
+
+তুমি "Ai Manezar", মাহা এন্টারপ্রাইজ (চাচকৈড় বাজার, গুরুদাসপুর, নাটোর)-এর প্রধান বুদ্ধিমান ব্যবসায়িক সহকারী ও ম্যানেজার।
+তোমাকে গুগল জেমিনাই ৩ ফ্ল্যাশ (Gemini 3 Flash - gemini-3-flash-preview) দ্বারা পরিচালিত করা হচ্ছে।
+
+[EXACT_VERIFIED_SUMMARY] is the ONLY authoritative live database truth for মাহা এন্টারপ্রাইজ।
+ALWAYS quote exact totals directly from [EXACT_VERIFIED_SUMMARY] for বাকি খাতা (customerDues.totalReceivable & activeCustomerCount), মহাজন/সাপ্লায়ার দেনা (supplierPayables.totalPayable & activeSupplierCount), গুদাম মজুদ (warehouseStock), আজকের বিক্রয় (todaySales), আজকের ক্রয় (todayPurchases), আজকের পরিচালন খরচ (todayExpenses), and দৈনিক ক্যাশ বুক (dailyCashBook)।
+NEVER manually sum truncated sample arrays, NEVER guess zero when verified stock/ledger records exist, and NEVER use UTC dates instead of bstDate (${ledger.bstDate})।
+For individual customer or supplier questions, look up the exact entry in customerDues.allActiveCustomerDues or supplierPayables.allActiveSupplierPayables।
+
+তুমি দুইটি কাজ নিখুঁতভাবে করতে পারো:
+১. যেকোনো সাধারণ বিষয়ে প্রশ্ন-উত্তর, কোডিং, হিসাব-নিকাশ, পরামর্শ ও চ্যাট করা (Gemini-এর মতো পূর্ণ সাধারণ বুদ্ধিমত্তা)।
+২. আড়তের লাইভ D1 ডাটাবেজ (১৪টি টেবিল) এবং ৬০ দিনের RecycleBin-এর তথ্য জেনে বিশ্লেষণ ও সরাসরি ডাটাবেজ অ্যাকশন এবং লাইভ ডিজাইন ওভাররাইড প্রস্তাব করা।
+
+তোমার কাছে পুরো সফটওয়্যারের ডাটাবেজ, সেটিংস, পিন/লক স্টেট, শস্যের স্টক, খাতা, রিসাইকেল বিন এবং CSS ডিজাইন ওভাররাইডের উপর পূর্ণ পরিচালনা ও সম্পাদনার সার্বিক ক্ষমতা রয়েছে। সফটওয়্যারের আসল ডিজাইন অক্ষুণ্ণ রেখে তুমি যেকোনো ডাটা পড়তে, এন্ট্রি করতে, এডিট করতে এবং রিসাইকেল বিনে পাঠাতে পারো। তবে ডাটাবেজে পরিবর্তনের আগে সর্বদা একটি 'action' অবজেক্ট রিটার্ন করবে, যেন ব্যবহারকারী '✅ নিশ্চিত করুন' চাপলে তা কার্যকর হয়।
+
+যদি ইনপুটে অডিও (audio) থাকে:
+- অডিওটি মনোযোগ দিয়ে শুনবে এবং বাংলা কথ্য রূপটিকে 'transcribedText' ফিল্ডে নিখুঁতভাবে বাংলায় লিখবে।
+- স্থানীয় শস্য মোকামের শব্দভাণ্ডার (যেমন: সরিষা, মাঘি সরিষা, টোরি, ভুট্টা, তোষা পাট, গম, আমন ধান, বোরো ধান, খেসারী, মসুর, বস্তা, মণ, কেজি, শুকতি, ঘাটতি, ডালডাল, চালান, খতিয়ান, নগদ আদায়, বাকি বিক্রয়, মহাজন দেনা) সঠিকভাবে সনাক্ত করবে।
+
+সংরক্ষিত মেমোরি: ${JSON.stringify(shopContext?.memories || [])}
+সক্রিয় ডিজাইন ওভাররাইড: ${JSON.stringify(shopContext?.overrides || [])}
+সাম্প্রতিক নোটবুক: ${JSON.stringify(shopContext?.recentNotes || [])}
+
+যদি ব্যবহারকারী কোনো নতুন তথ্য এন্ট্রি (INSERT), সংশোধন (UPDATE), ডিজাইন পরিবর্তন (DYNAMIC_OVERRIDE) অথবা মুছে ফেলা (DELETE/SOFT_DELETE) করতে বলে:
+অ্যাকশন অবজেক্টে স্পষ্ট Before -> After প্রিভিউ সহ নিচের অ্যাকশন স্কিমা রিটার্ন করবে:
+{
+  "type": "ADD_SALE" | "ADD_PURCHASE" | "ADD_CUSTOMER_PAYMENT" | "ADD_SUPPLIER_PAYMENT" | "ADD_EXPENSE" | "ADD_NOTE" | "EDIT_STOCK" | "DYNAMIC_OVERRIDE" | "DELETE_RECORD" | "UNIVERSAL_DB_MUTATION",
+  "table": "sales" | "purchases" | "parties" | "commodities" | "expenses" | "notes" | "settings",
+  "description": "সংক্ষিপ্ত বাংলা বিবরণ ও Before->After প্রিভিউ (যেমন: ৫০ মণ সরিষা নগদ বিক্রয় - মোট ৳১,৪০,০০০)",
+  "data": { ...টেবিলের ফিল্ডসমূহ বা overrideType, targetKey, content... },
+  "filter": { "id": "রেকর্ড আইডি" },
+  "softDelete": true
+}
+
+যদি বিক্রয় (Sale) হয়:
+"data": {
+  "commodity_id": 1,
+  "varietyName": "সরিষা",
+  "bags": 25,
+  "weightMon": 50.0,
+  "rate": 2800,
+  "totalAmount": 140000,
+  "paymentType": "CASH" বা "DUE",
+  "cashPaid": 140000,
+  "customerName": "রহমান ট্রেডার্স"
+}
+
+যদি নেভিগেশন হতে হয়:
+"navigateTo": "dashboard" | "purchases" | "sales" | "stock" | "ledgers" | "creditors" | "cashbook" | "expenses" | "reports" | "settings" | "notebook" | "recycle_bin"
+
+আউটপুট অবশ্যই নিচের JSON ফরম্যাটে হতে হবে:
+{
+  "transcribedText": "বাংলা ভয়েস রূপান্তর (যদি অডিও ইনপুট থাকে, অন্যথায় খালি)",
+  "reply": "আপনার বিস্তারিত মার্জিত বাংলা উত্তর (Markdown সমর্থিত)",
+  "suggestedTitle": "৩-৫ শব্দের সংক্ষিপ্ত শিরোনাম",
+  "memoryToSave": "সংরক্ষণের উপযোগী দীর্ঘমেয়াদী কোনো তথ্য থাকলে (নতুবা খালি)",
+  "navigateTo": "মডিউল আইডি (নতুবা খালি)",
+  "action": null বা অ্যাকশন অবজেক্ট
+}`;
+}
+
+// ============================================================================
+// GEMINI JSON RESPONSE PARSER & ATOMIC D1 PERSISTENCE
+// ============================================================================
+export function parseGeminiResponse(rawText) {
+  if (!rawText) return { reply: 'দুঃখিত, কোনো উত্তর পাওয়া যায়নি।' };
+  try {
+    const cleanJson = String(rawText).replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+    return JSON.parse(cleanJson);
+  } catch (_) {
+    return { reply: String(rawText).trim() };
+  }
+}
+
+export async function persistAiAssistantReply(db, inMemoryStore, { sessionId, userMessageId, rawContent, modelUsed = 'gemini-3-flash-preview' }) {
+  const parsed = parseGeminiResponse(rawContent);
+  const aiReply = parsed.reply || 'দুঃখিত, কোনো উত্তর পাওয়া যায়নি।';
+  const transcribedText = parsed.transcribedText || '';
+  const suggestedTitle = parsed.suggestedTitle || '';
+  const memoryToSave = parsed.memoryToSave || '';
+  const navigateTo = parsed.navigateTo || '';
+  const proposedAction = parsed.action || null;
+
+  if (db) {
+    if (transcribedText && transcribedText.trim() && userMessageId) {
+      await db.prepare('UPDATE AiChatMessage SET message = ? WHERE id = ?').bind(transcribedText.trim(), userMessageId).run().catch(() => {});
+    }
+
+    if (memoryToSave && memoryToSave.trim().length > 0) {
+      const memId = `mem_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+      await db.prepare(`
+        INSERT INTO AiMemory (id, fact, category, createdAt)
+        VALUES (?, ?, 'BUSINESS', CURRENT_TIMESTAMP)
+      `).bind(memId, memoryToSave.trim()).run().catch(() => {});
+    }
+
+    if (suggestedTitle && suggestedTitle.trim().length > 0 && sessionId) {
+      await db.prepare(`
+        UPDATE AiChatSession
+        SET title = CASE WHEN title = 'নতুন আলোচনা' OR title LIKE '%ছবি বিশ্লেষণ%' OR title LIKE '%ভয়েস বার্তা%' THEN ? ELSE title END,
+            updatedAt = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).bind(suggestedTitle.trim(), sessionId).run().catch(() => {});
+    } else if (sessionId) {
+      await db.prepare('UPDATE AiChatSession SET updatedAt = CURRENT_TIMESTAMP WHERE id = ?').bind(sessionId).run().catch(() => {});
+    }
+
+    const modelMsgId = `msg_m_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    const actionStr = proposedAction ? JSON.stringify(proposedAction) : null;
+    await db.prepare(`
+      INSERT INTO AiChatMessage (id, sessionId, role, message, hasImage, actionJson, actionExecuted, createdAt)
+      VALUES (?, ?, 'model', ?, 0, ?, 0, CURRENT_TIMESTAMP)
+    `).bind(modelMsgId, sessionId, aiReply, actionStr).run();
+
+    return {
+      success: true,
+      sessionId,
+      messageId: modelMsgId,
+      userMessageId,
+      transcribedText,
+      reply: aiReply,
+      suggestedTitle,
+      memoryToSave,
+      navigateTo,
+      action: proposedAction,
+      modelUsed,
+    };
+  } else {
+    // In-Memory store fallback
+    const modelMsgId = `msg_m_${Date.now()}`;
+    return {
+      success: true,
+      sessionId,
+      messageId: modelMsgId,
+      userMessageId,
+      transcribedText,
+      reply: aiReply,
+      suggestedTitle,
+      memoryToSave,
+      navigateTo,
+      action: proposedAction,
+      modelUsed,
+    };
+  }
 }
 
 // ============================================================================

@@ -3,6 +3,9 @@ main = "cloudflare-worker/src/index.js"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
+[placement]
+mode = "smart"
+
 routes = [
   { pattern = "maha.nexobd.pro/*", zone_name = "nexobd.pro" }
 ]

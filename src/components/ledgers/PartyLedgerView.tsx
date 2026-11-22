@@ -599,7 +599,7 @@ export const PartyLedgerView: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="🔍 ক্রেতার নাম, মোবাইল নম্বর বা ঠিকানা দিয়ে খুঁজুন..."
+            placeholder="ক্রেতার নাম, মোবাইল নম্বর বা ঠিকানা দিয়ে খুঁজুন..."
             className="w-full pl-10 pr-9 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-amber-500 focus:outline-none transition-all font-medium"
           />
           {searchQuery && (

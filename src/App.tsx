@@ -172,7 +172,7 @@ const AppContent: React.FC = () => {
 
           {/* Module Content */}
           <ErrorBoundary fallbackTitle="মডিউল রেন্ডারার রিকভারি">
-            <main className="flex-1 max-w-[1550px] w-full mx-auto p-3 sm:p-4">
+            <main className="flex-1 max-w-[1550px] w-full mx-auto p-3 sm:p-4 pb-24 sm:pb-8">
               {currentTab === 'dashboard' && (
                 <DashboardView
                   onNavigate={setCurrentTab}

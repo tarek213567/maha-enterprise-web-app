@@ -966,11 +966,51 @@ export const dbService = {
       navigateTo?: string;
       action?: any;
       error?: string;
+      geoFallbackRequired?: boolean;
     }> => {
-      return await apiFetch('/api/ai/chat', {
+      const res = await apiFetch<any>('/api/ai/chat', {
         method: 'POST',
         body: JSON.stringify(payload),
       });
+
+      // Seamless Direct Browser Fallback on Cloudflare Worker Geo-Block
+      if (res && res.geoFallbackRequired && res.targetUrl && res.requestBody) {
+        try {
+          const directFetch = await fetch(res.targetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(res.requestBody),
+          });
+          if (directFetch.ok) {
+            const geminiJson = await directFetch.json();
+            return await apiFetch<any>(`/api/ai/sessions/${res.sessionId}/commit-reply`, {
+              method: 'POST',
+              body: JSON.stringify({
+                geminiResponse: geminiJson,
+                userMessageId: res.userMessageId,
+                modelUsed: res.modelUsed,
+              }),
+            });
+          }
+        } catch (clientErr: any) {
+          console.error('[AiManezar] Direct client fallback failed:', clientErr);
+        }
+      }
+
+      return res;
+    },
+    commitReply: async (sessionId: string, payload: {
+      geminiResponse: any;
+      userMessageId?: string;
+      modelUsed?: string;
+    }): Promise<any> => {
+      return await apiFetch(`/api/ai/sessions/${sessionId}/commit-reply`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    },
+    verifyParity: async (): Promise<{ ok: boolean; bstDate: string; verifiedLedger: any }> => {
+      return await apiFetch('/api/ai/verify-parity');
     },
     executeAction: async (action: any, messageId?: string): Promise<{ success: boolean; message?: string; error?: string; invoiceNo?: string; lotNo?: string }> => {
       return await apiFetch('/api/ai/execute-action', {
